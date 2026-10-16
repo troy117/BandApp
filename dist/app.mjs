@@ -3,6 +3,7 @@ import { KeyboardSource } from './vendor/sightkick-input.mjs';
 import { DrumAudio } from './audio.mjs';
 import { SongImporter, formatDuration } from './song-import.mjs';
 import { backingSchedule } from './midi.mjs';
+import { createNotation, drawSheet, nextHitGroup } from './notation.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
@@ -18,6 +19,7 @@ let settings = {
   tolerance: [70, 100, 140].includes(saved.tolerance) ? saved.tolerance : 140,
   offset: validNumber(saved.offset, 0, -200, 200),
   metronome: saved.metronome !== false, guide: saved.guide === true,
+  view: saved.view === 'sheet' ? 'sheet' : 'highway',
 };
 let session = null;
 let lastReport = null;
@@ -44,6 +46,27 @@ const padTimers = new Map();
 const canvas = $('highway');
 const ctx = canvas.getContext('2d');
 let viewport = { width: 800, height: 347, dpr: 1 };
+let notationCache = { chart: null, model: null };
+
+function effectiveView() { return settings.view === 'sheet' && previewChart.kind === 'groove' ? 'sheet' : 'highway'; }
+function renderView() {
+  const sheet = effectiveView() === 'sheet';
+  const imported = previewChart.kind !== 'groove';
+  $('view-sheet').disabled = imported;
+  $('view-sheet').title = imported ? 'Sheet music currently supports the built-in grooves. Imported MIDI uses the note highway.' : '';
+  $('view-sheet').setAttribute('aria-pressed', String(sheet));
+  $('view-highway').setAttribute('aria-pressed', String(!sheet));
+  $('practice-stage').classList.toggle('sheet-view', sheet);
+  $('lane-labels').hidden = sheet;
+  $('sheet-legend').hidden = !sheet;
+  $('view-help').textContent = sheet ? 'Play each note as the gold playhead crosses it. Notes stacked together are played together.' : 'Hit when each colored bar is centered in its matching box. The center mark is the beat.';
+  $('view-availability').hidden = !imported;
+  canvas.setAttribute('aria-label', sheet ? 'Drum sheet music on a five-line staff. Kick in the bottom space, snare in the second space from the top, and X-shaped hi-hat notes above the staff. Follow the gold playhead.' : 'Approaching drum notes. Press each drum key when its colored bar is centered in the matching hit box.');
+  $('sheet-legend').innerHTML = ['kick', 'snare', 'hihat'].filter(id => laneDrums.some(drum => drum.id === id)).map(id => {
+    const drum = DRUMS.find(item => item.id === id);
+    return `<span style="--drum-color:${drum.color}"><i aria-hidden="true">${id === 'hihat' ? '×' : '●'}</i>${drum.name}<kbd>${bindings[id].map(keyLabel).join(' / ') || 'Unassigned'}</kbd></span>`;
+  }).join('') + '<small>Same column = play together</small>';
+}
 
 function notify(message, error = false) {
   $('notice').textContent = message;
@@ -67,6 +90,7 @@ function renderPads() {
     button.addEventListener('click', event => { if (event.detail === 0) strike(button.dataset.drum, performance.now(), 'pad'); });
   }
   renderLaneLabels();
+  renderView();
 }
 function renderLaneLabels() {
   $('lane-labels').style.gridTemplateColumns = `repeat(${laneDrums.length}, minmax(0, 1fr))`;
@@ -78,6 +102,7 @@ function renderGroove() {
   previewChart = imported ? loadedSong.chart : createChart(settings.grooveId, settings.bpm, settings.bars);
   laneDrums = activeDrums(previewChart);
   renderLaneLabels();
+  renderView();
   $('time-signature').textContent = `${previewChart.numerator}/${previewChart.denominator}`;
   $('count-in-label').textContent = `${previewChart.countInBeats}-beat count-in`;
   $('bar-status').textContent = `${previewChart.bars} BARS · ${previewChart.notes.length} NOTES`;
@@ -160,7 +185,7 @@ async function startRun(mode = 'practice') {
     $('live-score').textContent = '—';
     $('live-hits').textContent = '0';
     $('live-streak').textContent = '0';
-    feedback(mode === 'demo' ? 'Listen to the pattern.' : 'Here comes the count-in.', mode === 'demo' ? 'No score in listen mode. Play along if you like.' : 'Meet each colored bar at the line.');
+    feedback(mode === 'demo' ? 'Listen to the pattern.' : 'Here comes the count-in.', mode === 'demo' ? 'No score in listen mode. Play along if you like.' : effectiveView() === 'sheet' ? 'Play the notes as the gold playhead crosses them.' : 'Meet each colored bar in the center of its hit box.');
     schedule();
   } catch (error) {
     session = null;
@@ -259,12 +284,12 @@ function strike(drum, timestamp, source = 'keyboard') {
   const time = audio.audibleTime(normalizedTimestamp) - session.startAt - session.settings.offset / 1000;
   if (time < -session.settings.tolerance / 1000 || time > session.judge.chart.duration + session.settings.tolerance / 1000) return;
   const result = session.judge.strike(drum, time, source);
-  if (result.type === 'extra') feedback('An extra hit.', 'Keep following the colored bars.', '#f58c99');
+  if (result.type === 'extra') feedback('An extra hit.', effectiveView() === 'sheet' ? 'Keep following the notes and gold playhead.' : 'Keep following the bars into their hit boxes.', '#f58c99');
   else {
     const ms = Math.round(Math.abs(result.errorMs));
     const name = DRUMS.find(item => item.id === drum).name;
     const title = ms <= 25 ? 'Right in the pocket.' : `${ms} ms ${result.errorMs < 0 ? 'early' : 'late'}.`;
-    feedback(title, `${name} · ${ms <= 25 ? 'Keep that feeling.' : result.errorMs < 0 ? 'Give the beat a little room.' : 'Try meeting the line a little sooner.'}`, ms <= 50 ? '#63d9c4' : '#e8c17b');
+    feedback(title, `${name} · ${ms <= 25 ? 'Keep that feeling.' : result.errorMs < 0 ? 'Give the beat a little room.' : effectiveView() === 'sheet' ? 'Try meeting the playhead a little sooner.' : 'Try meeting the box center a little sooner.'}`, ms <= 50 ? '#63d9c4' : '#e8c17b');
   }
   updateStats(session.judge);
 }
@@ -345,6 +370,7 @@ document.querySelectorAll('[data-close]').forEach(button => button.addEventListe
 $('about').addEventListener('click', () => { if (session || starting) stopRun(); $('about-dialog').showModal(); });
 $('start').addEventListener('click', () => startRun());
 $('listen').addEventListener('click', () => startRun('demo'));
+for (const view of ['sheet', 'highway']) $('view-' + view).addEventListener('click', () => { settings.view = view; persist(); renderView(); });
 for (const id of ['open-import', 'song-setup']) $(id).addEventListener('click', () => { if (session || starting) stopRun('Song setup opened. Start a fresh run when you’re ready.'); importer.open(); });
 $('open-library').addEventListener('click', () => { if (session || starting) stopRun('Song library opened. Start a fresh run when you’re ready.'); importer.openLibrary(); });
 $('clear-song').addEventListener('click', () => { stopRun(); loadedSong = null; importer.applied = null; importer.draft = null; importer.token++; $('groove').querySelector('option[value="imported"]')?.remove(); settings.grooveId = 'rock'; persist(); syncSettings(); notify(''); feedback('Back to the practice room.', 'Your keyboard controls are unchanged.'); });
@@ -377,7 +403,7 @@ new ResizeObserver(resize).observe(canvas);
 function drawHighway(time) {
   const { width: w, height: h } = viewport;
   ctx.clearRect(0, 0, w, h);
-  const top = 42, target = h - 73, bottom = h - 52;
+  const top = 42, target = h - 87, bottom = target + 21;
   const nearWidth = w * 0.8, farWidth = w * 0.32;
   const at = depth => ({ y: top + (target - top) * depth ** 1.55, left: (w - (farWidth + (nearWidth - farWidth) * depth)) / 2, width: farWidth + (nearWidth - farWidth) * depth });
   const far = at(0), near = at(1);
@@ -385,6 +411,17 @@ function drawHighway(time) {
   const grad = ctx.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, '#18282b'); grad.addColorStop(1, '#1c2b2f'); ctx.fillStyle = grad; ctx.fill();
   const chart = session?.judge.chart || previewChart;
   const lanes = laneDrums.length;
+  const dueGroup = session ? nextHitGroup(chart, time) : null;
+  const dueDrums = new Set(dueGroup?.due ? dueGroup.notes.map(note => note.drum) : []);
+  // One outlined receptor per lane. A note's center reaches its box center
+  // at its scheduled beat, on the same audible clock used by the sheet view.
+  for (let lane = 0; lane < lanes; lane++) {
+    const drum = laneDrums[lane];
+    const laneWidth = near.width / lanes;
+    const x = near.left + laneWidth * lane + laneWidth * 0.08;
+    ctx.fillStyle = '#0b1418';
+    ctx.beginPath(); ctx.roundRect(x, target - 18, laneWidth * 0.84, 36, 6); ctx.fill();
+  }
   for (let lane = 0; lane <= lanes; lane++) {
     ctx.beginPath(); ctx.moveTo(far.left + far.width * lane / lanes, top); ctx.lineTo(near.left + near.width * lane / lanes, bottom);
     ctx.strokeStyle = lane === 0 || lane === lanes ? '#40555766' : '#344a4d66'; ctx.lineWidth = 1; ctx.stroke();
@@ -402,32 +439,39 @@ function drawHighway(time) {
   for (let i = chart.notes.length - 1; i >= 0; i--) {
     const note = chart.notes[i];
     const delta = note.time - visibleTime;
-    if (delta < -0.12 || delta > lookahead || note.status === 'hit') continue;
+    if (delta < -0.2 || delta > lookahead || note.status === 'hit') continue;
     const drum = DRUMS.find(drum => drum.id === note.drum);
     const lane = laneDrums.indexOf(drum);
-    const depth = Math.min(1.06, 1 - delta / lookahead);
+    const depth = Math.min(1.1, 1 - delta / lookahead);
     const p = at(depth);
     const noteWidth = p.width / lanes * 0.74;
     const x = p.left + p.width / lanes * (lane + 0.5) - noteWidth / 2;
     ctx.globalAlpha = note.status === 'miss' ? 0.25 : Math.min(1, 0.28 + depth);
     ctx.shadowColor = drum.color; ctx.shadowBlur = 10 * depth;
     ctx.fillStyle = drum.color;
-    ctx.beginPath(); ctx.roundRect(x, p.y - (3 + depth * 3), noteWidth, 4 + depth * 7, 2 + depth * 2); ctx.fill();
+    const noteHeight = 4 + depth * 7;
+    ctx.beginPath(); ctx.roundRect(x, p.y - noteHeight / 2, noteWidth, noteHeight, 2 + depth * 2); ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = '#ffffff55'; ctx.fillRect(x + 3, p.y - (2 + depth * 3), noteWidth - 6, 1);
+    ctx.fillStyle = '#ffffff55'; ctx.fillRect(x + 3, p.y - noteHeight / 2 + 1, noteWidth - 6, 1);
     ctx.globalAlpha = 1;
   }
   for (let lane = 0; lane < lanes; lane++) {
     const drum = laneDrums[lane];
     const age = performance.now() - (flashes.get(drum.id) || 0);
-    const x = near.left + near.width * lane / lanes;
+    const laneWidth = near.width / lanes;
+    const x = near.left + laneWidth * lane + laneWidth * 0.08;
+    const due = dueDrums.has(drum.id);
     if (age < 200) {
       const glow = ctx.createLinearGradient(0, target - 85, 0, target); glow.addColorStop(0, drum.color + '00'); glow.addColorStop(1, drum.color + '33');
-      ctx.fillStyle = glow; ctx.fillRect(x + 1, target - 85, near.width / lanes - 2, 90);
+      ctx.fillStyle = glow; ctx.fillRect(x, target - 85, laneWidth * 0.84, 104);
     }
-    ctx.strokeStyle = age < 160 ? drum.color : drum.color + '88'; ctx.lineWidth = age < 160 ? 4 : 2;
-    ctx.beginPath(); ctx.moveTo(x + 4, target); ctx.lineTo(x + near.width / lanes - 4, target); ctx.stroke();
+    ctx.strokeStyle = age < 160 || due ? drum.color : drum.color + 'aa'; ctx.lineWidth = age < 160 || due ? 3 : 1.5;
+    if (due || age < 160) { ctx.fillStyle = drum.color + '22'; ctx.beginPath(); ctx.roundRect(x, target - 18, laneWidth * 0.84, 36, 6); ctx.fill(); }
+    ctx.beginPath(); ctx.roundRect(x, target - 18, laneWidth * 0.84, 36, 6); ctx.stroke();
+    ctx.strokeStyle = drum.color + '77'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x + 5, target); ctx.lineTo(x + laneWidth * 0.84 - 5, target); ctx.stroke();
   }
+  ctx.fillStyle = '#8fa9a5'; ctx.font = '8px Segoe UI, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('HIT BOXES · CENTER = BEAT', w / 2, target + 35); ctx.textAlign = 'left';
   const fade = ctx.createLinearGradient(0, 0, 0, 77); fade.addColorStop(0, '#111b1eff'); fade.addColorStop(1, '#111b1e00'); ctx.fillStyle = fade; ctx.fillRect(0, 0, w, 77);
 }
 function frame() {
@@ -446,7 +490,7 @@ function frame() {
     } else {
       $('stage-overlay').hidden = true;
       $('session-chip').textContent = session.mode === 'demo' ? 'Listening' : 'Playing';
-      $('play-state').textContent = session.mode === 'demo' ? 'LISTEN MODE · NO SCORING' : 'MEET THE NOTES AT THE LINE';
+      $('play-state').textContent = session.mode === 'demo' ? 'LISTEN MODE · NO SCORING' : effectiveView() === 'sheet' ? 'FOLLOW THE GOLD PLAYHEAD' : 'MEET THE NOTES IN THE BOXES';
       const position = beatAtTime(chart, time);
       $('bar-status').textContent = `BAR ${position.bar} / ${chart.bars}${chart.kind === 'midi' ? ` · ${formatDuration(Math.max(0, time))} / ${formatDuration(chart.duration)}` : ''}`;
       if (chart.kind === 'midi') {
@@ -462,7 +506,15 @@ function frame() {
     }
     if (time > session.judge.chart.duration + 0.35) finishRun();
   }
-  drawHighway(time);
+  const chart = session?.judge.chart || previewChart;
+  if (effectiveView() === 'sheet') {
+    if (notationCache.chart !== chart) notationCache = { chart, model: createNotation(chart) };
+    drawSheet(ctx, viewport, notationCache.model, chart, time, Boolean(session), session?.mode === 'demo');
+  } else drawHighway(time);
+  const next = nextHitGroup(chart, session ? time : -1);
+  const cue = next ? `${session && next.due ? 'HIT NOW' : 'UP NEXT'} · ${[...new Set(next.notes.map(note => DRUMS.find(drum => drum.id === note.drum).name))].join(' + ')}` : 'FINAL BEAT · Keep it steady.';
+  if ($('hit-cue').textContent !== cue) $('hit-cue').textContent = cue;
+  $('hit-cue').classList.toggle('due', Boolean(session && next?.due));
   requestAnimationFrame(frame);
 }
 

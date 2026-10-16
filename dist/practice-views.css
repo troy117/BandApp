@@ -1,0 +1,37 @@
+.view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--line);
+  background: #162124;
+}
+.view-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid #3b4b4a; border-radius: 8px; flex-shrink: 0; }
+.view-switch button { border: 0; border-radius: 5px; padding: 8px 12px; background: transparent; font-size: 11px; color: #9eb2ac; min-height: 32px; }
+.view-switch button[aria-pressed="true"] { color: #172025; background: var(--gold); font-weight: 650; }
+.view-switch button:disabled { opacity: .45; }
+.hit-cue { font-size: 11px; color: #adc6b8; line-height: 1.6; text-align: right; }
+.hit-cue.due { color: #f7d791; font-weight: 650; }
+.view-help { margin: 0; padding: 12px 22px; color: #a3bab1; font-size: 11px; line-height: 1.7; border-top: 1px solid var(--line); }
+.view-availability { margin: 0; padding: 10px 22px; color: #b9c5ac; background: #29342b; font-size: 11px; line-height: 1.6; }
+.sheet-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding: 13px 22px; background: #1d2b2c; }
+.sheet-legend > span { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #c7d7c9; }
+.sheet-legend i { font-size: 21px; font-style: normal; line-height: 1; color: var(--drum-color); }
+.sheet-legend kbd { font-family: inherit; border: 1px solid #41544e; color: #c5d9bf; padding: 3px 6px; border-radius: 4px; font-size: 10px; }
+.sheet-legend small { margin-left: auto; font-size: 10px; color: #91a99b; }
+.stage.sheet-view .stage-overlay:not(.counting) { display: none; }
+.stage.sheet-view .stage-overlay.counting { top: auto; bottom: 16px; left: auto; right: 22px; flex-direction: row; padding: 7px 12px; background: #25372e; border: 1px solid #506344; border-radius: 7px; text-shadow: none; }
+.stage.sheet-view .stage-overlay.counting .eyebrow { display: none; }
+.stage.sheet-view .stage-overlay.counting strong { font-size: 22px; }
+.stage.sheet-view .stage-overlay.counting > span:last-child { font-size: 10px; }
+@media (max-width: 540px) {
+  .view-toolbar { padding: 10px 14px; gap: 9px; flex-wrap: wrap; }
+  .view-switch { width: 100%; }
+  .view-switch button { flex: 1; font-size: 12px; }
+  .hit-cue { text-align: left; min-height: 19px; font-size: 10px; }
+  .view-help, .view-availability { padding: 10px 15px; font-size: 10px; }
+  .sheet-legend { padding: 12px 15px; gap: 12px 16px; }
+  .sheet-legend > span { font-size: 10px; }
+  .sheet-legend small { width: 100%; margin: 0; }
+}

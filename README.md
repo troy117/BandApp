@@ -21,13 +21,24 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 ## Play
 
 - Click **Start groove** or press Enter. Four metronome beats count you in.
-- Meet each approaching note at the colored line. The first exercise uses Kick, Snare, and Hi-hat.
+- Meet each approaching note in its matching hit box. The center mark is the exact beat. The first exercise uses Kick, Snare, and Hi-hat.
+- Use **Sheet music / Note highway** to change views, including during playback. Both views share the same song clock, keyboard controls, scoring, and report.
 - Space = kick, F/G = snare, D = hi-hat, J/K/L = toms, A = crash, S = ride.
 - **Controls** lets you replace keys or add alternates. Duplicate assignments are rejected. Keys and practice settings save in this browser's local storage. If storage is blocked, changes last for the visit.
 - **Listen first** plays an unscored demonstration. **Guide drums** adds demonstration drums to a scored run; the score always requires actual user input.
 - Esc stops a run. Complete a run to see timing results or export per-note CSV.
 - A hidden tab or unfocused window stops the current run, avoiding misleading scores.
 - Tempo (40–160 BPM), length, and timing tolerance are configurable between runs.
+
+## Read the built-in grooves
+
+**Sheet music** displays a five-line percussion staff for all three built-in exercises. Kick is in the bottom space, snare in the second space from the top, and hi-hat uses X-shaped noteheads above the staff. Simultaneous heads share a stem: play them together. The rock and floor grooves use beamed eighth notes; Build the backbeat uses quarter notes. This is a single rhythmic voice, rather than separate hand/foot voices. The notation is drawn locally, with no external music font or rendering dependency.
+
+The gold playhead crosses each note on its scheduled beat, and the score scrolls continuously to keep upcoming measures visible. Count along with the **1 & 2 & 3 & 4 &** row. Notes glow when due; in scored practice, matched heads gain a green check and missed heads fade red. The legend shows the current keys and updates after remapping. **UP NEXT / HIT NOW** names the drums due together in either view. Visual cues guide playing; the selected timing window still controls scoring.
+
+The highway has a colored target box for each active drum or cymbal. Play as the bar's center meets the center mark inside its box. Targets light at the beat and flash when you strike their drum. Switching views keeps the current run and score intact. View preference is saved in this browser. Imported MIDI continues to use the highway with all its original features; sheet notation for imports is a later milestone. Loading an import temporarily falls back to the highway, and unloading it restores the preferred view.
+
+The staff conventions follow common modern drum notation; see [Drumeo's reading guide](https://www.drumeo.com/beat/how-to-read-drum-music/) for an introduction. Music publishers can use different drum positions, so this app keeps its own legend visible.
 
 ## Import MIDI with backing audio
 
@@ -79,12 +90,12 @@ npm test
 npm run check
 ```
 
-Tests cover exercise timing, simultaneous voices, one-to-one matching, repeat hits, early/late errors, window boundaries, extra/missed hits, CSV, keyboard mappings, MIDI parsing and track selection, running status, malformed input, tempo and meter changes, custom drum assignments, audio offsets, backing-source scheduling/stop, the matching sample WAV, and production HTTP serving/path restrictions. Browser checks cover saving MIDI/audio/setup, reloading and playing saved songs, and archive/restore.
+Tests cover exercise timing, simultaneous voices, one-to-one matching, repeat hits, early/late errors, window boundaries, extra/missed hits, CSV, keyboard mappings, MIDI parsing and track selection, running status, malformed input, tempo and meter changes, custom drum assignments, audio offsets, backing-source scheduling/stop, the matching sample WAV, production HTTP serving/path restrictions, notation onset/duration fidelity at all exercise tempos and lengths, live scoring references, playhead/scroll alignment, and grouped hit cues. Browser checks cover saving MIDI/audio/setup, reload and playback, archive/restore, both practice views, changing view during a scored run, key legends, saved preferences, imported-song fallback, and count-in/listen behavior.
 
 ## Current scope and next steps
 
-Included: a browser song library with saved MIDI/audio/setup and archive/restore, a Railway-ready static server, three original grooves, standard MIDI import, drum-part selection and note mapping, local backing audio with start alignment and volume, an original sample MIDI/WAV pair, synthesized drum sounds, an adaptive note highway, configurable keyboard controls, listen mode, count-in, timing windows, reports, and CSV export. No external fonts, CDNs, analytics, or downloaded runtime packages are required. The MIT-licensed MIDI parser is bundled locally.
+Included: built-in drum sheet music with a scrolling playhead and live view toggle, highway hit boxes and grouped hit cues, a browser song library with saved MIDI/audio/setup and archive/restore, a Railway-ready static server, three original grooves, standard MIDI import, drum-part selection and note mapping, local backing audio with start alignment and volume, an original sample MIDI/WAV pair, synthesized drum sounds, configurable keyboard controls, listen mode, count-in, timing windows, reports, and CSV export. No external fonts, CDNs, analytics, or downloaded runtime packages are required. The MIT-licensed MIDI parser is bundled locally.
 
-Next: add sheet music using the shared song and timing model. Validate Web MIDI and pad learning with the school's Roland module when the kit is available. This version does not yet connect MIDI hardware, install as a PWA, change imported-song playback speed, or persist performance history.
+Next: extend notation to imported MIDI, with explicit rhythm quantization. Validate Web MIDI and pad learning with the school's Roland TD-17 when the kit is available. This version does not yet connect MIDI hardware, install as a PWA, change imported-song playback speed, or persist performance history.
 
 See THIRD_PARTY_NOTICES.md for the SightKick reuse assessment and license.
