@@ -1,0 +1,158 @@
+import { parseMidi } from './vendor/midi-parser.mjs';
+import { DRUMS } from './engine.mjs';
+
+export const GM_DRUMS = {
+  35: ['Acoustic bass drum', 'kick'], 36: ['Bass drum', 'kick'], 37: ['Side stick', 'snare'],
+  38: ['Acoustic snare', 'snare'], 39: ['Hand clap', 'snare'], 40: ['Electric snare', 'snare'],
+  41: ['Low floor tom', 'tom3'], 42: ['Closed hi-hat', 'hihat'], 43: ['High floor tom', 'tom3'],
+  44: ['Pedal hi-hat', 'hihat'], 45: ['Low tom', 'tom2'], 46: ['Open hi-hat', 'hihat'],
+  47: ['Low-mid tom', 'tom2'], 48: ['Hi-mid tom', 'tom1'], 49: ['Crash cymbal 1', 'crash'],
+  50: ['High tom', 'tom1'], 51: ['Ride cymbal 1', 'ride'], 52: ['Chinese cymbal', 'crash'],
+  53: ['Ride bell', 'ride'], 54: ['Tambourine', 'ignore'], 55: ['Splash cymbal', 'crash'],
+  56: ['Cowbell', 'ignore'], 57: ['Crash cymbal 2', 'crash'], 58: ['Vibraslap', 'ignore'],
+  59: ['Ride cymbal 2', 'ride'],
+};
+const lastBefore = (items, value, field) => {
+  let lo = 0, hi = items.length;
+  while (lo < hi) { const mid = (lo + hi) >>> 1; if (items[mid][field] <= value) lo = mid + 1; else hi = mid; }
+  return items[Math.max(0, lo - 1)];
+};
+const uniqueAtTick = (items, initial) => {
+  const map = new Map([[0, { ...initial, tick: 0 }]]);
+  for (const item of [...items].sort((a, b) => a.tick - b.tick)) map.set(item.tick, item);
+  return [...map.values()].sort((a, b) => a.tick - b.tick);
+};
+export function buildTimeline(ppq, tempoEvents, signatureEvents) {
+  const tempos = uniqueAtTick(tempoEvents, { microsecondsPerBeat: 500000 });
+  let seconds = 0;
+  for (let i = 0; i < tempos.length; i++) {
+    const tempo = tempos[i];
+    if (!Number.isFinite(tempo.microsecondsPerBeat) || tempo.microsecondsPerBeat < 100000 || tempo.microsecondsPerBeat > 6000000) throw new Error('MIDI tempo must be between 10 and 600 BPM.');
+    if (i) seconds += (tempo.tick - tempos[i - 1].tick) / ppq * tempos[i - 1].microsecondsPerBeat / 1000000;
+    tempo.seconds = seconds;
+  }
+  const signatures = uniqueAtTick(signatureEvents, { numerator: 4, denominator: 4 });
+  for (let i = 0; i < signatures.length; i++) {
+    const signature = signatures[i];
+    if (!Number.isInteger(signature.numerator) || signature.numerator < 1 || signature.numerator > 32 || ![1, 2, 4, 8, 16, 32].includes(signature.denominator)) throw new Error('This MIDI time signature is not supported (use a denominator of 1–32).');
+    signature.beatTicks = ppq * 4 / signature.denominator;
+    signature.barTicks = signature.beatTicks * signature.numerator;
+    signature.startBar = i ? signatures[i - 1].startBar + Math.ceil((signature.tick - signatures[i - 1].tick) / signatures[i - 1].barTicks - 1e-8) : 1;
+  }
+  const tickToSeconds = tick => {
+    const segment = lastBefore(tempos, tick, 'tick');
+    return segment.seconds + (tick - segment.tick) / ppq * segment.microsecondsPerBeat / 1000000;
+  };
+  const secondsToTick = time => {
+    const segment = lastBefore(tempos, time, 'seconds');
+    return segment.tick + (time - segment.seconds) * 1000000 / segment.microsecondsPerBeat * ppq;
+  };
+  const position = tick => {
+    const segment = lastBefore(signatures, tick, 'tick');
+    const relative = Math.max(0, tick - segment.tick);
+    return { bar: segment.startBar + Math.floor((relative + 1e-7) / segment.barTicks), beat: 1 + relative % segment.barTicks / segment.beatTicks, numerator: segment.numerator, denominator: segment.denominator };
+  };
+  return { tempos, signatures, tickToSeconds, secondsToTick, position };
+}
+export function parseMidiSong(input, fileName = 'Imported song.mid') {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  if (bytes.length < 14 || bytes.length > 10 * 1024 * 1024) throw new Error('Choose a valid MIDI file smaller than 10 MB.');
+  if (String.fromCharCode(...bytes.slice(0, 4)) !== 'MThd') throw new Error('This is not a standard MIDI file. Choose a .mid or .midi file.');
+  let parsed;
+  try { parsed = parseMidi(bytes); } catch (error) { throw new Error(`Could not read this MIDI file: ${String(error.message || error).slice(0, 180)}`); }
+  const { header, tracks } = parsed;
+  if (![0, 1].includes(header.format)) throw new Error('MIDI format 2 has separate song sequences. Export a format 0 or format 1 MIDI instead.');
+  if (!header.ticksPerBeat) throw new Error('SMPTE-timed MIDI is not supported yet. Export MIDI with musical beat timing.');
+  if (header.numTracks !== tracks.length || !tracks.length || header.numTracks > 512) throw new Error('The MIDI file is incomplete or contains too many tracks.');
+  const tempos = [], signatures = [], parts = [];
+  let endTick = 0;
+  tracks.forEach((events, trackIndex) => {
+    let tick = 0;
+    const name = events.find(event => event.type === 'trackName')?.text || `Track ${trackIndex + 1}`;
+    const channels = new Map();
+    for (const event of events) {
+      tick += event.deltaTime;
+      if (!Number.isSafeInteger(tick) || tick < 0) throw new Error('The MIDI contains invalid note timing.');
+      if (event.type === 'setTempo') tempos.push({ tick, microsecondsPerBeat: event.microsecondsPerBeat });
+      if (event.type === 'timeSignature') signatures.push({ tick, numerator: event.numerator, denominator: event.denominator });
+      if (event.type !== 'noteOn' || event.velocity === 0) continue;
+      if (!Number.isInteger(event.noteNumber) || event.noteNumber < 0 || event.noteNumber > 127 || !Number.isInteger(event.velocity) || event.velocity < 1 || event.velocity > 127) throw new Error('The MIDI contains an invalid note.');
+      if (!channels.has(event.channel)) channels.set(event.channel, { id: `${trackIndex}:${event.channel}`, name, track: trackIndex + 1, channel: event.channel + 1, notes: [] });
+      channels.get(event.channel).notes.push({ tick, pitch: event.noteNumber, velocity: event.velocity });
+    }
+    endTick = Math.max(endTick, tick);
+    parts.push(...channels.values());
+  });
+  if (!parts.length) throw new Error('This MIDI contains no played notes.');
+  const timeline = buildTimeline(header.ticksPerBeat, tempos, signatures);
+  const lastOnset = Math.max(...parts.map(part => part.notes.at(-1)?.tick || 0));
+  // Chart gems can have zero duration. Leave their final strike a musical tail.
+  endTick = Math.max(endTick, lastOnset + header.ticksPerBeat / 4);
+  const duration = timeline.tickToSeconds(endTick);
+  if (!Number.isFinite(duration) || duration <= 0 || duration > 1200) throw new Error('Choose a MIDI song shorter than 20 minutes.');
+  for (const part of parts) {
+    part.rhythmGame = /PART\s+DRUMS/i.test(part.name);
+    part.drumCandidate = part.channel === 10 || /drum|percussion/i.test(part.name);
+  }
+  let selected = parts.filter(part => part.drumCandidate).map(part => part.id);
+  if (!selected.length) {
+    const candidate = [...parts].sort((a, b) => {
+      const ratio = part => part.notes.filter(note => GM_DRUMS[note.pitch]?.[1] && GM_DRUMS[note.pitch][1] !== 'ignore').length / part.notes.length;
+      return ratio(b) - ratio(a);
+    })[0];
+    selected = [candidate.id];
+  }
+  let hash = 2166136261;
+  for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619) >>> 0;
+  return { title: fileName.replace(/\.midi?$/i, ''), fileName, fingerprint: `${bytes.length}-${hash.toString(16)}`, ppq: header.ticksPerBeat, endTick, duration, parts, selected, timeline };
+}
+export function pitchChoices(song, selected) {
+  const counts = new Map();
+  for (const part of song.parts.filter(part => selected.includes(part.id))) for (const note of part.notes) counts.set(note.pitch, (counts.get(note.pitch) || 0) + 1);
+  return [...counts].sort((a, b) => a[0] - b[0]).map(([pitch, count]) => ({ pitch, count, name: GM_DRUMS[pitch]?.[0] || `MIDI note ${pitch}`, defaultDrum: GM_DRUMS[pitch]?.[1] || 'ignore' }));
+}
+export function makeMidiChart(song, selected, mapping = {}) {
+  if (!selected.length) throw new Error('Select at least one drum part.');
+  const chosen = song.parts.filter(part => selected.includes(part.id));
+  const all = chosen.flatMap(part => part.notes).sort((a, b) => a.tick - b.tick);
+  const notes = [], seen = new Set();
+  let ignored = 0, combined = 0;
+  for (const note of all) {
+    const drum = mapping[note.pitch] ?? GM_DRUMS[note.pitch]?.[1] ?? 'ignore';
+    if (!DRUMS.some(item => item.id === drum)) { ignored++; continue; }
+    const id = `${note.tick}:${drum}`;
+    if (seen.has(id)) { combined++; continue; }
+    seen.add(id);
+    const position = song.timeline.position(note.tick);
+    notes.push({ id, drum, tick: note.tick, midiPitch: note.pitch, velocity: note.velocity / 127, bar: position.bar, beat: position.beat, time: song.timeline.tickToSeconds(note.tick), status: 'pending', errorMs: null, actualTime: null });
+  }
+  if (!notes.length) throw new Error('No drum hits are mapped. Select a drum part and assign at least one note to a drum.');
+  if (notes.length > 50000) throw new Error('Choose a part with fewer than 50,000 drum hits.');
+  const beats = [];
+  const signatures = song.timeline.signatures;
+  for (let i = 0; i < signatures.length; i++) {
+    const signature = signatures[i];
+    const end = Math.min(song.endTick, signatures[i + 1]?.tick ?? song.endTick);
+    for (let tick = signature.tick, index = 0; tick < end - 1e-7; tick += signature.beatTicks, index++) {
+      const position = song.timeline.position(tick);
+      beats.push({ time: song.timeline.tickToSeconds(tick), bar: position.bar, beat: position.beat, downbeat: index % signature.numerator === 0 });
+      if (beats.length > 40000) throw new Error('This MIDI contains too many metronome beats.');
+    }
+  }
+  const signature = signatures[0];
+  const firstBpm = 60000000 / song.timeline.tempos[0].microsecondsPerBeat;
+  return {
+    kind: 'midi', title: song.title, notes, beats, bpm: firstBpm, bars: song.timeline.position(Math.max(0, song.endTick - 1e-5)).bar,
+    duration: song.duration, countInBeats: signature.numerator, countInBeatSeconds: 60 / firstBpm * 4 / signature.denominator,
+    numerator: signature.numerator, denominator: signature.denominator,
+    tempoChanges: song.timeline.tempos.length - 1, signatureChanges: signatures.length - 1, ignored, combined,
+    signatures: signatures.map(item => ({ time: song.timeline.tickToSeconds(item.tick), numerator: item.numerator, denominator: item.denominator })),
+    tempos: song.timeline.tempos.map(item => ({ time: item.seconds, bpm: 60000000 / item.microsecondsPerBeat })),
+  };
+}
+export function backingSchedule(startAt, offsetSeconds, duration) {
+  if (![startAt, offsetSeconds, duration].every(Number.isFinite) || duration <= 0) throw new Error('Invalid backing audio timing.');
+  const skip = Math.max(0, -offsetSeconds);
+  if (skip >= duration) throw new Error('The audio offset skips the entire recording. Choose a smaller negative offset.');
+  return { when: startAt + Math.max(0, offsetSeconds), offset: skip };
+}
