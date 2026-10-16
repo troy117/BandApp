@@ -1,32 +1,60 @@
 import { DRUMS } from './engine.mjs';
 
-// One rhythmic voice, notated exactly on the authored sixteenth-note grid.
+// A single percussion rhythm voice. Display rounding never changes judged MIDI times.
 export const STAFF_POSITIONS = { kick: 3.5, snare: 1.5, hihat: -0.5, tom1: 0.5, tom2: 1, tom3: 2.5, crash: -1, ride: 0 };
 export function createNotation(chart) {
-  if (chart.kind !== 'groove') return null;
-  const onsets = new Map();
-  for (const note of chart.notes) {
-    const step = Math.round(((note.bar - 1) * 4 + note.beat - 1) * 4);
-    if (!onsets.has(step)) onsets.set(step, []);
-    onsets.get(step).push(note);
-  }
-  const timeline = [...chart.beats.map(beat => ({ time: beat.time, beat: (beat.bar - 1) * 4 + beat.beat - 1 })), { time: chart.duration, beat: chart.bars * 4 }];
+  if (!chart.notes?.length || !chart.beats?.length) return null;
+  const measures = (chart.measures || Array.from({ length: chart.bars }, (_, i) => ({ bar: i + 1, startQuarter: i * 4, endQuarter: (i + 1) * 4, time: chart.beats[i * 4].time, endTime: chart.beats[(i + 1) * 4]?.time ?? chart.duration, numerator: 4, denominator: 4 }))).map(measure => ({ ...measure, tuplets: false }));
+  const totalBeats = measures.at(-1).endQuarter;
+  const point = item => ({ time: item.time, beat: item.quarter ?? (item.bar - 1) * 4 + item.beat - 1 });
+  const points = [...chart.beats.map(point), ...chart.notes.map(point), ...chart.tempos?.filter(item => Number.isFinite(item.quarter)).map(point) || [], ...measures.flatMap(m => [{ time: m.time, beat: m.startQuarter }, { time: m.endTime, beat: m.endQuarter }]), { time: chart.duration, beat: totalBeats }];
+  const timeline = [...new Map(points.sort((a, b) => a.time - b.time).map(item => [item.time, item])).values()];
   const groups = [];
-  for (let beat = 0; beat < chart.bars * 4; beat++) {
-    const present = [0, 1, 2, 3].filter(offset => onsets.has(beat * 4 + offset));
-    const unit = !present.length || present.every(offset => offset === 0) ? 4 : present.every(offset => offset % 2 === 0) ? 2 : 1;
-    for (let offset = 0; offset < 4; offset += unit) {
-      const notes = onsets.get(beat * 4 + offset) || [];
-      const time = timeline[beat].time + (timeline[beat + 1].time - timeline[beat].time) * offset / 4;
-      groups.push({ beat: beat + offset / 4, bar: Math.floor(beat / 4) + 1, notes, time, durationBeats: unit / 4, rest: !notes.length });
+  let approximate = false;
+  const notesByBar = new Map();
+  for (const note of chart.notes) { if (!notesByBar.has(note.bar)) notesByBar.set(note.bar, []); notesByBar.get(note.bar).push(note); }
+  for (const measure of measures) {
+    const hits = notesByBar.get(measure.bar) || [];
+    const length = measure.endQuarter - measure.startQuarter;
+    const relative = note => (note.quarter ?? measure.startQuarter + (note.beat - 1) * 4 / measure.denominator) - measure.startQuarter;
+    // Try ordinary rhythms and triplets through 32nd notes; expressive offsets are
+    // rounded only for engraving, while the cursor follows the unrounded clock.
+    const divisions = [1, 2, 3, 4, 6, 8, 12, 24].find(div => hits.every(note => Math.abs(relative(note) * div - Math.round(relative(note) * div)) / div < 0.012)) || 12;
+    const onsets = new Map();
+    for (const note of hits) {
+      const slot = Math.max(0, Math.min(Math.ceil(length * divisions - 1e-8) - 1, Math.round(relative(note) * divisions)));
+      if (Math.abs(slot / divisions - relative(note)) > 1e-6) approximate = true;
+      if (!onsets.has(slot)) onsets.set(slot, []);
+      onsets.get(slot).push(note);
+    }
+    for (let local = 0; local < length - 1e-8; local += 1) {
+      const part = Math.min(1, length - local);
+      const offsets = [...onsets.keys()].filter(slot => slot >= local * divisions - 1e-7 && slot < (local + part) * divisions - 1e-7).map(slot => slot - local * divisions);
+      const unit = !offsets.length || offsets.every(offset => Math.abs(offset) < 1e-7) ? part : [1, 2, 3, 4, 6, 8, 12, 24].filter(div => div <= divisions).map(div => 1 / div).find(value => offsets.every(offset => Math.abs(offset / divisions / value - Math.round(offset / divisions / value)) < 1e-7)) || 1 / divisions;
+      for (let offset = 0; offset < part - 1e-8; offset += unit) {
+        const notes = onsets.get(Math.round((local + offset) * divisions)) || [];
+        const beat = measure.startQuarter + local + offset, durationBeats = Math.min(unit, part - offset);
+        const tuplet = Math.abs(durationBeats - 1 / 3) < 1e-7 || Math.abs(durationBeats - 1 / 6) < 1e-7 || Math.abs(durationBeats - 1 / 12) < 1e-7;
+        groups.push({ beat, bar: measure.bar, notes, time: notes[0]?.time ?? timeAtScoreBeat(timeline, beat), durationBeats, rest: !notes.length, tuplet, tupletStart: tuplet && offset === 0, tupletCount: Math.round(1 / durationBeats) });
+      }
     }
   }
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i], next = groups[i + 1];
-    group.beamNext = !group.rest && next && !next.rest && group.durationBeats < 1 && Math.floor(next.beat) === Math.floor(group.beat);
+    const measure = measures[group.bar - 1];
+    if (group.tuplet) measure.tuplets = true;
+    const beamUnit = measure.denominator === 8 && measure.numerator % 3 === 0 ? 1.5 : 1;
+    group.beamNext = !group.rest && next && next.bar === group.bar && !next.rest && group.durationBeats < 1 && Math.floor((next.beat - measure.startQuarter + 1e-7) / beamUnit) === Math.floor((group.beat - measure.startQuarter + 1e-7) / beamUnit);
     group.beamBack = Boolean(groups[i - 1]?.beamNext);
   }
-  return { groups, bars: chart.bars, totalBeats: chart.bars * 4, secondsPerBeat: 60 / chart.bpm, timeline, subdivisions: groups.some(group => group.durationBeats === 0.25) ? 4 : 2 };
+  return { groups, measures, bars: chart.bars, totalBeats, secondsPerBeat: 60 / chart.bpm, timeline, approximate, subdivisions: groups.some(group => group.durationBeats < 0.5) ? 4 : 2 };
+}
+
+function timeAtScoreBeat(timeline, beat) {
+  let lo = 0, hi = timeline.length;
+  while (lo < hi) { const mid = (lo + hi) >>> 1; if (timeline[mid].beat <= beat) lo = mid + 1; else hi = mid; }
+  const a = timeline[Math.max(0, lo - 1)], b = timeline[lo];
+  return b ? a.time + (beat - a.beat) / (b.beat - a.beat) * (b.time - a.time) : a.time;
 }
 
 export function scoreBeatAtTime(notation, time) {
@@ -74,7 +102,8 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
   ctx.save(); ctx.beginPath(); ctx.rect(g.gutter - 15, 47, g.right - g.gutter + 30, h - 75); ctx.clip();
   // Alternating bar backgrounds make the measures readable while they scroll.
   for (let bar = 0; bar < notation.bars; bar++) {
-    const x = g.x(bar * 4) - 15, end = g.x((bar + 1) * 4) - 15;
+    const measure = notation.measures[bar];
+    const x = g.x(measure.startQuarter) - 15, end = g.x(measure.endQuarter) - 15;
     if (end < g.gutter - 15 || x > g.right) continue;
     ctx.fillStyle = bar % 2 ? '#ffffff03' : '#ffffff08';
     ctx.fillRect(x, 48, end - x, h - 80);
@@ -82,6 +111,7 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
     const pass = chart.passes?.find(item => bar + 1 >= item.firstBar && bar + 1 < item.firstBar + item.bars);
     const sourceBar = pass ? chart.practice.startBar + bar + 1 - pass.firstBar : bar + 1;
     ctx.fillText(`${chart.practice?.repeats > 1 ? `P${pass.index} · ` : ''}BAR ${sourceBar}`, x + 8, 65);
+    if (bar && (measure.numerator !== notation.measures[bar - 1].numerator || measure.denominator !== notation.measures[bar - 1].denominator)) { ctx.fillStyle = '#e8c17b'; ctx.fillText(`${measure.numerator}/${measure.denominator}`, x + 8, 82); }
     ctx.strokeStyle = '#718884'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
   }
@@ -89,13 +119,17 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
     ctx.strokeStyle = '#81959188'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(g.gutter - 15, top + line * gap); ctx.lineTo(g.right + 15, top + line * gap); ctx.stroke();
   }
-  for (let count = 0; count < notation.totalBeats * notation.subdivisions; count++) {
-    const sub = count % notation.subdivisions;
-    const x = g.x(count / notation.subdivisions);
+  for (const measure of notation.measures) for (let count = 0; count < measure.numerator * (measure.denominator === 4 ? notation.subdivisions : 1); count++) {
+    const divisions = measure.denominator === 4 ? notation.subdivisions : 1;
+    const at = measure.startQuarter + count / divisions * 4 / measure.denominator;
+    if (at >= measure.endQuarter - 1e-8) continue;
+    const sub = count % divisions;
+    const x = g.x(at);
     if (x < g.gutter - 8 || x > g.right + 8) continue;
     ctx.fillStyle = sub ? '#829c94' : '#c0d0c5';
     ctx.font = sub ? '11px Segoe UI, sans-serif' : '600 12px Segoe UI, sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(sub ? (notation.subdivisions === 4 ? ['', 'e', '&', 'a'][sub] : '&') : String(Math.floor(count / notation.subdivisions) % 4 + 1), x, bottom + 48);
+    const triplets = measure.tuplets;
+    if (!sub || !triplets) ctx.fillText(sub ? (divisions === 4 ? ['', 'e', '&', 'a'][sub] : '&') : String(Math.floor(count / divisions) + 1), x, bottom + 48);
   }
   const finalX = g.x(notation.totalBeats) - 15;
   ctx.strokeStyle = '#91a69b'; ctx.lineWidth = 1;
@@ -105,17 +139,22 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
   for (let i = 0; i < notation.groups.length; i++) {
     const group = notation.groups[i], x = g.x(group.beat);
     if (x < g.gutter - 60 || x > g.right + 60) continue;
-    if (group.rest) { drawRest(ctx, x, top + gap * 2, group.durationBeats); continue; }
+    if (group.tupletStart) { ctx.fillStyle = '#c5d4cb'; ctx.font = 'italic 12px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(String(group.tupletCount), x + g.spacing / 3, beamY - 9); }
+    if (group.rest) { drawRest(ctx, x, top + gap * 2, group.durationBeats, group.tuplet); continue; }
     const due = running && Math.abs(group.time - time) < 0.085;
     const lastY = Math.max(...group.notes.map(note => headY(note.drum)));
     ctx.strokeStyle = '#d1dcd2'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.moveTo(x + 6, lastY); ctx.lineTo(x + 6, beamY); ctx.stroke();
-    if (group.beamNext) {
-      ctx.fillStyle = '#d1dcd2'; ctx.fillRect(x + 6, beamY, g.spacing * group.durationBeats + 1.6, 4);
-      if (group.durationBeats === 0.25) ctx.fillRect(x + 6, beamY + 7, g.spacing * group.durationBeats + 1.6, 3);
-    } else if (!group.beamBack && group.durationBeats < 1) {
+    if (group.beamNext || group.beamBack) {
+      ctx.fillStyle = '#d1dcd2';
+      const next = notation.groups[i + 1], previous = notation.groups[i - 1];
+      for (let beam = 0; beam < rhythmFlags(group.durationBeats, group.tuplet); beam++) {
+        if (group.beamNext && rhythmFlags(next.durationBeats, next.tuplet) > beam) ctx.fillRect(x + 6, beamY + beam * 7, g.spacing * group.durationBeats + 1.6, beam ? 3 : 4);
+        else if (!(group.beamBack && rhythmFlags(previous.durationBeats, previous.tuplet) > beam)) { const stub = Math.min(11, g.spacing * group.durationBeats * 0.6); ctx.fillRect(x + 6 - (group.beamNext ? 0 : stub), beamY + beam * 7, stub, beam ? 3 : 4); }
+      }
+    } else if (group.durationBeats < 1) {
       ctx.strokeStyle = '#d1dcd2'; ctx.lineWidth = 2;
-      for (let flag = 0; flag < (group.durationBeats === 0.25 ? 2 : 1); flag++) { ctx.beginPath(); ctx.moveTo(x + 6, beamY + flag * 7); ctx.bezierCurveTo(x + 21, beamY + 7 + flag * 7, x + 19, beamY + 19 + flag * 7, x + 12, beamY + 24 + flag * 7); ctx.stroke(); }
+      for (let flag = 0; flag < rhythmFlags(group.durationBeats, group.tuplet); flag++) { ctx.beginPath(); ctx.moveTo(x + 6, beamY + flag * 7); ctx.bezierCurveTo(x + 21, beamY + 7 + flag * 7, x + 19, beamY + 19 + flag * 7, x + 12, beamY + 24 + flag * 7); ctx.stroke(); }
     }
     for (const note of group.notes) {
       const y = headY(note.drum);
@@ -152,18 +191,20 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
   ctx.strokeStyle = '#b7c8bc'; ctx.lineWidth = 3;
   for (const x of [18, 25]) { ctx.beginPath(); ctx.moveTo(x, top + gap); ctx.lineTo(x, top + gap * 3); ctx.stroke(); }
   ctx.fillStyle = '#d4ded0'; ctx.textAlign = 'center'; ctx.font = '600 22px Georgia, serif';
-  ctx.fillText('4', g.gutter - 26, top + gap * 1.7); ctx.fillText('4', g.gutter - 26, top + gap * 3.5);
+  const currentMeter = notation.measures.findLast(measure => measure.startQuarter <= beat) || notation.measures[0];
+  ctx.fillText(String(currentMeter.numerator), g.gutter - 26, top + gap * 1.7); ctx.fillText(String(currentMeter.denominator), g.gutter - 26, top + gap * 3.5);
   ctx.fillStyle = '#9fb9ab'; ctx.font = '10px Segoe UI, sans-serif';
   ctx.fillText('COUNT', g.gutter - 34, bottom + 48);
   ctx.textAlign = 'left';
 }
 
-function drawRest(ctx, x, y, duration) {
+function rhythmFlags(duration, tuplet) { return Math.max(0, Math.round(-Math.log2(duration * (tuplet ? 1.5 : 1)))); }
+function drawRest(ctx, x, y, duration, tuplet) {
   ctx.strokeStyle = '#9bada2'; ctx.fillStyle = '#9bada2'; ctx.lineWidth = 2;
   if (duration === 1) {
     ctx.beginPath(); ctx.moveTo(x - 2, y - 14); ctx.lineTo(x + 5, y - 6); ctx.lineTo(x - 4, y + 1); ctx.lineTo(x + 4, y + 7); ctx.bezierCurveTo(x - 7, y + 4, x - 7, y + 12, x, y + 15); ctx.stroke();
   } else {
     ctx.beginPath(); ctx.moveTo(x + 5, y - 9); ctx.lineTo(x - 2, y + 13); ctx.stroke();
-    for (let flag = 0; flag < (duration === 0.25 ? 2 : 1); flag++) { const fy = y - 6 + flag * 7; ctx.beginPath(); ctx.arc(x - 3 - flag * 2, fy, 3, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.moveTo(x - 3 - flag * 2, fy + 2); ctx.quadraticCurveTo(x + 3, fy + 4, x + 5 - flag * 2, fy - 3); ctx.stroke(); }
+    for (let flag = 0; flag < rhythmFlags(duration, tuplet); flag++) { const fy = y - 6 + flag * 7; ctx.beginPath(); ctx.arc(x - 3 - flag * 2, fy, 3, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.moveTo(x - 3 - flag * 2, fy + 2); ctx.quadraticCurveTo(x + 3, fy + 4, x + 5 - flag * 2, fy - 3); ctx.stroke(); }
   }
 }

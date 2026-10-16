@@ -1,0 +1,26 @@
+# Changes
+
+## 0.6.0 — October 16, 2026 — Prototype 06
+
+- Local backing-audio analysis with up to three reviewable MIDI alignment candidates; offset and optional small duration-ratio search.
+- Waveform, recording-only and combined eight-second previews, bar/beat-to-recording matching, optional second match for steady drift, and 50 ms nudges.
+- MIDI speed adjustment (50–200%) without changing backing audio pitch/speed. Internal tempo changes, count-in, loop slices and grading remain aligned.
+- Imported MIDI sheet music with the shared scrolling playhead, drum/key legend, rests, tuplets, 32nds, changing meter, partial measures, loops and focus. Exact MIDI times remain unchanged by notation display rounding.
+- Local song library and per-song preferences retain MIDI speed alongside offset/mappings/volume; older saved entries default to 100%.
+- Download/load portable song setup JSON, with exact MIDI fingerprint validation. Audio/MIDI files travel separately.
+- Added development handoff, discussion/decision log, next-milestone plan and updated README.
+- Validation: **50 automated tests pass**, plus module syntax check and standalone export. Browser checks with original sample files covered suggestions, manual start/drift matching, previews, saved alignment after reload, setup JSON download/restore, MIDI-only speed changes, focused loops, live view switching, keyboard strikes and the completed report. Actual user song recordings and TD-17 hardware remain to be tested.
+
+## 0.5.0 — October 15, 2026 — Prototype 05
+
+- 24 original exercises across four difficulty levels.
+- Selected-bar practice loops, one/two/four/eight passes, drum focus and built-in tempo ladder.
+- Per-pass reports, slower retry, next-track action, local journal and source-bar/pass CSV columns.
+- Expanded drum notation for toms, cymbals, rests and sixteenths.
+- Commit: `c312294bc252f77e901c7e43ae1d58193ac782bb`.
+
+## Earlier prototypes
+
+- Browser keyboard drum practice, configurable key mappings and synthesized sounds.
+- GM MIDI import, drum mapping, backing audio, original samples, browser song library and Railway-ready serving.
+- Built-in sheet/highway toggle, moving playhead, hit boxes and grouped strike cues.

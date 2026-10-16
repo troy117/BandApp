@@ -66,7 +66,7 @@ export class PracticeTools {
       const tempos = chart.passes.map(pass => Math.round(pass.bpm));
       this.valid = true;
       this.el('practice-summary').classList.remove('error');
-      this.el('practice-summary').textContent = `${this.options.enabled ? `Bars ${info.startBar}–${info.endBar} · ${info.repeats} pass${info.repeats === 1 ? '' : 'es'}` : 'Whole track'} · ${FOCUS_OPTIONS[info.focus]} · ${chart.notes.length} hits · ${formatDuration(chart.duration)}${info.increment ? ` · ${tempos[0]} → ${tempos.at(-1)} BPM` : ''}. ${info.repeats > 1 ? 'One count-in, then continuous repeats.' : 'One count-in before you start.'}${source.kind === 'midi' ? ' MIDI and audio keep their original tempo.' : ''}`;
+      this.el('practice-summary').textContent = `${this.options.enabled ? `Bars ${info.startBar}–${info.endBar} · ${info.repeats} pass${info.repeats === 1 ? '' : 'es'}` : 'Whole track'} · ${FOCUS_OPTIONS[info.focus]} · ${chart.notes.length} hits · ${formatDuration(chart.duration)}${info.increment ? ` · ${tempos[0]} → ${tempos.at(-1)} BPM` : ''}. ${info.repeats > 1 ? 'One count-in, then continuous repeats.' : 'One count-in before you start.'}${source.kind === 'midi' ? ' Uses your song sync settings.' : ''}`;
       return chart;
     } catch (error) {
       this.valid = false;

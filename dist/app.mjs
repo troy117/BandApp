@@ -52,19 +52,20 @@ const ctx = canvas.getContext('2d');
 let viewport = { width: 800, height: 347, dpr: 1 };
 let notationCache = { chart: null, model: null };
 
-function effectiveView() { return settings.view === 'sheet' && previewChart.kind === 'groove' ? 'sheet' : 'highway'; }
+function effectiveView() { return settings.view === 'sheet' ? 'sheet' : 'highway'; }
 function renderView() {
   const sheet = effectiveView() === 'sheet';
   const imported = previewChart.kind !== 'groove';
-  $('view-sheet').disabled = imported;
-  $('view-sheet').title = imported ? 'Sheet music currently supports built-in tracks. Imported MIDI uses the note highway.' : '';
+  $('view-sheet').disabled = false;
+  $('view-sheet').title = '';
   $('view-sheet').setAttribute('aria-pressed', String(sheet));
   $('view-highway').setAttribute('aria-pressed', String(!sheet));
   $('practice-stage').classList.toggle('sheet-view', sheet);
   $('lane-labels').hidden = sheet;
   $('sheet-legend').hidden = !sheet;
   $('view-help').textContent = sheet ? 'Play each note as the gold playhead crosses it. Notes stacked together are played together.' : 'Hit when each colored bar is centered in its matching box. The center mark is the beat.';
-  $('view-availability').hidden = !imported;
+  if (sheet && imported) $('view-help').textContent += ' MIDI rhythms are rounded for readable notation; playback and scoring keep the original timing. Lyrics and original engraving are not included in MIDI.';
+  $('view-availability').hidden = true;
   canvas.setAttribute('aria-label', sheet ? 'Drum sheet music on a five-line percussion staff. Filled heads are drums, X heads are cymbals, and rests mean silence. Follow the gold playhead and the drum/key legend.' : 'Approaching drum notes. Press each drum key when its colored bar is centered in the matching hit box.');
   $('sheet-legend').innerHTML = laneDrums.map(drum => `<span style="--drum-color:${drum.color}"><i aria-hidden="true">${['hihat', 'crash', 'ride'].includes(drum.id) ? '×' : '●'}</i>${drum.name}<kbd>${bindings[drum.id].map(keyLabel).join(' / ') || 'Unassigned'}</kbd></span>`).join('') + '<small>Same column = play together · Rests = silence</small>';
 }
@@ -123,8 +124,8 @@ function renderGroove() {
   $('track-number').textContent = imported ? 'MIDI' : `L${GROOVES[settings.grooveId].level}`;
   if (imported) {
     $('song-duration').textContent = formatDuration(previewChart.duration);
-    $('loaded-song-info').textContent = loadedSong.backing ? `${loadedSong.backing.name} · offset ${loadedSong.backing.offset > 0 ? '+' : ''}${loadedSong.backing.offset}s` : 'MIDI loaded · no backing recording';
-    $('groove-description').textContent = `${previewChart.notes.length} drum hits across ${previewChart.bars} bars. ${previewChart.tempoChanges ? `${previewChart.tempoChanges} tempo change${previewChart.tempoChanges === 1 ? '' : 's'} preserved.` : 'The original MIDI tempo is preserved.'}${previewChart.ignored ? ` ${previewChart.ignored} unmapped or ignored notes are excluded.` : ''}`;
+    $('loaded-song-info').textContent = loadedSong.backing ? `${loadedSong.backing.name} · offset ${loadedSong.backing.offset > 0 ? '+' : ''}${loadedSong.backing.offset.toFixed(3)}s · ${(100 / (loadedSong.chart.timeScale ?? 1)).toFixed(2)}% MIDI speed` : 'MIDI loaded · no backing recording';
+    $('groove-description').textContent = `${previewChart.notes.length} drum hits across ${previewChart.bars} bars. ${previewChart.tempoChanges ? `${previewChart.tempoChanges} tempo change${previewChart.tempoChanges === 1 ? '' : 's'} preserved.` : 'Follow the MIDI beat grid.'}${previewChart.ignored ? ` ${previewChart.ignored} unmapped or ignored notes are excluded.` : ''}`;
     $('lesson-tip').textContent = 'Use Song setup to adjust the drum assignments or backing alignment. Files stay on this device.';
     return;
   }
@@ -391,7 +392,7 @@ $('browse-tracks').addEventListener('click', () => { if (session || starting) st
 for (const view of ['sheet', 'highway']) $('view-' + view).addEventListener('click', () => { settings.view = view; persist(); renderView(); });
 for (const id of ['open-import', 'song-setup']) $(id).addEventListener('click', () => { if (session || starting) stopRun('Song setup opened. Start a fresh run when you’re ready.'); importer.open(); });
 $('open-library').addEventListener('click', () => { if (session || starting) stopRun('Song library opened. Start a fresh run when you’re ready.'); importer.openLibrary(); });
-$('clear-song').addEventListener('click', () => { stopRun(); loadedSong = null; importer.applied = null; importer.draft = null; importer.token++; $('groove').querySelector('option[value="imported"]')?.remove(); settings.grooveId = 'rock'; persist(); syncSettings(); notify(''); feedback('Back to the practice room.', 'Your keyboard controls are unchanged.'); });
+$('clear-song').addEventListener('click', () => { stopRun(); loadedSong = null; importer.applied = null; importer.draft = null; importer.token++; importer.sync.reset(); $('groove').querySelector('option[value="imported"]')?.remove(); settings.grooveId = 'rock'; persist(); syncSettings(); notify(''); feedback('Back to the practice room.', 'Your keyboard controls are unchanged.'); });
 for (const [id, field] of [['groove', 'grooveId'], ['bars', 'bars'], ['bpm', 'bpm'], ['tolerance', 'tolerance'], ['offset', 'offset'], ['guide', 'guide'], ['metronome', 'metronome']]) {
   $(id).addEventListener(id === 'offset' ? 'input' : 'change', () => {
     if (session) return;

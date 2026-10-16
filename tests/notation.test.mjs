@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createChart, Judge, GROOVES } from '../dist/engine.mjs';
 import { createNotation, sheetGeometry, nextHitGroup, scoreBeatAtTime, STAFF_POSITIONS } from '../dist/notation.mjs';
 import { createPracticeChart } from '../dist/practice.mjs';
+import { makeMidiChart, parseMidiSong, buildTimeline } from '../dist/midi.mjs';
+import { createDemoMidi } from '../dist/demo-data.mjs';
 
 test('all built-in scores preserve every onset and simultaneous drum at every tempo', () => {
   for (const groove of Object.keys(GROOVES)) for (const bpm of [40, 80, 160]) for (const bars of [4, 8, 16]) {
@@ -68,4 +70,47 @@ test('upcoming hit cues group simultaneous voices, respect due timing, and end c
   assert.equal(nextHitGroup(chart, 0.1).time, 0);
   assert.equal(nextHitGroup(chart, 0.12).time, 0.375);
   assert.equal(nextHitGroup(chart, chart.duration), null);
+});
+
+test('imported sheet music preserves all notes, musical coordinates, and tempo-changing cursor', () => {
+  const song = parseMidiSong(createDemoMidi()), source = makeMidiChart(song, song.selected);
+  const before = structuredClone(source), score = createNotation(source);
+  assert.equal(score.measures.length, 4);
+  assert.deepEqual(score.groups.flatMap(group => group.notes.map(note => note.id)), source.notes.map(note => note.id));
+  for (const note of source.notes) assert.ok(Math.abs(scoreBeatAtTime(score, note.time) - note.quarter) < 1e-7);
+  assert.deepEqual(source, before);
+  const focused = createPracticeChart(source, { enabled: true, startBar: 2, endBar: 3, repeats: 2, focus: 'kick' });
+  const loopScore = createNotation(focused);
+  assert.deepEqual(loopScore.measures.map(m => [m.sourceBar, m.pass]), [[2, 1], [3, 1], [2, 2], [3, 2]]);
+  assert.ok(loopScore.groups.every(group => group.notes.every(note => note.drum === 'kick')));
+  assert.ok(loopScore.groups.some(group => group.rest));
+  for (const note of focused.notes) assert.ok(Math.abs(scoreBeatAtTime(loopScore, note.time) - note.quarter) < 1e-7);
+});
+
+test('MIDI sheet music supports triplets, 32nds, silent measures, meter changes, and a partial last bar', () => {
+  const timeline = buildTimeline(480, [{ tick: 400, microsecondsPerBeat: 600000 }], [{ tick: 1920, numerator: 6, denominator: 8 }, { tick: 3360, numerator: 3, denominator: 4 }]);
+  const ticks = [0, 160, 320, 480, 540, 600, 660, 720, 1920, 2160, 2400, 2640, 2880, 3120, 3600];
+  const song = { title: 'Rhythm fixture', ppq: 480, endTick: 3720, duration: timeline.tickToSeconds(3720), timeline, parts: [{ id: '0:9', notes: ticks.map(tick => ({ tick, pitch: 36, velocity: 100 })) }] };
+  const chart = makeMidiChart(song, ['0:9']), score = createNotation(chart);
+  assert.deepEqual(score.measures.map(m => [m.numerator, m.denominator]), [[4, 4], [6, 8], [3, 4]]);
+  assert.ok(score.groups.some(group => group.tuplet && Math.abs(group.durationBeats - 1 / 3) < 1e-7));
+  assert.ok(score.groups.some(group => group.durationBeats === 0.125));
+  assert.equal(score.groups.flatMap(group => group.notes).length, ticks.length);
+  assert.ok(Math.abs(score.groups.reduce((sum, group) => sum + group.durationBeats, 0) - 7.75) < 1e-7);
+  for (const note of chart.notes) assert.ok(Math.abs(scoreBeatAtTime(score, note.time) - note.quarter) < 1e-7);
+  const loop = createPracticeChart(chart, { enabled: true, startBar: 2, endBar: 3, repeats: 2 });
+  const repeatScore = createNotation(loop);
+  assert.equal(repeatScore.totalBeats, 7.5);
+  for (const note of loop.notes) assert.ok(Math.abs(scoreBeatAtTime(repeatScore, note.time) - note.quarter) < 1e-7);
+});
+
+test('display rounding for expressive MIDI never changes the notes or scoring clock', () => {
+  const timeline = buildTimeline(480, [], []);
+  const song = { title: 'Expressive fixture', ppq: 480, endTick: 1920, duration: 2, timeline, parts: [{ id: '0:9', notes: [0, 247, 486].map(tick => ({ tick, pitch: 38, velocity: 100 })) }] };
+  const source = makeMidiChart(song, ['0:9']), before = structuredClone(source), score = createNotation(source);
+  assert.ok(score.approximate); assert.deepEqual(source, before);
+  assert.equal(score.groups.flatMap(group => group.notes).length, 3);
+  const judge = new Judge(source);
+  for (const note of source.notes) judge.strike(note.drum, note.time);
+  assert.equal(judge.summary().hits, 3);
 });

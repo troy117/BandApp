@@ -124,7 +124,7 @@ export function makeMidiChart(song, selected, mapping = {}) {
     if (seen.has(id)) { combined++; continue; }
     seen.add(id);
     const position = song.timeline.position(note.tick);
-    notes.push({ id, drum, tick: note.tick, midiPitch: note.pitch, velocity: note.velocity / 127, bar: position.bar, beat: position.beat, time: song.timeline.tickToSeconds(note.tick), status: 'pending', errorMs: null, actualTime: null });
+    notes.push({ id, drum, tick: note.tick, quarter: note.tick / song.ppq, midiPitch: note.pitch, velocity: note.velocity / 127, bar: position.bar, beat: position.beat, time: song.timeline.tickToSeconds(note.tick), status: 'pending', errorMs: null, actualTime: null });
   }
   if (!notes.length) throw new Error('No drum hits are mapped. Select a drum part and assign at least one note to a drum.');
   if (notes.length > 50000) throw new Error('Choose a part with fewer than 50,000 drum hits.');
@@ -135,19 +135,27 @@ export function makeMidiChart(song, selected, mapping = {}) {
     const end = Math.min(song.endTick, signatures[i + 1]?.tick ?? song.endTick);
     for (let tick = signature.tick, index = 0; tick < end - 1e-7; tick += signature.beatTicks, index++) {
       const position = song.timeline.position(tick);
-      beats.push({ time: song.timeline.tickToSeconds(tick), bar: position.bar, beat: position.beat, downbeat: index % signature.numerator === 0 });
+      beats.push({ time: song.timeline.tickToSeconds(tick), quarter: tick / song.ppq, bar: position.bar, beat: position.beat, downbeat: index % signature.numerator === 0 });
       if (beats.length > 40000) throw new Error('This MIDI contains too many metronome beats.');
     }
   }
   const signature = signatures[0];
   const firstBpm = 60000000 / song.timeline.tempos[0].microsecondsPerBeat;
+  const measures = [];
+  for (let i = 0; i < signatures.length; i++) {
+    const meter = signatures[i], end = Math.min(song.endTick, signatures[i + 1]?.tick ?? song.endTick);
+    for (let tick = meter.tick; tick < end - 1e-7; tick += meter.barTicks) {
+      const to = Math.min(end, tick + meter.barTicks);
+      measures.push({ bar: song.timeline.position(tick).bar, startQuarter: tick / song.ppq, endQuarter: to / song.ppq, time: song.timeline.tickToSeconds(tick), endTime: song.timeline.tickToSeconds(to), numerator: meter.numerator, denominator: meter.denominator });
+    }
+  }
   return {
     kind: 'midi', title: song.title, notes, beats, bpm: firstBpm, bars: song.timeline.position(Math.max(0, song.endTick - 1e-5)).bar,
-    duration: song.duration, countInBeats: signature.numerator, countInBeatSeconds: 60 / firstBpm * 4 / signature.denominator,
+    duration: song.duration, endQuarter: song.endTick / song.ppq, measures, countInBeats: signature.numerator, countInBeatSeconds: 60 / firstBpm * 4 / signature.denominator,
     numerator: signature.numerator, denominator: signature.denominator,
     tempoChanges: song.timeline.tempos.length - 1, signatureChanges: signatures.length - 1, ignored, combined,
     signatures: signatures.map(item => ({ time: song.timeline.tickToSeconds(item.tick), numerator: item.numerator, denominator: item.denominator })),
-    tempos: song.timeline.tempos.map(item => ({ time: item.seconds, bpm: 60000000 / item.microsecondsPerBeat })),
+    tempos: song.timeline.tempos.map(item => ({ time: item.seconds, quarter: item.tick / song.ppq, bpm: 60000000 / item.microsecondsPerBeat })),
   };
 }
 export function backingSchedule(startAt, offsetSeconds, duration) {
