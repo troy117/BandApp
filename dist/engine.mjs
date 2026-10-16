@@ -1,3 +1,4 @@
+import { PRACTICE_TRACKS } from './lessons.mjs';
 export const DRUMS = [
   { id: 'kick', name: 'Kick', short: 'KICK', color: '#63d9c4', keys: ['Space'], midi: [35, 36] },
   { id: 'snare', name: 'Snare', short: 'SNARE', color: '#f58c99', keys: ['KeyF', 'KeyG'], midi: [38, 40] },
@@ -8,11 +9,7 @@ export const DRUMS = [
   { id: 'crash', name: 'Crash', short: 'CRASH', color: '#e7a875', keys: ['KeyA'], midi: [49, 55, 57] },
   { id: 'ride', name: 'Ride', short: 'RIDE', color: '#9acc9a', keys: ['KeyS'], midi: [51, 53, 59] },
 ];
-export const GROOVES = {
-  rock: { name: 'First rock beat', description: 'Kick on 1 & 3. Snare on 2 & 4. Steady eighth-note hi-hats.', kick: [0, 4], snare: [2, 6], hihat: [0, 1, 2, 3, 4, 5, 6, 7] },
-  floor: { name: 'Four on the floor', description: 'A kick on every beat, a backbeat on the snare, and eighth-note hi-hats.', kick: [0, 2, 4, 6], snare: [2, 6], hihat: [0, 1, 2, 3, 4, 5, 6, 7] },
-  backbeat: { name: 'Build the backbeat', description: 'Start with two voices: kick on 1 & 3, snare on 2 & 4.', kick: [0, 4], snare: [2, 6], hihat: [] },
-};
+export const GROOVES = PRACTICE_TRACKS;
 export const DEFAULT_BINDINGS = Object.fromEntries(DRUMS.map(drum => [drum.id, [...drum.keys]]));
 export const RESERVED_KEYS = new Set(['Enter', 'Escape', 'Tab', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight']);
 export function keyLabel(code) {
@@ -44,8 +41,10 @@ export function createChart(grooveId, bpm = 80, bars = 4) {
   if (!groove || !Number.isFinite(bpm) || bpm < 40 || bpm > 200 || !Number.isInteger(bars) || bars < 1 || bars > 32) throw new Error('Invalid groove settings');
   const notes = [];
   for (let bar = 0; bar < bars; bar++) {
-    for (const drum of ['kick', 'snare', 'hihat']) {
-      for (const step of groove[drum]) notes.push({ id: `${bar}-${drum}-${step}`, drum, bar: bar + 1, beat: step / 2 + 1, time: (bar * 4 + step / 2) * 60 / bpm, status: 'pending', errorMs: null, actualTime: null });
+    const pattern = groove.cycle ? groove.cycle[bar % groove.cycle.length] : groove;
+    const resolution = groove.stepsPerBeat || 2;
+    for (const { id: drum } of DRUMS) {
+      for (const step of pattern[drum] || []) notes.push({ id: `${bar}-${drum}-${step}`, drum, bar: bar + 1, beat: step / resolution + 1, time: (bar * 4 + step / resolution) * 60 / bpm, status: 'pending', errorMs: null, actualTime: null });
     }
   }
   notes.sort((a, b) => a.time - b.time);
@@ -112,8 +111,8 @@ export class Judge {
   }
 }
 export function performanceCsv(judge) {
-  const rows = [['drum', 'bar', 'beat', 'expected_seconds', 'actual_seconds', 'timing_error_ms', 'result', 'input']];
-  for (const note of judge.chart.notes) rows.push([note.drum, note.bar, note.beat, note.time.toFixed(4), note.actualTime?.toFixed(4) ?? '', note.errorMs?.toFixed(2) ?? '', note.status, note.source ?? '']);
-  for (const extra of judge.extras) rows.push([extra.drum, '', '', '', extra.time.toFixed(4), '', 'extra', extra.source]);
+  const rows = [['drum', 'bar', 'beat', 'expected_seconds', 'actual_seconds', 'timing_error_ms', 'result', 'input', 'source_bar', 'pass']];
+  for (const note of judge.chart.notes) rows.push([note.drum, note.bar, note.beat, note.time.toFixed(4), note.actualTime?.toFixed(4) ?? '', note.errorMs?.toFixed(2) ?? '', note.status, note.source ?? '', note.sourceBar ?? note.bar, note.pass ?? 1]);
+  for (const extra of judge.extras) rows.push([extra.drum, '', '', '', extra.time.toFixed(4), '', 'extra', extra.source, '', (judge.chart.passes?.findLast(pass => pass.time <= extra.time) || judge.chart.passes?.[0])?.index ?? 1]);
   return rows.map(row => row.join(',')).join('\r\n');
 }

@@ -108,3 +108,18 @@ test('original sample recording is a valid PCM WAV aligned to the MIDI duration'
   assert.equal(view.getUint32(24, true), 22050);
   near(view.getUint32(40, true) / (22050 * 2), 8.8);
 });
+test('looped backing sources use bounded recording slices and all cancel on stop', () => {
+  const starts = [], sources = [];
+  const audio = new DrumAudio();
+  audio.context = {
+    createBufferSource: () => {
+      const source = Object.assign(new EventTarget(), { connect: target => target, start: (...args) => starts.push(args), stop: () => { source.stopped = true; } });
+      sources.push(source); return source;
+    },
+    createGain: () => ({ gain: { value: 0 }, connect: () => null }),
+  };
+  audio.playBacking({}, 10, 2, 0.65, 4.4);
+  audio.playBacking({}, 14.4, 2, 0.65, 4.4);
+  assert.deepEqual(starts, [[10, 2, 4.4], [14.4, 2, 4.4]]);
+  audio.silence(); assert.ok(sources.every(source => source.stopped)); assert.equal(audio.sources.size, 0);
+});

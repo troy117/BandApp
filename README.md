@@ -29,12 +29,38 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 - Esc stops a run. Complete a run to see timing results or export per-note CSV.
 - A hidden tab or unfocused window stops the current run, avoiding misleading scores.
 - Tempo (40–160 BPM), length, and timing tolerance are configurable between runs.
+- **Tracks** opens 24 original exercises across four levels. Choosing a card sets a suggested starting tempo. The track dropdown also groups them by level.
+
+## Practice sections and progression
+
+Use **Practice your way** below the playback controls:
+
+1. Turn on **Repeat a section**, choose inclusive **From bar / Through bar** numbers, and select **1, 2, 4, or 8 passes**. One count-in leads into continuous repeats, with no extra pause between passes. A section with no mapped hits is rejected.
+2. Pick **All drums**, **Kick only**, **Snare only**, **Cymbals only**, or **Toms only**. Only that focus enters the score, guide drums, and notation. Other mapped keys still make sounds and do not add extra-hit penalties in a focused run. An external backing recording retains its original instruments.
+3. For built-in tracks, enable **Add 5 BPM each pass** to build speed, capped at 160 BPM. The full plan and tempo range appear before starting. MIDI sections preserve their original tempo/meter changes; tempo building is disabled for them.
+4. Start or listen in either view. The display identifies the pass and the original source bar. MIDI backing audio starts at the matching recording position and is bounded to the selected section on every pass, respecting its alignment offset. Stop/Esc cancels all scheduled recording slices.
+5. Complete the run for an overall report and a per-pass breakdown. **Try 5 BPM slower** restores the reported exercise and section at a lower starting tempo. **Explore next track** selects the next exercise at its suggested tempo. **Play again** restores that report's setup; an imported song must still be loaded to replay it.
+
+The loop range and focus reset when changing tracks, and are clamped if the built-in track length changes. Setup is remembered for the current track in this browser. View switching stays available during playback; other practice settings lock until the run ends. Runs are limited to 20 minutes and 50,000 expected hits; use a smaller section or fewer passes for large files. Stopping early discards the unfinished run. Complete a selected number of passes to save its results.
+
+The library contains six tracks in each level:
+
+| Level | Practice goals |
+| --- | --- |
+| 1 · Steady starts | Quarter-note pulse, snare control, hi-hat, backbeat, rock, and four-on-the-floor |
+| 2 · Coordination | Eighth-note kick pairs, offbeats, ride, tom locations, snare pairs, and crash entrances |
+| 3 · Syncopation | Displaced kicks, sixteenth hats, pickups, short fills, and keeping time through rests |
+| 4 · Fills & challenges | Funk patterns, snare combinations, descending tom fills, and two-/four-bar phrases |
+
+All levels remain open. The difficulty reflects coordination and rhythm complexity; harder material starts at a slower suggested tempo where useful. These are original synthesized drum exercises.
+
+**Your practice journal** saves summary results for the last 30 completed scored runs in this browser, including tempo range, source bars, passes, focus, timing window, match rate, and average timing error. Listen mode and interrupted runs do not add entries. Recent full-kit bests appear on track cards with their tempo and timing window. These summaries are browser-local and can be lost when browser data is cleared; historical per-note data and CSVs are not stored. The current report still exports per-note CSV, now including source bar and pass columns.
 
 ## Read the built-in grooves
 
-**Sheet music** displays a five-line percussion staff for all three built-in exercises. Kick is in the bottom space, snare in the second space from the top, and hi-hat uses X-shaped noteheads above the staff. Simultaneous heads share a stem: play them together. The rock and floor grooves use beamed eighth notes; Build the backbeat uses quarter notes. This is a single rhythmic voice, rather than separate hand/foot voices. The notation is drawn locally, with no external music font or rendering dependency.
+**Sheet music** displays a five-line percussion staff for all 24 built-in exercises, including the toms, crash, and ride. Kick is in the bottom space, snare in the second space from the top, and cymbals use X-shaped noteheads. Simultaneous heads share a stem: play them together. Quarter, eighth, and sixteenth notes and rests are supported. Rests mean silence, including when a drum focus removes other voices. Beams group notes within each beat, with flags for isolated subdivisions. This is a single rhythmic voice. The notation is drawn locally, with no external music font or rendering dependency.
 
-The gold playhead crosses each note on its scheduled beat, and the score scrolls continuously to keep upcoming measures visible. Count along with the **1 & 2 & 3 & 4 &** row. Notes glow when due; in scored practice, matched heads gain a green check and missed heads fade red. The legend shows the current keys and updates after remapping. **UP NEXT / HIT NOW** names the drums due together in either view. Visual cues guide playing; the selected timing window still controls scoring.
+The gold playhead crosses each note on its scheduled beat, and the score scrolls continuously to keep upcoming measures visible. Count along with **1 & 2 &** or **1 e & a 2 e & a** as needed. The playhead follows the tempo changes in speed-building passes. Notes glow when due; in scored practice, matched heads gain a green check and missed heads fade red. The legend shows the current keys and updates after remapping. **UP NEXT / HIT NOW** names the drums due together in either view. Visual cues guide playing; the selected timing window still controls scoring.
 
 The highway has a colored target box for each active drum or cymbal. Play as the bar's center meets the center mark inside its box. Targets light at the beat and flash when you strike their drum. Switching views keeps the current run and score intact. View preference is saved in this browser. Imported MIDI continues to use the highway with all its original features; sheet notation for imports is a later milestone. Loading an import temporarily falls back to the highway, and unloading it restores the preferred view.
 
@@ -49,7 +75,7 @@ The staff conventions follow common modern drum notation; see [Drumeo's reading 
 5. Start with an audio offset of 0. **Positive** values delay the recording. **Negative** values skip its intro: −2 skips the first two seconds. Use **Listen first**, then reopen **Song setup** to adjust. The backing recording must follow the same arrangement and tempo as the MIDI. An offset changes the starting alignment; it does not correct tempo differences or drift between different recordings.
 6. Click **Use this song** and play with the same keyboard controls. The highway shows every used drum, including toms and cymbals. The imported MIDI's tempo and meter changes drive the notes and metronome. Backing audio and note playback share the Web Audio clock, and both stop when a run stops or finishes.
 
-Imported songs play at their original tempo; tempo and groove-length controls are disabled for them. The run ends at the MIDI song's end, trimming any trailing backing audio. The count-in is one bar of the initial time signature, followed by the MIDI timeline including any initial rests. Velocity affects guide sound volume, but is not graded.
+Imported songs play at their original tempo; tempo and groove-length controls are disabled for them. With section practice off, the run ends at the MIDI song's end, trimming trailing backing audio. With a section selected, each pass uses that section's original timing and recording slice. The count-in is one bar at the selected section's starting tempo and meter. Velocity affects guide sound volume, but is not graded.
 
 Keyboard controls remain saved. Per-song track selections, note assignments, audio offset, and volume are remembered for the last ten MIDI files. Choose **Save to library** in Song setup to also keep the MIDI and backing recording after a reload. Without saving, the files last for this visit. Reopening **Song setup** while the app is open retains the selected audio. **Unload song** returns to the built-in exercises.
 
@@ -90,12 +116,12 @@ npm test
 npm run check
 ```
 
-Tests cover exercise timing, simultaneous voices, one-to-one matching, repeat hits, early/late errors, window boundaries, extra/missed hits, CSV, keyboard mappings, MIDI parsing and track selection, running status, malformed input, tempo and meter changes, custom drum assignments, audio offsets, backing-source scheduling/stop, the matching sample WAV, production HTTP serving/path restrictions, notation onset/duration fidelity at all exercise tempos and lengths, live scoring references, playhead/scroll alignment, and grouped hit cues. Browser checks cover saving MIDI/audio/setup, reload and playback, archive/restore, both practice views, changing view during a scored run, key legends, saved preferences, imported-song fallback, and count-in/listen behavior.
+Tests cover exercise timing, simultaneous voices, one-to-one matching, repeat hits, early/late errors, window boundaries, extra/missed hits, CSV, keyboard mappings, MIDI parsing and track selection, running status, malformed input, tempo and meter changes, custom drum assignments, audio offsets, backing-source scheduling/stop, the matching sample WAV, production HTTP serving/path restrictions, notation onset/duration fidelity at all exercise tempos and lengths, live scoring references, playhead/scroll alignment, grouped hit cues, selected-bar boundaries, tempo-building timelines, per-pass scores, bounded history, and recording-slice scheduling/cancellation. Browser checks cover saving MIDI/audio/setup, reload and playback, archive/restore, both practice views, changing view during a scored run, key legends, saved preferences, imported-song fallback, count-in/listen behavior, focused loops, tempo changes, restored practice setup, per-pass reports, difficulty browsing, and saved history.
 
 ## Current scope and next steps
 
-Included: built-in drum sheet music with a scrolling playhead and live view toggle, highway hit boxes and grouped hit cues, a browser song library with saved MIDI/audio/setup and archive/restore, a Railway-ready static server, three original grooves, standard MIDI import, drum-part selection and note mapping, local backing audio with start alignment and volume, an original sample MIDI/WAV pair, synthesized drum sounds, configurable keyboard controls, listen mode, count-in, timing windows, reports, and CSV export. No external fonts, CDNs, analytics, or downloaded runtime packages are required. The MIT-licensed MIDI parser is bundled locally.
+Included: built-in drum sheet music with a scrolling playhead and live view toggle, highway hit boxes and grouped hit cues, a browser song library with saved MIDI/audio/setup and archive/restore, a Railway-ready static server, 24 original grooves in four levels, continuous section repeats with matching MIDI backing slices, drum focus, per-pass tempo building, local practice history, standard MIDI import, drum-part selection and note mapping, local backing audio with start alignment and volume, an original sample MIDI/WAV pair, synthesized drum sounds, configurable keyboard controls, listen mode, count-in, timing windows, reports, and CSV export. No external fonts, CDNs, analytics, or downloaded runtime packages are required. The MIT-licensed MIDI parser is bundled locally.
 
-Next: extend notation to imported MIDI, with explicit rhythm quantization. Validate Web MIDI and pad learning with the school's Roland TD-17 when the kit is available. This version does not yet connect MIDI hardware, install as a PWA, change imported-song playback speed, or persist performance history.
+Next: validate Web MIDI and pad learning with the school's Roland TD-17 when the kit is available. Extend notation to imported MIDI with explicit rhythm quantization. This version does not yet connect MIDI hardware, install as a PWA, change imported-song playback speed, or sync progress between devices.
 
 See THIRD_PARTY_NOTICES.md for the SightKick reuse assessment and license.

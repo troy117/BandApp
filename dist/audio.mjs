@@ -26,7 +26,7 @@ export class DrumAudio {
     try { return await this.context.decodeAudioData(bytes); }
     catch { throw new Error('This browser could not decode that audio. Try an MP3 or WAV file.'); }
   }
-  playBacking(buffer, when, offset, volume = 0.65) {
+  playBacking(buffer, when, offset, volume = 0.65, duration) {
     const source = this.context.createBufferSource();
     const gain = this.context.createGain();
     source.buffer = buffer;
@@ -34,7 +34,8 @@ export class DrumAudio {
     source.connect(gain).connect(this.output);
     this.sources.add(source);
     source.addEventListener('ended', () => { this.sources.delete(source); source.disconnect(); gain.disconnect(); }, { once: true });
-    source.start(when, offset);
+    if (duration === undefined) source.start(when, offset);
+    else source.start(when, offset, duration);
     return source;
   }
   audibleTime(timestamp = performance.now()) {

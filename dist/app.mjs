@@ -1,9 +1,11 @@
 import { DRUMS, GROOVES, DEFAULT_BINDINGS, RESERVED_KEYS, keyLabel, validateBindings, assignBinding, createChart, activeDrums, beatAtTime, Judge, performanceCsv } from './engine.mjs';
 import { KeyboardSource } from './vendor/sightkick-input.mjs';
 import { DrumAudio } from './audio.mjs';
-import { SongImporter, formatDuration } from './song-import.mjs';
-import { backingSchedule } from './midi.mjs';
+import { SongImporter, formatDuration, escapeHtml } from './song-import.mjs';
 import { createNotation, drawSheet, nextHitGroup } from './notation.mjs';
+import { LEVELS } from './lessons.mjs';
+import { PracticeTools } from './practice-tools.mjs';
+import { practicePassAt, backingSegments, passSummaries } from './practice.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
@@ -28,8 +30,10 @@ let starting = false;
 let generation = 0;
 let lastStatsAt = 0;
 let loadedSong = null;
-let previewChart = createChart(settings.grooveId, settings.bpm, settings.bars);
+let sourceChart = createChart(settings.grooveId, settings.bpm, settings.bars);
+let previewChart = sourceChart;
 let laneDrums = activeDrums(previewChart);
+const practice = new PracticeTools(() => { renderGroove(); }, chooseTrack);
 const importer = new SongImporter(audio, song => {
   stopRun();
   loadedSong = song;
@@ -53,7 +57,7 @@ function renderView() {
   const sheet = effectiveView() === 'sheet';
   const imported = previewChart.kind !== 'groove';
   $('view-sheet').disabled = imported;
-  $('view-sheet').title = imported ? 'Sheet music currently supports the built-in grooves. Imported MIDI uses the note highway.' : '';
+  $('view-sheet').title = imported ? 'Sheet music currently supports built-in tracks. Imported MIDI uses the note highway.' : '';
   $('view-sheet').setAttribute('aria-pressed', String(sheet));
   $('view-highway').setAttribute('aria-pressed', String(!sheet));
   $('practice-stage').classList.toggle('sheet-view', sheet);
@@ -61,11 +65,8 @@ function renderView() {
   $('sheet-legend').hidden = !sheet;
   $('view-help').textContent = sheet ? 'Play each note as the gold playhead crosses it. Notes stacked together are played together.' : 'Hit when each colored bar is centered in its matching box. The center mark is the beat.';
   $('view-availability').hidden = !imported;
-  canvas.setAttribute('aria-label', sheet ? 'Drum sheet music on a five-line staff. Kick in the bottom space, snare in the second space from the top, and X-shaped hi-hat notes above the staff. Follow the gold playhead.' : 'Approaching drum notes. Press each drum key when its colored bar is centered in the matching hit box.');
-  $('sheet-legend').innerHTML = ['kick', 'snare', 'hihat'].filter(id => laneDrums.some(drum => drum.id === id)).map(id => {
-    const drum = DRUMS.find(item => item.id === id);
-    return `<span style="--drum-color:${drum.color}"><i aria-hidden="true">${id === 'hihat' ? '×' : '●'}</i>${drum.name}<kbd>${bindings[id].map(keyLabel).join(' / ') || 'Unassigned'}</kbd></span>`;
-  }).join('') + '<small>Same column = play together</small>';
+  canvas.setAttribute('aria-label', sheet ? 'Drum sheet music on a five-line percussion staff. Filled heads are drums, X heads are cymbals, and rests mean silence. Follow the gold playhead and the drum/key legend.' : 'Approaching drum notes. Press each drum key when its colored bar is centered in the matching hit box.');
+  $('sheet-legend').innerHTML = laneDrums.map(drum => `<span style="--drum-color:${drum.color}"><i aria-hidden="true">${['hihat', 'crash', 'ride'].includes(drum.id) ? '×' : '●'}</i>${drum.name}<kbd>${bindings[drum.id].map(keyLabel).join(' / ') || 'Unassigned'}</kbd></span>`).join('') + '<small>Same column = play together · Rests = silence</small>';
 }
 
 function notify(message, error = false) {
@@ -99,7 +100,11 @@ function renderLaneLabels() {
 }
 function renderGroove() {
   const imported = settings.grooveId === 'imported' && loadedSong;
-  previewChart = imported ? loadedSong.chart : createChart(settings.grooveId, settings.bpm, settings.bars);
+  sourceChart = imported ? loadedSong.chart : createChart(settings.grooveId, settings.bpm, settings.bars);
+  practice.setSource(sourceChart, imported ? loadedSong.song.fingerprint : settings.grooveId);
+  previewChart = practice.build(sourceChart);
+  $('start').disabled = !practice.valid;
+  $('listen').disabled = !practice.valid;
   laneDrums = activeDrums(previewChart);
   renderLaneLabels();
   renderView();
@@ -115,6 +120,7 @@ function renderGroove() {
   $('bpm').value = imported ? Math.round(previewChart.bpm) : settings.bpm;
   $('bpm').disabled = Boolean(imported || session || starting);
   $('lesson-title').textContent = imported ? 'Play your own part.' : 'Keep it steady.';
+  $('track-number').textContent = imported ? 'MIDI' : `L${GROOVES[settings.grooveId].level}`;
   if (imported) {
     $('song-duration').textContent = formatDuration(previewChart.duration);
     $('loaded-song-info').textContent = loadedSong.backing ? `${loadedSong.backing.name} · offset ${loadedSong.backing.offset > 0 ? '+' : ''}${loadedSong.backing.offset}s` : 'MIDI loaded · no backing recording';
@@ -122,13 +128,23 @@ function renderGroove() {
     $('lesson-tip').textContent = 'Use Song setup to adjust the drum assignments or backing alignment. Files stay on this device.';
     return;
   }
-  $('lesson-tip').innerHTML = 'Try counting <strong>“1 & 2 & 3 & 4 &”</strong> out loud.';
-  $('groove-description').textContent = GROOVES[settings.grooveId].description;
-  const pattern = GROOVES[settings.grooveId];
-  $('rhythm-grid').innerHTML = '<span></span>' + ['1', '&', '2', '&', '3', '&', '4', '&'].map(beat => `<span>${beat}</span>`).join('') + ['hihat', 'snare', 'kick'].map(id => {
-    const drum = DRUMS.find(drum => drum.id === id);
-    return `<span class="grid-label">${id === 'hihat' ? 'HAT' : drum.short}</span>` + Array.from({ length: 8 }, (_, step) => `<div class="grid-dot ${pattern[id].includes(step) ? 'active' : ''}" style="--drum-color:${drum.color}" aria-label="${drum.name} ${step / 2 + 1}${pattern[id].includes(step) ? ': hit' : ': rest'}"></div>`).join('');
+  const track = GROOVES[settings.grooveId];
+  $('lesson-title').textContent = track.skill;
+  $('lesson-tip').textContent = track.tip;
+  $('groove-description').textContent = track.description;
+  const firstBar = sourceChart.notes.filter(note => note.bar === 1);
+  const divisions = firstBar.some(note => !Number.isInteger((note.beat - 1) * 2)) ? 4 : 2;
+  $('rhythm-grid').style.gridTemplateColumns = `35px repeat(${divisions * 4},1fr)`;
+  $('rhythm-grid').innerHTML = '<span></span>' + Array.from({ length: divisions * 4 }, (_, step) => `<span>${step % divisions ? (divisions === 4 ? ['', 'e', '&', 'a'][step % divisions] : '&') : Math.floor(step / divisions) + 1}</span>`).join('') + activeDrums(sourceChart).map(drum => {
+    return `<span class="grid-label">${drum.id === 'hihat' ? 'HAT' : drum.short}</span>` + Array.from({ length: divisions * 4 }, (_, step) => { const hit = firstBar.some(note => note.drum === drum.id && Math.abs(note.beat - 1 - step / divisions) < 1e-7); return `<div class="grid-dot ${hit ? 'active' : ''}" style="--drum-color:${drum.color}" aria-label="${drum.name} beat ${step / divisions + 1}: ${hit ? 'hit' : 'rest'}"></div>`; }).join('');
   }).join('');
+}
+function chooseTrack(id) {
+  if (!Object.hasOwn(GROOVES, id)) return;
+  if (session || starting) stopRun();
+  settings.grooveId = id; settings.bpm = GROOVES[id].bpm;
+  persist(); syncSettings(); notify('');
+  feedback(`Level ${GROOVES[id].level} · ${GROOVES[id].skill}`, 'Listen first, then try a short section at a comfortable tempo.');
 }
 function syncSettings() {
   $('bpm').value = settings.bpm;
@@ -147,6 +163,7 @@ function renderMappings() {
 function setLocked(locked) {
   for (const id of ['groove', 'bpm', 'bars', 'metronome', 'guide']) $(id).disabled = locked || (id === 'bpm' && settings.grooveId === 'imported');
   $('view-report').disabled = locked || !lastReport;
+  practice.lock(locked);
 }
 function elapsed() { return session ? audio.audibleTime() - session.startAt : 0; }
 async function startRun(mode = 'practice') {
@@ -159,6 +176,7 @@ async function startRun(mode = 'practice') {
   }
   if (settings.grooveId !== 'imported') settings.bpm = Math.round(enteredBpm);
   renderGroove();
+  if (!practice.valid) return;
   persist();
   starting = true;
   const myGeneration = ++generation;
@@ -171,11 +189,8 @@ async function startRun(mode = 'practice') {
     if (myGeneration !== generation) return;
     const chart = previewChart;
     const beat = chart.countInBeatSeconds;
-    session = { mode, judge: new Judge(chart, settings.tolerance), startAt: audio.context.currentTime + 0.18 + chart.countInBeats * beat, scheduledBeat: 0, scheduledCount: 0, scheduledNote: 0, settings: { ...settings }, backing: settings.grooveId === 'imported' ? loadedSong.backing : null, lastCount: null };
-    if (session.backing) {
-      const timing = backingSchedule(session.startAt, session.backing.offset, session.backing.buffer.duration);
-      audio.playBacking(session.backing.buffer, timing.when, timing.offset, session.backing.volume);
-    }
+    session = { mode, judge: new Judge(chart, settings.tolerance), sourceKey: practice.key, startAt: audio.context.currentTime + 0.18 + chart.countInBeats * beat, scheduledBeat: 0, scheduledCount: 0, scheduledNote: 0, settings: { ...settings }, backing: settings.grooveId === 'imported' ? loadedSong.backing : null, lastCount: null };
+    if (session.backing) for (const segment of backingSegments(chart, session.backing)) audio.playBacking(session.backing.buffer, session.startAt + segment.when, segment.offset, session.backing.volume, segment.duration);
     flashes.clear();
     $('start').innerHTML = '<span aria-hidden="true">■</span> Stop groove <kbd>Esc</kbd>';
     $('listen').innerHTML = mode === 'demo' ? '♫ Listening…' : '<span aria-hidden="true">♫</span> Listen first';
@@ -225,6 +240,7 @@ function finishRun() {
   if (finished.mode === 'practice') {
     finished.judge.advance(Infinity);
     lastReport = { ...finished, backing: finished.backing ? { name: finished.backing.name, offset: finished.backing.offset, volume: finished.backing.volume } : null };
+    practice.record(finished.judge, finished.settings);
   }
   session = null;
   audio.silence();
@@ -281,6 +297,7 @@ function strike(drum, timestamp, source = 'keyboard') {
   }
   audio.play(drum);
   if (!session || session.mode !== 'practice') return;
+  if (session.judge.chart.practice.focus !== 'all' && !session.judge.chart.focusDrums.includes(drum)) return;
   const time = audio.audibleTime(normalizedTimestamp) - session.startAt - session.settings.offset / 1000;
   if (time < -session.settings.tolerance / 1000 || time > session.judge.chart.duration + session.settings.tolerance / 1000) return;
   const result = session.judge.strike(drum, time, source);
@@ -370,6 +387,7 @@ document.querySelectorAll('[data-close]').forEach(button => button.addEventListe
 $('about').addEventListener('click', () => { if (session || starting) stopRun(); $('about-dialog').showModal(); });
 $('start').addEventListener('click', () => startRun());
 $('listen').addEventListener('click', () => startRun('demo'));
+$('browse-tracks').addEventListener('click', () => { if (session || starting) stopRun(); practice.openTracks(); });
 for (const view of ['sheet', 'highway']) $('view-' + view).addEventListener('click', () => { settings.view = view; persist(); renderView(); });
 for (const id of ['open-import', 'song-setup']) $(id).addEventListener('click', () => { if (session || starting) stopRun('Song setup opened. Start a fresh run when you’re ready.'); importer.open(); });
 $('open-library').addEventListener('click', () => { if (session || starting) stopRun('Song library opened. Start a fresh run when you’re ready.'); importer.openLibrary(); });
@@ -434,7 +452,7 @@ function drawHighway(time) {
     if (delta < 0 || delta > lookahead) continue;
     const p = at(1 - delta / lookahead);
     ctx.beginPath(); ctx.moveTo(p.left, p.y); ctx.lineTo(p.left + p.width, p.y); ctx.strokeStyle = beat.downbeat ? '#627b7c55' : '#3e5a5d55'; ctx.lineWidth = 1; ctx.stroke();
-    if (beat.bar > 0 && beat.downbeat) { ctx.font = '8px Segoe UI, sans-serif'; ctx.fillStyle = '#6f898b'; ctx.fillText(String(beat.bar).padStart(2, '0'), p.left - 21, p.y + 3); }
+    if (beat.bar > 0 && beat.downbeat) { ctx.font = '8px Segoe UI, sans-serif'; ctx.fillStyle = '#6f898b'; ctx.fillText(String(beat.sourceBar ?? beat.bar).padStart(2, '0'), p.left - 21, p.y + 3); }
   }
   for (let i = chart.notes.length - 1; i >= 0; i--) {
     const note = chart.notes[i];
@@ -492,8 +510,9 @@ function frame() {
       $('session-chip').textContent = session.mode === 'demo' ? 'Listening' : 'Playing';
       $('play-state').textContent = session.mode === 'demo' ? 'LISTEN MODE · NO SCORING' : effectiveView() === 'sheet' ? 'FOLLOW THE GOLD PLAYHEAD' : 'MEET THE NOTES IN THE BOXES';
       const position = beatAtTime(chart, time);
-      $('bar-status').textContent = `BAR ${position.bar} / ${chart.bars}${chart.kind === 'midi' ? ` · ${formatDuration(Math.max(0, time))} / ${formatDuration(chart.duration)}` : ''}`;
-      if (chart.kind === 'midi') {
+      const pass = practicePassAt(chart, time);
+      $('bar-status').textContent = `${chart.practice.repeats > 1 ? `PASS ${pass.index}/${chart.practice.repeats} · ` : ''}BAR ${position.sourceBar ?? position.bar}${chart.practice.full && chart.practice.repeats === 1 ? ` / ${sourceChart.bars}` : ''}`;
+      if (chart.tempos?.length) {
         const tempo = chart.tempos.findLast(item => item.time <= time) || chart.tempos[0];
         const signature = chart.signatures.findLast(item => item.time <= time) || chart.signatures[0];
         $('bpm').value = Math.round(tempo.bpm);
@@ -529,6 +548,14 @@ function showReport() {
   const { judge, settings: runSettings } = lastReport;
   const score = judge.summary();
   $('report-subtitle').textContent = `${judge.chart.title} · ${Math.round(judge.chart.bpm)} BPM${judge.chart.tempoChanges ? ' with tempo changes' : ''} · ${judge.chart.bars} bars · ±${runSettings.tolerance} ms window · ${runSettings.offset} ms input correction${lastReport.backing ? ` · ${lastReport.backing.offset}s audio offset` : ''}`;
+  $('report-section').textContent = `Source bars ${judge.chart.practice.startBar}–${judge.chart.practice.endBar} · ${judge.chart.practice.repeats} pass${judge.chart.practice.repeats === 1 ? '' : 'es'} · ${judge.chart.practice.focus === 'all' ? 'All drums scored' : `${practice.el('practice-focus').querySelector(`option[value="${judge.chart.practice.focus}"]`).textContent} scored`}`;
+  $('report-passes').hidden = judge.chart.practice.repeats === 1;
+  $('pass-results').innerHTML = passSummaries(judge).map(pass => `<tr><td>${pass.index}</td><td>${Math.round(pass.bpm)} BPM</td><td>${pass.hits} / ${pass.total}</td><td>${Math.round(pass.accuracy)}%</td><td>${pass.meanAbsMs === null ? '—' : `${Math.round(pass.meanAbsMs)} ms`}</td></tr>`).join('');
+  const trackIds = Object.keys(GROOVES), next = trackIds[trackIds.indexOf(judge.chart.grooveId) + 1];
+  $('next-track').disabled = judge.chart.kind !== 'groove' || !next;
+  $('slower-retry').disabled = judge.chart.kind !== 'groove' || judge.chart.bpm <= 40;
+  $('try-again').disabled = judge.chart.kind === 'midi' && loadedSong?.song.fingerprint !== lastReport.sourceKey;
+  $('try-again').title = $('try-again').disabled ? 'Reload the original MIDI song to replay this report.' : '';
   $('report-stats').innerHTML = [
     [Math.round(score.accuracy) + '%', 'match rate'], [`${score.hits} / ${score.total}`, 'notes matched'],
     [String(score.misses), 'missed notes'], [String(score.extras), 'extra hits'],
@@ -567,7 +594,20 @@ function drawTimingChart() {
   if (!hits.length) { c.fillStyle = '#92ad98'; c.font = '11px Segoe UI, sans-serif'; c.textAlign = 'center'; c.fillText('Matched hits will appear here.', w / 2 + 10, mid - 10); }
 }
 $('view-report').addEventListener('click', showReport);
-$('try-again').addEventListener('click', () => { $('report-dialog').close(); startRun(); });
+function retryReport(slower = false) {
+  const chart = lastReport?.judge.chart;
+  if (!chart || (chart.kind === 'midi' && loadedSong?.song.fingerprint !== lastReport.sourceKey)) return;
+  settings.grooveId = chart.kind === 'groove' ? chart.grooveId : 'imported';
+  if (chart.kind === 'groove') { settings.bpm = Math.max(40, Math.round(chart.bpm) - (slower ? 5 : 0)); settings.bars = lastReport.settings.bars; }
+  syncSettings();
+  const info = chart.practice;
+  Object.assign(practice.options, { enabled: info.repeats > 1 || !info.full || info.increment > 0, startBar: info.startBar, endBar: info.endBar, repeats: info.repeats, stepUp: info.increment > 0, focus: info.focus });
+  practice.persist(); persist(); syncSettings();
+  $('report-dialog').close(); startRun();
+}
+$('try-again').addEventListener('click', () => retryReport());
+$('slower-retry').addEventListener('click', () => retryReport(true));
+$('next-track').addEventListener('click', () => { const ids = Object.keys(GROOVES); const id = ids[ids.indexOf(lastReport.judge.chart.grooveId) + 1]; $('report-dialog').close(); chooseTrack(id); });
 $('download-report').addEventListener('click', () => {
   if (!lastReport) return;
   const url = URL.createObjectURL(new Blob([performanceCsv(lastReport.judge)], { type: 'text/csv;charset=utf-8' }));
@@ -575,4 +615,5 @@ $('download-report').addEventListener('click', () => {
   const link = document.createElement('a'); link.href = url; link.download = `groove-lab-${title}-${Math.round(lastReport.judge.chart.bpm)}bpm.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 window.addEventListener('resize', () => { if ($('report-dialog').open) drawTimingChart(); });
+$('groove').innerHTML = LEVELS.map((name, index) => `<optgroup label="Level ${index + 1} · ${name}">${Object.entries(GROOVES).filter(([, track]) => track.level === index + 1).map(([id, track]) => `<option value="${id}">${escapeHtml(track.name)}</option>`).join('')}</optgroup>`).join('');
 syncSettings(); renderPads(); persist(); resize(); requestAnimationFrame(frame);

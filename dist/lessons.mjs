@@ -1,0 +1,32 @@
+// Original teaching patterns. Steps are sixteenth-note positions (0–15),
+// except the three retained exercises, whose original eighth-note grid is kept.
+export const LEVELS = ['Steady starts', 'Coordination', 'Syncopation', 'Fills & challenges'];
+const pulse = [0, 4, 8, 12], eighths = [0, 2, 4, 6, 8, 10, 12, 14];
+const sixteenths = Array.from({ length: 16 }, (_, i) => i);
+const lesson = (name, level, bpm, skill, description, pattern, extra = {}) => ({ name: name.replace(/^\d+ · /, ''), level, bpm, skill, description, tip: 'Keep the count steady. Start slowly, then build speed.', stepsPerBeat: 4, ...pattern, ...extra });
+export const PRACTICE_TRACKS = {
+  kickstart: lesson('01 · Find the pulse', 1, 65, 'Quarter notes', 'Kick on every beat. Say 1, 2, 3, 4 out loud.', { kick: pulse }),
+  snarepulse: lesson('02 · Snare time', 1, 65, 'Steady hands', 'Four even snare hits per bar. Try alternating your two snare keys.', { snare: pulse }),
+  hatpulse: lesson('03 · Light on the hi-hat', 1, 70, 'Cymbal control', 'Keep quarter-note hi-hats even, with a kick on the first beat.', { hihat: pulse, kick: [0] }),
+  backbeat: { name: 'Build the backbeat', level: 1, bpm: 70, skill: 'Two voices', description: 'Start with two voices: kick on 1 & 3, snare on 2 & 4.', tip: 'Say kick, snare, kick, snare. Keep the space between them even.', kick: [0, 4], snare: [2, 6], hihat: [] },
+  rock: { name: 'First rock beat', level: 1, bpm: 80, skill: 'Eighth-note hats', description: 'Kick on 1 & 3. Snare on 2 & 4. Steady eighth-note hi-hats.', tip: 'Count 1 & 2 & 3 & 4 &. Keep the hats moving through the snare hits.', kick: [0, 4], snare: [2, 6], hihat: [0, 1, 2, 3, 4, 5, 6, 7] },
+  floor: { name: 'Four on the floor', level: 1, bpm: 85, skill: 'Steady feet', description: 'A kick on every beat, a backbeat on the snare, and eighth-note hi-hats.', tip: 'The kick is your anchor. Keep it steady under the hands.', kick: [0, 2, 4, 6], snare: [2, 6], hihat: [0, 1, 2, 3, 4, 5, 6, 7] },
+  doublekick: lesson('07 · Two kicks together', 2, 80, 'Eighth-note kicks', 'Add a second kick on the & after beat 3.', { kick: [0, 8, 10], snare: [4, 12], hihat: eighths }),
+  offbeathat: lesson('08 · Between the beats', 2, 75, 'Offbeat hi-hats', 'Hi-hats on the & counts. Keep kick and snare on the numbered beats.', { kick: [0, 8], snare: [4, 12], hihat: [2, 6, 10, 14] }),
+  ridebeat: lesson('09 · Ride the groove', 2, 85, 'Ride cymbal', 'Move your eighth notes to the ride cymbal. Keep the backbeat familiar.', { kick: [0, 8], snare: [4, 12], ride: eighths }),
+  tomwalk: lesson('10 · Walk around the kit', 2, 70, 'Tom locations', 'Quarter notes move from snare to high, mid, and floor tom.', { snare: [0], tom1: [4], tom2: [8], tom3: [12], kick: [0, 8] }),
+  snaredouble: lesson('11 · Double the backbeat', 2, 80, 'Snare pairs', 'Two snare hits on beat 4 and its &. Keep the hi-hats even.', { kick: [0, 8], snare: [4, 12, 14], hihat: eighths }),
+  crashentry: lesson('12 · A strong entrance', 2, 85, 'Crash accents', 'Start each two-bar phrase with a crash, then settle back onto the hi-hat.', {}, { cycle: [{ kick: [0, 8], snare: [4, 12], crash: [0], hihat: eighths.filter(n => n !== 0) }, { kick: [0, 8, 10], snare: [4, 12], hihat: eighths }] }),
+  kickpush: lesson('13 · Push the kick', 3, 85, 'Kick syncopation', 'Place kicks between the main beats while the snare stays on 2 and 4.', { kick: [0, 6, 8, 14], snare: [4, 12], hihat: eighths }),
+  sixteenhats: lesson('14 · Sixteenth-note engine', 3, 65, 'Sixteenth notes', 'Count 1 e & a. Play four even hi-hats inside each beat.', { kick: [0, 8], snare: [4, 12], hihat: sixteenths }, { tip: 'Use a slow tempo. Count every subdivision before adding the kick and snare.' }),
+  kickpickup: lesson('15 · The little pickup', 3, 70, 'Sixteenth-note kicks', 'A kick on the a of beat 2 leads into beat 3.', { kick: [0, 7, 8, 10], snare: [4, 12], hihat: eighths }),
+  snarepickup: lesson('16 · Snare pickup', 3, 70, 'Sixteenth-note snare', 'Add the snare on the a of beat 3, just before the backbeat on 4.', { kick: [0, 8], snare: [4, 11, 12], hihat: eighths }),
+  tomturn: lesson('17 · Turn the corner', 3, 80, 'Two-bar fill', 'One bar of groove, then a half-bar tom fill. Land back on beat 1.', {}, { cycle: [{ kick: [0, 8], snare: [4, 12], hihat: eighths }, { kick: [0, 8], snare: [4, 8, 10], hihat: [0, 2, 4, 6], tom1: [12], tom3: [14] }] }),
+  spacegroove: lesson('18 · Leave some space', 3, 80, 'Rests and control', 'A sparse groove with silent spaces. Keep counting through the rests.', { kick: [0, 7, 10], snare: [4, 12], hihat: [0, 2, 6, 8, 14] }),
+  funkgrid: lesson('19 · The funk grid', 4, 70, 'Displaced kicks', 'Steady sixteenth hats support kicks on the e and a subdivisions.', { hihat: sixteenths, kick: [0, 3, 6, 10, 15], snare: [4, 12] }),
+  snarecontrol: lesson('20 · Hands in control', 4, 65, 'Snare combinations', 'Alternate snare keys through groups of sixteenths, with a steady kick underneath.', { kick: pulse, snare: [0, 1, 2, 4, 6, 7, 8, 10, 11, 12, 13, 14, 15] }),
+  tomcascade: lesson('21 · Tom cascade', 4, 65, 'Sixteenth-note fill', 'Four-note groups descend through snare and three toms. Start slowly.', { snare: [0, 1, 2, 3], tom1: [4, 5, 6, 7], tom2: [8, 9, 10, 11], tom3: [12, 13, 14, 15], kick: [0, 8] }),
+  twobarfunk: lesson('22 · Two-bar conversation', 4, 75, 'Phrase memory', 'Two different kick patterns form a repeating conversation over the backbeat.', {}, { cycle: [{ hihat: eighths, kick: [0, 3, 8, 10], snare: [4, 12] }, { hihat: eighths, kick: [0, 6, 11, 14], snare: [4, 12, 15] }] }),
+  fourbarfill: lesson('23 · Build a four-bar phrase', 4, 80, 'Groove into a fill', 'Three bars of groove lead into a full-bar fill. The crash marks the return.', {}, { cycle: [{ crash: [0], ride: eighths.filter(n => n !== 0), kick: [0, 8], snare: [4, 12] }, { ride: eighths, kick: [0, 6, 8], snare: [4, 12] }, { ride: eighths, kick: [0, 8, 10], snare: [4, 12] }, { snare: [0, 1, 2, 3], tom1: [4, 5, 6, 7], tom2: [8, 9, 10, 11], tom3: [12, 13, 14, 15], kick: [0, 8] }] }),
+  kitjourney: lesson('24 · Around the whole kit', 4, 75, 'Mixed-kit challenge', 'Combine crash, ride, syncopated kicks, and a short tom fill in a four-bar phrase.', {}, { cycle: [{ crash: [0], ride: [2, 4, 6, 8, 10, 12, 14], kick: [0, 7, 8], snare: [4, 12] }, { ride: eighths, kick: [0, 3, 8, 14], snare: [4, 12] }, { hihat: sixteenths, kick: [0, 6, 8], snare: [4, 12] }, { hihat: [0, 2, 4, 6], kick: [0, 8], snare: [4, 8, 9], tom1: [10, 11], tom2: [12, 13], tom3: [14, 15] }] }),
+};

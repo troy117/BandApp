@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createChart, Judge, GROOVES } from '../dist/engine.mjs';
-import { createNotation, sheetGeometry, nextHitGroup } from '../dist/notation.mjs';
+import { createNotation, sheetGeometry, nextHitGroup, scoreBeatAtTime, STAFF_POSITIONS } from '../dist/notation.mjs';
+import { createPracticeChart } from '../dist/practice.mjs';
 
 test('all built-in scores preserve every onset and simultaneous drum at every tempo', () => {
   for (const groove of Object.keys(GROOVES)) for (const bpm of [40, 80, 160]) for (const bars of [4, 8, 16]) {
@@ -11,11 +12,29 @@ test('all built-in scores preserve every onset and simultaneous drum at every te
     assert.equal(score.groups.reduce((beats, group) => beats + group.durationBeats, 0), bars * 4);
     for (const group of score.groups) {
       assert.ok(Math.abs(group.time - group.beat * score.secondsPerBeat) < 1e-7);
-      assert.equal(group.durationBeats, groove === 'backbeat' ? 1 : 0.5);
-      if (group.beamNext) assert.equal(group.beat % 1, 0);
+      assert.ok([1, 0.5, 0.25].includes(group.durationBeats));
+      if (group.beamNext) assert.equal(Math.floor(group.beat), Math.floor(score.groups[score.groups.indexOf(group) + 1].beat));
+      for (const note of group.notes) assert.ok(Number.isFinite(STAFF_POSITIONS[note.drum]));
     }
-    assert.equal(score.groups.filter(group => group.beamNext).length, groove === 'backbeat' ? 0 : bars * 4);
+    if (['rock', 'floor', 'backbeat'].includes(groove)) assert.equal(score.groups.filter(group => group.beamNext).length, groove === 'backbeat' ? 0 : bars * 4);
   }
+});
+test('focus notation fills silent beats with rests and preserves isolated offbeat notes', () => {
+  const kick = createNotation(createPracticeChart(createChart('rock', 80, 4), { focus: 'kick' }));
+  assert.equal(kick.groups.length, 16);
+  assert.equal(kick.groups.filter(group => group.rest).length, 8);
+  const hats = createNotation(createPracticeChart(createChart('offbeathat', 80, 4), { focus: 'cymbals' }));
+  assert.equal(hats.groups.length, 32);
+  assert.equal(hats.groups.filter(group => group.rest).length, 16);
+  assert.equal(hats.groups[1].beat, 0.5);
+  assert.equal(hats.groups[1].beamBack, false);
+  assert.equal(Boolean(hats.groups[1].beamNext), false);
+});
+test('sheet playhead stays on every onset while tempo rises between passes', () => {
+  const chart = createPracticeChart(createChart('kickpickup', 80, 4), { enabled: true, startBar: 2, endBar: 3, repeats: 4, stepUp: true });
+  const score = createNotation(chart);
+  assert.equal(score.subdivisions, 4);
+  for (const group of score.groups) assert.ok(Math.abs(scoreBeatAtTime(score, group.time) - group.beat) < 1e-7);
 });
 test('notation reads live judge results without changing timing or consuming notes', () => {
   const judge = new Judge(createChart('rock', 80, 4));
