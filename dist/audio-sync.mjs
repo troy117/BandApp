@@ -1,5 +1,6 @@
-import { alignMidiChart, fitAlignment, midiPositionTime, audioOnsets, suggestAlignment, validateAlignment } from './sync.mjs';
+import { alignMidiChart, fitAlignment, midiPositionTime, audioOnsets, suggestAlignment, validateAlignment, waveformNotes } from './sync.mjs';
 import { makeMidiChart } from './midi.mjs';
+import { DRUMS } from './engine.mjs';
 
 export class AudioSync {
   constructor(owner) {
@@ -23,10 +24,21 @@ export class AudioSync {
     this.el('sync-waveform').addEventListener('click', event => {
       if (!this.owner.draft?.buffer || this.owner.busy) return;
       const rect = this.el('sync-waveform').getBoundingClientRect();
-      this.el('sync-audio').value = Math.max(0, Math.min(this.owner.draft.buffer.duration - 0.001, this.waveStart + (event.clientX - rect.left) / rect.width * this.waveLength)).toFixed(3);
+      const x = (event.clientX - rect.left) * this.waveWidth / rect.width, y = (event.clientY - rect.top) * this.waveHeight / rect.height;
+      if (x < this.waveLeft || x > this.waveLeft + this.wavePlotWidth) return;
+      const target = this.noteTargets?.find(item => Math.abs(x - item.x) <= 8 && Math.abs(y - item.y) <= 9);
+      if (target) {
+        this.el('sync-bar').value = target.note.bar; this.el('sync-beat').value = Number(target.note.beat.toFixed(4));
+        this.el('sync-audio').value = target.audioTime.toFixed(3);
+        this.status('MIDI hit selected. Click its matching attack in the audio waveform, then Apply beat match.');
+      } else {
+        if (y >= this.waveLaneTop && this.el('sync-show-midi').checked) return;
+        this.el('sync-audio').value = Math.max(0, Math.min(this.owner.draft.buffer.duration - 0.001, this.waveStart + (x - this.waveLeft) / this.wavePlotWidth * this.waveLength)).toFixed(3);
+      }
       this.stop(); this.draw();
     });
     this.el('sync-zoom').addEventListener('change', () => this.draw());
+    this.el('sync-show-midi').addEventListener('change', () => this.draw());
     this.el('audio-sync').addEventListener('toggle', () => { if (this.el('audio-sync').open) this.draw(); });
     this.owner.dialog.addEventListener('close', () => this.stop());
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.stop(); });
@@ -125,33 +137,74 @@ export class AudioSync {
   draw() {
     const canvas = this.el('sync-waveform'), buffer = this.owner.draft?.buffer;
     if (!buffer || !this.el('audio-sync').open) return;
-    const width = Math.max(280, canvas.clientWidth), height = 140, dpr = Math.min(2, devicePixelRatio || 1);
+    const d = this.owner.draft, showMidi = this.el('sync-show-midi').checked;
+    let source = null;
+    try { source = this.base(); } catch { /* The waveform remains usable while mapping is incomplete. */ }
+    const drums = showMidi && source ? DRUMS.filter(drum => source.notes.some(note => note.drum === drum.id)) : [];
+    const left = 54, laneTop = 156, laneHeight = 21;
+    const width = Math.max(240, canvas.clientWidth), height = drums.length ? laneTop + drums.length * laneHeight + 24 : 148, dpr = Math.min(2, devicePixelRatio || 1);
+    const plotWidth = width - left - 8, waveTop = 28, waveBottom = 126, waveCenter = 77;
+    canvas.style.height = `${height}px`;
     canvas.width = width * dpr; canvas.height = height * dpr;
     const context = canvas.getContext('2d'); context.scale(dpr, dpr); context.fillStyle = '#122326'; context.fillRect(0, 0, width, height);
     const position = Math.max(0, Math.min(buffer.duration, Number(this.el('sync-audio').value) || 0));
     const length = Math.min(buffer.duration, Number(this.el('sync-zoom').value));
     const start = Math.max(0, Math.min(buffer.duration - length, position - length / 2));
     this.waveStart = start; this.waveLength = length;
+    this.waveWidth = width; this.waveHeight = height; this.waveLeft = left; this.wavePlotWidth = plotWidth; this.waveLaneTop = laneTop; this.noteTargets = [];
+    context.fillStyle = '#a7bdb5'; context.font = '9px Segoe UI'; context.fillText('AUDIO', 7, 80);
+    for (const [index, drum] of drums.entries()) {
+      const y = laneTop + index * laneHeight;
+      context.fillStyle = index % 2 ? '#ffffff06' : '#ffffff0b'; context.fillRect(left, y - 9, plotWidth, laneHeight);
+      context.fillStyle = drum.color; context.font = '9px Segoe UI'; context.fillText(drum.short, 7, y + 4);
+    }
+    if (drums.length) { context.fillStyle = '#a7bdb5'; context.font = '10px Segoe UI'; context.fillText(width < 460 ? 'MIDI HITS · select a marker' : 'MIDI HITS · click a colored marker to select its beat', left, 142); }
     const channel = buffer.getChannelData(0);
     context.strokeStyle = '#63b5a6'; context.lineWidth = 1;
-    for (let x = 0; x < width; x++) {
-      const a = Math.floor((start + x / width * length) * buffer.sampleRate), b = Math.min(buffer.length, Math.ceil((start + (x + 1) / width * length) * buffer.sampleRate));
+    for (let x = 0; x < plotWidth; x++) {
+      const a = Math.floor((start + x / plotWidth * length) * buffer.sampleRate), b = Math.min(buffer.length, Math.ceil((start + (x + 1) / plotWidth * length) * buffer.sampleRate));
       let peak = 0;
       for (let i = a; i < b; i += Math.max(1, Math.floor((b - a) / 80))) peak = Math.max(peak, Math.abs(channel[i]));
-      context.beginPath(); context.moveTo(x, 70 - peak * 45); context.lineTo(x, 70 + peak * 45); context.stroke();
+      context.beginPath(); context.moveTo(left + x, waveCenter - peak * 43); context.lineTo(left + x, waveCenter + peak * 43); context.stroke();
     }
+    this.el('sync-note-selection').textContent = 'Choose a MIDI hit in a colored row, or enter a bar and beat above.';
     try {
-      const d = this.owner.draft, chart = alignMidiChart(this.base(), d.timeScale ?? 1);
+      const chart = alignMidiChart(source || this.base(), d.timeScale ?? 1);
+      let lastLabel = -100;
       for (const beat of chart.beats) {
         const time = beat.time - d.offset;
         if (time < start || time > start + length) continue;
-        const x = (time - start) / length * width;
-        context.strokeStyle = beat.downbeat ? '#e8c17b99' : '#ffffff22'; context.beginPath(); context.moveTo(x, 22); context.lineTo(x, 117); context.stroke();
-        if (beat.downbeat) { context.fillStyle = '#e8c17b'; context.font = '10px Segoe UI'; context.fillText(`BAR ${beat.bar}`, x + 3, 15); }
+        const x = left + (time - start) / length * plotWidth;
+        context.strokeStyle = beat.downbeat ? '#e8c17b66' : '#ffffff18'; context.beginPath(); context.moveTo(x, waveTop); context.lineTo(x, height - 24); context.stroke();
+        if (beat.downbeat && x - lastLabel > 54 && x < width - 37) { context.fillStyle = '#e8c17b'; context.font = '10px Segoe UI'; context.fillText(`BAR ${beat.bar}`, x + 3, 15); lastLabel = x; }
       }
+      if (drums.length) {
+        const hits = waveformNotes(source, { offset: d.offset, timeScale: d.timeScale ?? 1 }, { start, duration: length, left, width: plotWidth });
+        const onsets = new Map();
+        for (const hit of hits) {
+          const key = hit.audioTime.toFixed(6);
+          if (!onsets.has(key)) onsets.set(key, []);
+          onsets.get(key).push(hit);
+          const index = drums.findIndex(drum => drum.id === hit.note.drum), drum = drums[index], y = laneTop + index * laneHeight;
+          context.fillStyle = drum.color; context.fillRect(hit.x - 3, y - 6, 6, 12);
+          if (hit.note.bar === Number(this.el('sync-bar').value) && Math.abs(hit.note.beat - Number(this.el('sync-beat').value)) < 0.0001) { context.strokeStyle = '#fff5d5'; context.lineWidth = 1.5; context.strokeRect(hit.x - 5, y - 8, 10, 16); }
+          this.noteTargets.push({ ...hit, y });
+        }
+        // Split a simultaneous strike's overlay line by color; every voice keeps
+        // its exact x coordinate, with separate rows below the audio.
+        context.lineWidth = 1.5; context.globalAlpha = 0.8;
+        for (const simultaneous of onsets.values()) for (const [index, hit] of simultaneous.entries()) {
+          context.strokeStyle = DRUMS.find(drum => drum.id === hit.note.drum).color;
+          context.beginPath(); context.moveTo(hit.x, waveTop + index / simultaneous.length * (waveBottom - waveTop)); context.lineTo(hit.x, waveTop + (index + 1) / simultaneous.length * (waveBottom - waveTop)); context.stroke();
+        }
+        context.globalAlpha = 1;
+      }
+      const selected = chart.notes.filter(note => note.bar === Number(this.el('sync-bar').value) && Math.abs(note.beat - Number(this.el('sync-beat').value)) < 0.0001);
+      this.el('sync-note-selection').textContent = selected.length ? `Selected MIDI beat: bar ${selected[0].bar}, beat ${Number(selected[0].beat.toFixed(4))} · ${[...new Set(selected.map(note => DRUMS.find(drum => drum.id === note.drum).name))].join(' + ')} · currently at ${(selected[0].time - d.offset).toFixed(3)} s in the recording.` : 'Choose a MIDI hit in a colored row, or enter a bar and beat above.';
     } catch { /* The waveform is still useful while mapping is incomplete. */ }
-    const x = (position - start) / length * width;
-    context.strokeStyle = '#f4c984'; context.lineWidth = 2; context.beginPath(); context.moveTo(x, 20); context.lineTo(x, 120); context.stroke();
-    context.fillStyle = '#b2c9c0'; context.font = '11px Segoe UI'; context.fillText(`${start.toFixed(2)} s`, 8, 133); context.textAlign = 'right'; context.fillText(`${(start + length).toFixed(2)} s`, width - 8, 133);
+    this.el('sync-midi-legend').innerHTML = drums.map(drum => `<span><i style="background:${drum.color}" aria-hidden="true"></i>${drum.name}</span>`).join('');
+    const x = left + (position - start) / length * plotWidth;
+    context.strokeStyle = '#f4c984'; context.lineWidth = 2; context.beginPath(); context.moveTo(x, waveTop - 5); context.lineTo(x, height - 24); context.stroke();
+    context.fillStyle = '#b2c9c0'; context.font = '11px Segoe UI'; context.fillText(`${start.toFixed(2)} s`, left, height - 8); context.textAlign = 'right'; context.fillText(`${(start + length).toFixed(2)} s`, width - 8, height - 8);
   }
 }

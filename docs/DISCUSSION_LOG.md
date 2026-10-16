@@ -42,3 +42,7 @@ The app is working well. The user imported Songsterr MIDI files, including Fleet
 ### Limits and follow-up
 
 The actual Dreams MIDI/MP3 pair was not attached to this coding session, so it needs user testing at home. A single offset/tempo ratio does not repair missing sections or variable drift. The sheet view follows MIDI notes; it does not reconstruct Songsterr's lyrics, original multivoice engraving or page layout. See [HANDOFF.md](HANDOFF.md) for the next milestones and setup instructions.
+
+## October 16, 2026 — MIDI overlay for visual alignment
+
+The user could see the waveform and requested MIDI notes overlaid on it to help match beats visually. Version 0.6.1 adds colored MIDI-hit lines through the waveform, separate drum rows, a drum-color legend and an overlay toggle. Clicking a drum-row marker selects its MIDI bar and beat; the user can then click the corresponding audio attack and apply the match. The selected beat/drum readout and shared recording-time coordinates follow offset, MIDI speed and zoom. Keyboard play, notation and scoring are unchanged.

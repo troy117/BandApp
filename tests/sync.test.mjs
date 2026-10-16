@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alignMidiChart, fitAlignment, midiPositionTime, audioOnsets, suggestAlignment, validateAlignment } from '../dist/sync.mjs';
+import { alignMidiChart, fitAlignment, midiPositionTime, audioOnsets, suggestAlignment, validateAlignment, waveformNotes } from '../dist/sync.mjs';
 import { parseMidiSong, makeMidiChart } from '../dist/midi.mjs';
 import { createDemoMidi } from '../dist/demo-data.mjs';
 import { createPracticeChart, backingSegments } from '../dist/practice.mjs';
@@ -8,6 +8,31 @@ import { createNotation, scoreBeatAtTime } from '../dist/notation.mjs';
 
 const close = (a, b, tolerance = 1e-7) => assert.ok(Math.abs(a - b) < tolerance, `${a} != ${b}`);
 const sampleChart = () => { const song = parseMidiSong(createDemoMidi()); return makeMidiChart(song, song.selected); };
+
+test('waveform overlay uses the recording clock for offset, speed, zoom and simultaneous voices', () => {
+  const chart = sampleChart(), before = structuredClone(chart);
+  const view = { start: 2, duration: 2, left: 54, width: 600 };
+  const alignment = { offset: -0.5, timeScale: 1.05 };
+  const hits = waveformNotes(chart, alignment, view);
+  assert.ok(hits.length > 0);
+  for (const hit of hits) {
+    close(hit.audioTime, hit.note.time * 1.05 + 0.5);
+    close((hit.x - view.left) / view.width * view.duration + view.start, hit.audioTime);
+    assert.ok(hit.x >= 54 && hit.x < 654);
+  }
+  const beginning = waveformNotes(chart, { offset: 0, timeScale: 1 }, { ...view, start: 0 });
+  const simultaneous = beginning.filter(hit => hit.audioTime === 0);
+  assert.ok(simultaneous.length > 1); assert.equal(new Set(simultaneous.map(hit => hit.x)).size, 1);
+  assert.equal(new Set(simultaneous.map(hit => hit.note.drum)).size, simultaneous.length);
+  const delayed = waveformNotes(chart, { offset: 1, timeScale: 1 }, { ...view, start: 0 });
+  assert.ok(delayed.every(hit => hit.note.time >= 1));
+  const zoom = waveformNotes(chart, { offset: 0, timeScale: 1 }, { ...view, start: 0, duration: 0.5 });
+  assert.ok(zoom.every(hit => hit.audioTime < 0.5));
+  const nudged = waveformNotes(chart, { offset: -0.05, timeScale: 1 }, { ...view, start: 0 });
+  close(nudged[0].x - beginning[0].x, 15);
+  assert.deepEqual(chart, before);
+  assert.throws(() => waveformNotes(chart, alignment, { ...view, duration: 0 }), /waveform window/);
+});
 
 test('one and two beat matches fit both offset signs and steady tempo drift', () => {
   assert.deepEqual(fitAlignment({ midi: 0, audio: 2.5 }), { offset: -2.5, timeScale: 1 });

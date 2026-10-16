@@ -5,7 +5,7 @@ Updated October 16, 2026. This is the starting point for continuing at home.
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.6.0 / Prototype 06**. Static modules in `dist/`; no downloaded runtime dependencies or build step required.
+- Browser app, version **0.6.1 / Prototype 06.1**. Static modules in `dist/`; no downloaded runtime dependencies or build step required.
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, to be tested when accessible on Monday. Continue keyboard testing until then. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
@@ -32,13 +32,15 @@ For a song already aligned at school, choose **Download song setup** in its impo
 2. MIDI import and backing audio: GM drum selection/mapping, original test files, local audio decoding, song library with save/archive/restore, Railway-ready server.
 3. Notation and hit cues: sheet/highway toggle, moving playhead, colored note heads, drum/key legend, highway hit boxes.
 4. Practice tools: 24 original tracks in four levels, section repeats, focus, built-in tempo ladder, per-pass reports, slower retry, next track, local journal.
-5. Song alignment and imported notation (this release): automatic candidates, waveform, short audio/MIDI previews, manual one/two-point fit, MIDI speed scaling, portable setup JSON, imported rhythms/tuplets/meter changes.
+5. Song alignment and imported notation: automatic candidates, waveform, short audio/MIDI previews, manual one/two-point fit, MIDI speed scaling, portable setup JSON, imported rhythms/tuplets/meter changes. Version 0.6.1 adds colored MIDI-hit overlays, separate drum rows, and click-to-select MIDI beats on the recording waveform.
 
 ## How sync works
 
 The convention is `recordingSeconds = originalMidiSeconds * timeScale - offsetSeconds`. A positive offset delays the recording; a negative offset skips its intro. The UI's MIDI speed percentage is `100 / timeScale`.
 
 `alignMidiChart` scales note, beat, measure and signature times and inversely scales BPM. Quarter-note coordinates remain unchanged. The recording always plays at normal speed and pitch. `createPracticeChart` then selects/repeats the adjusted chart; `backingSegments` crops the corresponding original recording region on each pass. Preview and play use the same audio clock.
+
+`waveformNotes` projects original MIDI hits onto this same recording axis for the sync overlay. The waveform, markers, bar lines and pointer selection share plot bounds including the drum-label gutter. Selecting a row marker sets MIDI bar/beat and the currently aligned recording position; clicking the audio waveform changes only the recording position. Alignment is applied explicitly with **Apply beat match**. Simultaneous hits retain one x coordinate and appear on separate rows. Display toggling/zoom does not change alignment or scoring.
 
 Automatic analysis uses a lightweight multiband energy novelty envelope sampled at 100 Hz, then a weighted onset comparison with the selected MIDI drums. It searches offsets and, optionally, a small duration ratio, returning up to three alternatives for review. Processing yields to the browser and can be cancelled by closing setup. No model, API call, upload, network service, or source separation is involved. A constant duration fit is deliberately the current limit. Similar repeated bars, sparse/drumless mixes, expressive playing, and different arrangements can fool onset matching. Do not label candidates as verified or display an invented accuracy percentage.
 

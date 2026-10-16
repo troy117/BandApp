@@ -1,5 +1,12 @@
 # Changes
 
+## 0.6.1 — October 16, 2026 — Prototype 06.1
+
+- Colored MIDI drum-hit overlays on the audio waveform, with separate rows and a legend for simultaneous drums.
+- Click a drum-row marker to select its MIDI bar/beat, then click the corresponding audio attack and apply the beat match. A readout names the selected drums and their current recording timestamp.
+- Markers follow offset, MIDI speed, zoom, and drum mappings on a shared recording-time axis. The overlay can be hidden to inspect audio alone.
+- Validation: **51 tests pass**, syntax check and standalone export pass. Browser checks cover marker selection, audio matching, nudges, overlay toggle, and responsive layout.
+
 ## 0.6.0 — October 16, 2026 — Prototype 06
 
 - Local backing-audio analysis with up to three reviewable MIDI alignment candidates; offset and optional small duration-ratio search.
