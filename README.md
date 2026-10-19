@@ -2,7 +2,7 @@
 
 A browser drum-practice prototype for Sierra Charter School. Works without a build step or downloaded dependencies.
 
-Source repository: [troy117/BandApp](https://github.com/troy117/BandApp). Prepared for Railway hosting. Imported MIDI and audio stay in the browser; the server only serves the app. No accounts or server database are required.
+Source repository: [troy117/BandApp](https://github.com/troy117/BandApp). Prepared for Railway hosting. Guest imports stay on the device; teacher publishing explicitly uploads songs and sync settings to the shared school library. Optional teacher/student accounts store practice results on the server. See [school accounts and Railway setup](docs/CLASSROOMS.md).
 
 Continuing development on another computer: start with [the handoff and next steps](docs/HANDOFF.md), [discussion and decisions](docs/DISCUSSION_LOG.md), and [release changes](CHANGELOG.md).
 
@@ -56,7 +56,7 @@ The library contains six tracks in each level:
 
 All levels remain open. The difficulty reflects coordination and rhythm complexity; harder material starts at a slower suggested tempo where useful. These are original synthesized drum exercises.
 
-**Your practice journal** saves summary results for the last 30 completed scored runs in this browser, including tempo range, source bars, passes, focus, timing window, match rate, and average timing error. Listen mode and interrupted runs do not add entries. Recent full-kit bests appear on track cards with their tempo and timing window. These summaries are browser-local and can be lost when browser data is cleared; historical per-note data and CSVs are not stored. The current report still exports per-note CSV, now including source bar and pass columns.
+**Your practice journal** shows completed scored runs, including tempo range, source bars, passes, focus, timing window, match rate, and average timing error. Guests keep the last 30 summaries in this browser. Signed-in users save summaries and a drum-by-drum timing breakdown to their school account, accessible on other computers. Listen mode and interrupted runs do not add entries. Recent full-kit bests appear on track cards with their tempo and timing window. Historical per-note data and CSVs are not stored; the current report exports per-note CSV with source bar and pass columns.
 
 ## Read grooves and imported MIDI
 
@@ -91,9 +91,13 @@ Use wired headphones or speakers. Keyboard hardware may block certain simultaneo
 
 ## Song library
 
+**School library** appears after sign-in. Teachers publish songs for all students, and students practice with the saved drum mapping/backing alignment. Teachers manage their own published songs; the school owner can manage all songs. Students' completed practice results save to their accounts, and teachers see their own students' results in the classroom dashboard. Student usernames do not need email. [Activation and account instructions](docs/CLASSROOMS.md).
+
+**This device** preserves the original browser library described below. Teachers can choose **Publish to school** on an existing device song to upload it; publishing is never automatic. Students use the school library. Guest history and local files are not automatically attached to an account.
+
 Open **Song library** at the top of the page to load a saved song. Loading opens its setup for review; choose **Use this song** to practice. **Update saved song** replaces that saved entry with the current audio, mappings, and alignment. Importing a new file and saving creates a new entry, even if it has the same name. **Archive** hides an entry; **Show archived songs → Restore** brings it back. Archiving retains the files and does not free storage space.
 
-The library uses IndexedDB on the current website address, browser profile, and device. It does not sync between computers, localhost and Railway, or different domains. Keep original MIDI and audio files as your backup. Browser cleanup, storage eviction, and private browsing can remove saved songs. If storage is unavailable or full, import and playback still work for the visit. File URLs may have restricted storage; use localhost or the hosted HTTPS app for the library.
+The **device library** uses IndexedDB on the current website address, browser profile, and device. It does not sync between computers, localhost and Railway, or different domains. The **school library** uses persistent server storage and is available from any computer signed in at the same school website. Keep original MIDI and audio files as your backup. Browser cleanup, storage eviction, and private browsing can remove device songs. If browser storage is unavailable or full, import and playback still work for the visit. File URLs may have restricted storage; use localhost or the hosted HTTPS app for the library.
 
 ## Host on Railway
 
@@ -103,7 +107,7 @@ The library uses IndexedDB on the current website address, browser profile, and 
 4. Set the healthcheck path to **/healthz**, then generate a public domain in the service's networking settings.
 5. Open the HTTPS domain in Chrome on Windows or Chromebook. Import files there and choose Save to library to start that browser's library.
 
-The production server listens on **0.0.0.0** and Railway's **PORT**. No environment secrets, upload directory, database, or persistent Railway volume are needed. The development command binds only to localhost. Production startup can be checked locally with `npm start`; stop a development server using port 4173 first, or set a different PORT. The static app is already in `dist`, so no generated artifact needs to be committed. Railway serves the modular web app; the optional standalone HTML remains a local convenience.
+The production server listens on **0.0.0.0** and Railway's **PORT**. Guest practice works without a database. **School accounts require a persistent volume and hosting variables**; follow [CLASSROOMS.md](docs/CLASSROOMS.md) before creating real accounts. Node 24's built-in SQLite handles the school database, with music files on the same volume; no runtime package installation is needed. The development command binds to localhost and uses ignored `.groove-data/` storage. Production startup can be checked locally with `npm start`; stop a development server using port 4173 first, or set a different PORT. The static app is already in `dist`; generated exports and school data are excluded from Git.
 
 See the official [start command](https://docs.railway.com/deployments/start-command), [listening address](https://docs.railway.com/networking/troubleshooting/application-failed-to-respond), and [healthcheck](https://docs.railway.com/deployments/healthchecks) documentation.
 
@@ -126,6 +130,6 @@ Tests cover exercise timing, simultaneous voices, one-to-one matching, repeat hi
 
 Included: built-in drum sheet music with a scrolling playhead and live view toggle, highway hit boxes and grouped hit cues, a browser song library with saved MIDI/audio/setup and archive/restore, a Railway-ready static server, 24 original grooves in four levels, continuous section repeats with matching MIDI backing slices, drum focus, per-pass tempo building, local practice history, standard MIDI import, drum-part selection and note mapping, local backing audio with start alignment and volume, an original sample MIDI/WAV pair, synthesized drum sounds, configurable keyboard controls, listen mode, count-in, timing windows, reports, and CSV export. No external fonts, CDNs, analytics, or downloaded runtime packages are required. The MIT-licensed MIDI parser is bundled locally.
 
-Version 0.6 adds local audio alignment suggestions, waveform previews, one/two-point manual alignment, portable song setups, and sheet music for imported MIDI. Next: validate Web MIDI and pad learning with the school's Roland TD-17 when the kit is available. See [the milestone plan](docs/HANDOFF.md). This version does not yet connect MIDI hardware, install as a PWA, warp changing drift, or sync progress between devices.
+Version 0.7 adds teacher/student accounts, a shared school song library and saved account progress. Classroom features require the [persistent Railway storage setup](docs/CLASSROOMS.md). Version 0.6 added local audio alignment suggestions, waveform previews, one/two-point manual alignment, portable song setups, and sheet music for imported MIDI. Next: activate and verify the hosted classroom, then validate Web MIDI and pad learning with the school's Roland TD-17 when the kit is available. See [the milestone plan](docs/HANDOFF.md). This version does not yet connect MIDI hardware, install as a PWA, or warp changing drift.
 
 See THIRD_PARTY_NOTICES.md for the SightKick reuse assessment and license.

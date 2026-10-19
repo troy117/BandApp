@@ -46,3 +46,9 @@ The actual Dreams MIDI/MP3 pair was not attached to this coding session, so it n
 ## October 16, 2026 — MIDI overlay for visual alignment
 
 The user could see the waveform and requested MIDI notes overlaid on it to help match beats visually. Version 0.6.1 adds colored MIDI-hit lines through the waveform, separate drum rows, a drum-color legend and an overlay toggle. Clicking a drum-row marker selects its MIDI bar and beat; the user can then click the corresponding audio attack and apply the match. The selected beat/drum readout and shared recording-time coordinates follow offset, MIDI speed and zoom. Keyboard play, notation and scoring are unchanged.
+
+## October 19, 2026 — school accounts and persistent practice
+
+The user found that device-library songs did not appear on another computer. We confirmed the library was browser-local. The user then requested teacher accounts that create student accounts, teacher-published items any student can practice, and saved student statistics. In clarification, the user confirmed: **one shared school library, student usernames/passwords without email, and teachers viewing their own students' results**.
+
+Version 0.7 implements that setup, with the first teacher serving as school owner and creating additional teachers. The first school release uses one persistent Railway volume holding SQLite and music files; this replaces the earlier suggested separate database/bucket combination to keep activation to one service. Publishing is explicit; existing device files and guest history remain local. Signed-in completed runs save to the school account. Tests use synthetic accounts and original sample music in separate local storage; no real student accounts/data are created or uploaded during development. Railway activation still requires the volume and variables listed in CLASSROOMS.md, followed by the user creating the real owner credentials.

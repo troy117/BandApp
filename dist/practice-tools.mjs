@@ -84,16 +84,23 @@ export class PracticeTools {
       return `<article class="lesson-tile"><div class="lesson-tile-heading"><span class="lesson-number">${String(index + 1).padStart(2, '0')}</span><span class="lesson-level">LEVEL ${track.level} · ${LEVELS[track.level - 1]}</span></div><h3>${escapeHtml(track.name)}</h3><p>${escapeHtml(track.description)}</p><div class="lesson-meta"><span>${escapeHtml(track.skill)}</span><span>${track.bpm} BPM start</span></div><div class="lesson-tile-footer"><small>${best ? `Recent best full-kit ${Math.round(best.accuracy)}% · ${best.bpm}${best.endBpm !== best.bpm ? `→${best.endBpm}` : ''} BPM · ±${best.tolerance} ms` : 'Ready to explore'}</small><button class="button secondary" data-lesson="${id}">Practice →</button></div></article>`;
     }).join('');
   }
+  setAccountHistory(records = null, summary = null) {
+    this.accountHistory = records !== null; this.accountSummary = summary;
+    if (records === null) { try { records = JSON.parse(localStorage.getItem('groove-lab-history-v1') || '[]'); } catch { records = []; } }
+    this.history = Array.isArray(records) ? records.filter(item => item && typeof item.title === 'string' && Number.isFinite(item.at) && Number.isFinite(item.accuracy)).slice(0, 30) : [];
+    this.renderHistory();
+  }
   record(judge, settings) {
     const score = judge.summary(), chart = judge.chart;
-    const record = { at: Date.now(), grooveId: chart.grooveId || null, title: chart.title, accuracy: score.accuracy, meanAbsMs: score.meanAbsMs, bpm: Math.round(chart.bpm), endBpm: Math.round(chart.passes.at(-1).bpm), tolerance: settings.tolerance, focus: chart.practice.focus, full: chart.practice.full, section: `${chart.practice.startBar}–${chart.practice.endBar}`, repeats: chart.practice.repeats, hits: score.hits, total: score.total };
+    const record = { id: crypto.randomUUID(), at: Date.now(), grooveId: chart.grooveId || null, title: chart.title, accuracy: score.accuracy, meanMs: score.meanMs, meanAbsMs: score.meanAbsMs, extras: score.extras, bestStreak: score.bestStreak, drums: score.byDrum.map(({ id, hits, total, meanMs, meanAbsMs }) => ({ id, hits, total, meanMs, meanAbsMs })), bpm: Math.round(chart.bpm), endBpm: Math.round(chart.passes.at(-1).bpm), tolerance: settings.tolerance, focus: chart.practice.focus, full: chart.practice.full, section: `${chart.practice.startBar}–${chart.practice.endBar}`, repeats: chart.practice.repeats, hits: score.hits, total: score.total };
     this.history = savePracticeHistory(this.history, record);
-    try { localStorage.setItem('groove-lab-history-v1', JSON.stringify(this.history)); } catch { /* Keep this visit's history in memory. */ }
+    if (!this.accountHistory) try { localStorage.setItem('groove-lab-history-v1', JSON.stringify(this.history)); } catch { /* Keep this visit's history in memory. */ }
     this.renderHistory();
+    return record;
   }
   renderHistory() {
     const touched = new Set(this.history.filter(run => run.grooveId).map(run => run.grooveId)).size;
-    this.el('progress-summary').textContent = `${touched} of ${Object.keys(GROOVES).length} tracks in recent runs · ${this.history.length} attempt${this.history.length === 1 ? '' : 's'}`;
+    this.el('progress-summary').textContent = `${touched} of ${Object.keys(GROOVES).length} tracks in recent runs · ${this.accountSummary?.attempts ?? this.history.length} ${this.accountHistory ? 'saved ' : ''}attempt${(this.accountSummary?.attempts ?? this.history.length) === 1 ? '' : 's'}`;
     this.el('recent-practice').innerHTML = this.history.length ? this.history.slice(0, 5).map(run => `<article class="history-row"><div><strong>${escapeHtml(run.title)}</strong><span>${new Date(run.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${run.bpm}${run.endBpm !== run.bpm ? `→${run.endBpm}` : ''} BPM · Bars ${escapeHtml(run.section)} × ${run.repeats} · ${escapeHtml(FOCUS_OPTIONS[run.focus] || 'All drums')} · ±${run.tolerance} ms</span></div><div><strong>${Math.round(run.accuracy)}%</strong><span>${run.meanAbsMs === null ? 'No matched hits' : `${Math.round(run.meanAbsMs)} ms avg. error`}</span></div></article>`).join('') : '<p class="history-empty">Your completed keyboard practice runs will appear here. Start with a comfortable tempo and watch your timing improve.</p>';
   }
 }

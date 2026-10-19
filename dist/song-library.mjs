@@ -50,10 +50,17 @@ export class SongLibrary {
     const id = draft.libraryId || globalThis.crypto.randomUUID();
     const meta = { id, title: draft.song.title, fileName: draft.song.fileName, audioName: draft.audioName, duration: chart.duration, notes: chart.notes.length, savedAt: Date.now(), bytes: draft.midiBytes.byteLength + (draft.audioBytes?.byteLength || 0) };
     await this.transact(['songs', 'files'], 'readwrite', tx => {
-      tx.objectStore('songs').put(meta);
+      const previous = tx.objectStore('songs').get(id);
+      previous.onsuccess = () => tx.objectStore('songs').put({ ...meta, schoolLinks: previous.result?.schoolLinks || {} });
       tx.objectStore('files').put({ id, midiBytes: draft.midiBytes, audioBytes: draft.audioBytes || null, selected: [...draft.selected], mapping: { ...draft.mapping }, offset: draft.offset, timeScale: draft.timeScale ?? 1, volume: draft.volume });
     });
     return id;
+  }
+  async linkSchool(id, key, link) {
+    await this.transact(['songs'], 'readwrite', tx => {
+      const request = tx.objectStore('songs').get(id);
+      request.onsuccess = () => { if (request.result) tx.objectStore('songs').put({ ...request.result, schoolLinks: { ...request.result.schoolLinks, [key]: link } }); };
+    });
   }
   async archive(id, archived = true) {
     await this.transact(['songs', 'files'], 'readwrite', tx => {

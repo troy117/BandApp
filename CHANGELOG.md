@@ -1,5 +1,15 @@
 # Changes
 
+## 0.7.0 — October 19, 2026 — Prototype 07
+
+- School owner and teacher accounts; teachers create student usernames without email and see their own students' practice results. The owner can create teachers and assign new students to them.
+- Temporary passwords with required first-sign-in change, password reset and disable/re-enable controls; permission checks, private sessions, CSRF protection and password hashing on the server.
+- One shared school library containing MIDI, optional backing audio, drum mappings and alignment. Teachers can publish existing device songs and update their own school songs; students practice published versions in both views with keyboard controls.
+- Completed account runs persist with hits/misses/extras, streak, tempo, section/repeats/focus, early/late tendency and drum timing summaries. Results retry after a failed save; account switching clears the previous account's screen and report. Guest history remains separate.
+- Private SQLite/music storage on one persistent Railway volume, bounded authenticated uploads, atomic publication, archived songs, consistent backup and administrator owner recovery tools. Production does not enable accounts without a configured data directory.
+- Railway activation guide, updated discussion log and development handoff. Actual hosted activation still needs the volume and variables in `docs/CLASSROOMS.md`; no real accounts or student data were created during development.
+- Validation: **56 tests pass**, syntax check and standalone export pass. Isolated browser checks cover owner/student login, temporary password flow, teacher publishing, student song playback and completed result saving, reload persistence, guest/account switching, teacher reports, device-to-school publishing and narrow-screen layout. Synthetic accounts and original demo music only; TD-17 hardware remains untested.
+
 ## 0.6.1 — October 16, 2026 — Prototype 06.1
 
 - Colored MIDI drum-hit overlays on the audio waveform, with separate rows and a legend for simultaneous drums.

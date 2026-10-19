@@ -20,6 +20,7 @@ export class SongImporter {
     this.libraryToken = 0;
     this.showArchived = false;
     this.libraryBusy = false;
+    this.libraryScope = 'device';
     this.el = id => document.getElementById(id);
     this.dialog = this.el('import-dialog');
     this.el('midi-file').addEventListener('change', () => { const file = this.el('midi-file').files[0]; if (file) this.readMidi(file); });
@@ -40,6 +41,9 @@ export class SongImporter {
     this.el('use-song').addEventListener('click', () => this.apply());
     this.el('demo-song').addEventListener('click', () => this.loadDemo());
     this.el('save-song').addEventListener('click', () => this.saveSong());
+    this.el('publish-song').addEventListener('click', () => this.publishSong());
+    this.el('school-song-title').addEventListener('input', () => { if (this.draft) this.draft.schoolTitle = this.el('school-song-title').value; });
+    for (const scope of ['school', 'device']) this.el(`library-${scope}`).addEventListener('click', () => { this.libraryScope = scope; this.showArchived = false; this.renderLibrary(); });
     this.el('export-song-setup').addEventListener('click', () => this.exportSetup());
     this.el('import-song-setup').addEventListener('change', () => { const file = this.el('import-song-setup').files[0]; if (file) this.importSetup(file); });
     this.el('library-import').addEventListener('click', () => { this.el('library-dialog').close(); this.open(); });
@@ -47,14 +51,21 @@ export class SongImporter {
     this.el('library-list').addEventListener('click', event => {
       const button = event.target.closest('button[data-song]');
       if (!button || this.libraryBusy) return;
-      if (button.dataset.action === 'load') this.loadSavedSong(button.dataset.song);
+      if (button.dataset.action === 'load') this.libraryScope === 'school' ? this.loadSchoolSong(button.dataset.song) : this.loadSavedSong(button.dataset.song);
+      else if (button.dataset.action === 'publish') this.publishDeviceSong(button.dataset.song);
       else this.archiveSong(button.dataset.song, !this.showArchived);
     });
     this.el('library-dialog').addEventListener('close', () => { this.libraryToken++; this.libraryBusy = false; });
-    this.dialog.addEventListener('close', () => { this.token++; this.busy = false; });
+    this.dialog.addEventListener('close', () => { this.token++; this.busy = false; this.publishController?.abort(); });
     this.sync = new AudioSync(this);
   }
   copyDraft(draft) { return draft ? { ...draft, selected: [...draft.selected], mapping: { ...draft.mapping } } : null; }
+  setSchool(school) {
+    this.school = school; this.libraryScope = school.user ? 'school' : 'device'; this.libraryToken++; this.showArchived = false;
+    this.el('library-school').hidden = !school.user; this.el('library-device').hidden = school.user?.role === 'student';
+    this.el('school-publish-section').hidden = !school.staff;
+    this.el('library-import').hidden = school.user?.role === 'student';
+  }
   open() {
     this.token++;
     this.busy = false;
@@ -145,6 +156,9 @@ export class SongImporter {
     this.el('audio-offset').value = draft?.offset ?? 0;
     this.el('backing-volume').value = Math.round((draft?.volume ?? 0.65) * 100);
     this.el('backing-volume-value').textContent = `${this.el('backing-volume').value}%`;
+    this.el('school-publish-section').hidden = !this.school?.staff;
+    this.el('school-song-title').disabled = !draft || this.busy;
+    this.el('school-song-title').value = draft?.schoolTitle ?? draft?.song.title.slice(0, 120) ?? '';
     if (draft) {
       this.el('midi-parts').innerHTML = draft.song.parts.map(part => `<label class="part-choice"><input type="checkbox" value="${part.id}" ${draft.selected.includes(part.id) ? 'checked' : ''}><span><strong>${escapeHtml(part.name)}</strong><small>Track ${part.track} · Channel ${part.channel} · ${part.notes.length} notes${part.drumCandidate ? ' · Suggested drums' : ''}</small></span></label>`).join('');
       this.el('midi-detection-note').textContent = draft.song.parts.some(part => part.rhythmGame) ? 'This looks like a rhythm-game chart. Difficulty and cymbal markers are not interpreted yet; notes from PART DRUMS start as Ignore. Use a General MIDI file, or assign only the chart notes you need.' : draft.song.parts.some(part => part.channel === 10) ? 'Channel 10 is the usual General MIDI percussion channel. Select all parts that belong to the drum performance.' : 'No General MIDI percussion channel was found. Check the suggested part carefully; pitched instruments can use the same MIDI note numbers.';
@@ -191,7 +205,9 @@ export class SongImporter {
   renderSummary() {
     this.el('use-song').disabled = true;
     this.el('save-song').disabled = true;
-    this.el('save-song').textContent = this.draft?.libraryId ? 'Update saved song' : 'Save to library';
+    this.el('publish-song').disabled = true;
+    this.el('save-song').textContent = this.draft?.libraryId ? 'Update device copy' : 'Save on this device';
+    this.el('publish-song').textContent = this.draft?.schoolSource?.canManage ? 'Update school song' : 'Publish to school';
     if (!this.draft) { this.el('import-summary').textContent = 'Choose a MIDI file or try the sample song.'; return; }
     try {
       const { song, selected, mapping, buffer, offset } = this.draft;
@@ -201,6 +217,7 @@ export class SongImporter {
       this.el('import-summary').textContent = `${chart.notes.length} playable hits · ${formatDuration(chart.duration)} · ${Math.round(chart.bpm)} BPM${chart.tempoChanges ? ` + ${chart.tempoChanges} tempo change${chart.tempoChanges === 1 ? '' : 's'}` : ''} · ${chart.numerator}/${chart.denominator}${chart.signatureChanges ? ' with meter changes' : ''}${chart.ignored ? ` · ${chart.ignored} ignored notes` : ''}${chart.combined ? ` · ${chart.combined} duplicate hits combined` : ''}${buffer ? ` · Audio ${formatDuration(buffer.duration)}` : ' · No backing audio'}`;
       this.el('use-song').disabled = this.busy;
       this.el('save-song').disabled = this.busy;
+      this.el('publish-song').disabled = this.busy || !this.school?.staff;
     } catch (error) { this.el('import-summary').textContent = error.message; }
   }
   async saveSong() {
@@ -218,6 +235,21 @@ export class SongImporter {
       if (token === this.token) this.message(error.name === 'QuotaExceededError' ? 'This browser has no room for that song. You can still use it for this visit; try a smaller recording to save.' : `Could not save: ${error.message} You can still use this song for this visit.`, true);
     } finally { if (token === this.token) { this.busy = false; this.render(); } }
   }
+  async publishSong() {
+    if (!this.draft || this.busy || !this.school?.staff) return;
+    const token = ++this.token, draft = this.draft; this.busy = true; this.publishController = new AbortController(); this.render();
+    try {
+      if (draft.buffer) backingSchedule(0, draft.offset, draft.buffer.duration);
+      const song = await this.school.saveSong(draft, message => { if (token === this.token) this.message(message); }, { signal: this.publishController.signal });
+      if (token !== this.token) return;
+      draft.schoolSource = { schoolId: this.school.schoolId, songId: song.id, revisionId: song.revisionId, canManage: true };
+      draft.schoolTitle = song.title;
+      draft.song.title = song.title;
+      if (draft.libraryId) await this.library.linkSchool(draft.libraryId, `${this.school.schoolId}:${this.school.user.id}`, draft.schoolSource);
+      this.message('Published to the school library. Every signed-in student can practice this song from any computer.');
+    } catch (error) { if (token === this.token) this.message(`Could not publish: ${error.message}`, true); }
+    finally { if (token === this.token) { this.busy = false; this.render(); } this.publishController = null; }
+  }
   openLibrary() {
     this.showArchived = false;
     this.el('library-dialog').showModal();
@@ -230,10 +262,15 @@ export class SongImporter {
     this.el('library-status').textContent = '';
     this.el('show-archived').textContent = this.showArchived ? 'Show saved songs' : 'Show archived songs';
     this.el('show-archived').disabled = true;
+    const shared = this.libraryScope === 'school' && this.school?.user;
+    this.el('library-school').setAttribute('aria-pressed', String(Boolean(shared))); this.el('library-device').setAttribute('aria-pressed', String(!shared));
+    this.el('show-archived').hidden = Boolean(shared && !this.school.staff);
+    this.el('library-description').textContent = shared ? 'Teacher-published MIDI, backing audio and sync settings, available to every signed-in student at this school.' : 'Songs saved in this browser on this device. Teachers can publish individual songs to the school library.';
+    this.el('library-help').textContent = shared ? 'School songs and account results are stored by the school website. Teachers manage their own songs; students can practice all published songs.' : 'Device songs do not travel between computers. Keep your original files, or sign in as a teacher and Publish to school. Archiving retains the files.';
     try {
-      const songs = await this.library.list(this.showArchived);
+      const songs = shared ? (await this.school.request(`/library${this.showArchived ? '?archived=true' : ''}`)).songs : await this.library.list(this.showArchived);
       if (token !== this.libraryToken) return;
-      this.el('library-list').innerHTML = songs.length ? songs.map(song => `<article class="library-song"><div><h3>${escapeHtml(song.title)}</h3><p>${song.notes} hits · ${formatDuration(song.duration)} · ${(song.bytes / 1024 / 1024).toFixed(1)} MB</p><small>${escapeHtml(song.audioName || 'MIDI only · no backing audio')}</small></div><div class="library-song-actions">${this.showArchived ? '' : `<button class="button secondary" data-action="load" data-song="${escapeHtml(song.id)}" aria-label="Load ${escapeHtml(song.title)}">Load song →</button>`}<button class="text-button" data-action="archive" data-song="${escapeHtml(song.id)}" aria-label="${this.showArchived ? 'Restore' : 'Archive'} ${escapeHtml(song.title)}">${this.showArchived ? 'Restore' : 'Archive'}</button></div></article>`).join('') : `<p class="library-empty">${this.showArchived ? 'No archived songs.' : 'Your next practice is one save away. Import a MIDI file, add audio if you have it, then choose Save to library.'}</p>`;
+      this.el('library-list').innerHTML = songs.length ? songs.map(song => `<article class="library-song"><div><h3>${escapeHtml(song.title)}</h3><p>${song.notes} hits · ${formatDuration(song.duration)} · ${(song.bytes / 1024 / 1024).toFixed(1)} MB</p><small>${escapeHtml(song.audioName || 'MIDI only · no backing audio')}${shared ? ` · Published by ${escapeHtml(song.ownerName)}` : ''}</small></div><div class="library-song-actions">${this.showArchived ? '' : `<button class="button secondary" data-action="load" data-song="${escapeHtml(song.id)}" aria-label="Load ${escapeHtml(song.title)}">${shared && !this.school.staff ? 'Practice' : 'Load song'} →</button>`}${!shared || song.canManage ? `<button class="text-button" data-action="archive" data-song="${escapeHtml(song.id)}" aria-label="${this.showArchived ? 'Restore' : 'Archive'} ${escapeHtml(song.title)}">${this.showArchived ? 'Restore' : 'Archive'}</button>` : ''}${!shared && !this.showArchived && this.school?.staff ? `<button class="text-button" data-action="publish" data-song="${escapeHtml(song.id)}">Publish to school</button>` : ''}</div></article>`).join('') : `<p class="library-empty">${this.showArchived ? 'No archived songs.' : shared ? this.school.staff ? 'Publish a song from Import song, or open This device to publish an existing saved song.' : 'Your teachers have not published any songs yet. The built-in tracks are ready to practice.' : 'Import a MIDI file, add audio if you have it, then choose Save on this device.'}</p>`;
     } catch (error) { if (token === this.libraryToken) { this.el('library-list').textContent = ''; this.el('library-status').textContent = error.message; } }
     finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('show-archived').disabled = false; } }
   }
@@ -249,6 +286,8 @@ export class SongImporter {
       if (!savedSong) throw new Error('That song is no longer available. Reimport its files.');
       const draft = this.makeDraft(parseMidiSong(savedSong.midiBytes, savedSong.fileName));
       Object.assign(draft, { midiBytes: savedSong.midiBytes, audioBytes: savedSong.audioBytes, audioName: savedSong.audioName, selected: savedSong.selected, mapping: savedSong.mapping, offset: savedSong.offset, timeScale: savedSong.timeScale ?? 1, volume: savedSong.volume, libraryId: id });
+      const linked = this.school?.staff && savedSong.schoolLinks?.[`${this.school.schoolId}:${this.school.user.id}`];
+      if (linked) draft.schoolSource = { ...linked, canManage: true };
       if (draft.audioBytes) draft.buffer = await this.audio.decodeBacking(draft.audioBytes.slice(0));
       if (token !== this.libraryToken) return;
       // Opening setup lets the student review the part and alignment before a run.
@@ -264,13 +303,53 @@ export class SongImporter {
       }
     } finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('show-archived').disabled = false; } }
   }
+  async loadSchoolSong(id) {
+    const token = ++this.libraryToken; this.libraryBusy = true;
+    this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = true; }); this.el('library-status').textContent = 'Downloading the school song…';
+    try {
+      const meta = (await this.school.request(`/library/${id}`)).song;
+      if (token !== this.libraryToken) return;
+      const midiBytes = await this.school.download(`/library/${id}/revisions/${meta.revisionId}/midi`);
+      if (token !== this.libraryToken) return;
+      const audioBytes = meta.audioName ? await this.school.download(`/library/${id}/revisions/${meta.revisionId}/audio`) : null;
+      if (token !== this.libraryToken) return;
+      const draft = this.makeDraft(parseMidiSong(midiBytes, meta.fileName)); draft.song.title = meta.title;
+      Object.assign(draft, { midiBytes, audioBytes, audioName: meta.audioName, selected: meta.selected, mapping: meta.mapping, offset: meta.offset, timeScale: meta.timeScale, volume: meta.volume, schoolTitle: meta.title, schoolSource: { schoolId: this.school.schoolId, songId: id, revisionId: meta.revisionId, canManage: meta.canManage } });
+      if (audioBytes) draft.buffer = await this.audio.decodeBacking(audioBytes.slice(0));
+      if (token !== this.libraryToken) return;
+      alignMidiChart(makeMidiChart(draft.song, draft.selected, draft.mapping), draft.timeScale);
+      if (draft.buffer) backingSchedule(0, draft.offset, draft.buffer.duration);
+      this.el('library-dialog').close(); this.token++; this.busy = false; this.draft = draft;
+      this.el('midi-file').value = ''; this.el('audio-file').value = ''; this.sync.reset(); this.render();
+      if (!this.school.staff) this.apply();
+      else { this.message('School song loaded with the teacher’s drum mapping and sync settings.'); this.dialog.showModal(); this.sync.draw(); }
+    } catch (error) { if (token === this.libraryToken) { this.el('library-status').textContent = error.message; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
+    finally { if (token === this.libraryToken) this.libraryBusy = false; }
+  }
+  async publishDeviceSong(id) {
+    if (!this.school?.staff || this.libraryBusy) return;
+    const token = ++this.libraryToken; this.libraryBusy = true; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = true; });
+    try {
+      const saved = await this.library.get(id); if (!saved) throw new Error('That device song is unavailable.');
+      if (token !== this.libraryToken) return;
+      const draft = this.makeDraft(parseMidiSong(saved.midiBytes, saved.fileName));
+      Object.assign(draft, { midiBytes: saved.midiBytes, audioBytes: saved.audioBytes, audioName: saved.audioName, selected: saved.selected, mapping: saved.mapping, offset: saved.offset, timeScale: saved.timeScale ?? 1, volume: saved.volume });
+      const key = `${this.school.schoolId}:${this.school.user.id}`, linked = saved.schoolLinks?.[key]; if (linked) draft.schoolSource = { ...linked, canManage: true };
+      const song = await this.school.saveSong(draft, message => { if (token === this.libraryToken) this.el('library-status').textContent = message; });
+      if (token !== this.libraryToken) return;
+      await this.library.linkSchool(id, key, { schoolId: this.school.schoolId, songId: song.id, revisionId: song.revisionId, canManage: true });
+      if (token === this.libraryToken) this.el('library-status').textContent = 'Published to the school library. The device copy is still available here.';
+    } catch (error) { if (token === this.libraryToken) this.el('library-status').textContent = error.message; }
+    finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
+  }
   async archiveSong(id, archived) {
     this.libraryBusy = true;
     const token = ++this.libraryToken;
     this.el('show-archived').disabled = true;
     this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = true; });
     try {
-      await this.library.archive(id, archived);
+      if (this.libraryScope === 'school') await this.school.request(`/library/${id}/archive`, { method: 'POST', data: { archived } });
+      else await this.library.archive(id, archived);
       if (token !== this.libraryToken) return;
       await this.renderLibrary();
       this.el('library-status').textContent = archived ? 'Song archived. Use Show archived songs to restore it any time.' : 'Song restored to your library.';
@@ -296,7 +375,7 @@ export class SongImporter {
         profiles[this.draft.song.fingerprint] = { selected: this.draft.selected, mapping: this.draft.mapping, offset: this.draft.offset, timeScale: this.draft.timeScale ?? 1, volume: this.draft.volume };
         localStorage.setItem('groove-lab-song-preferences', JSON.stringify(Object.fromEntries(Object.entries(profiles).slice(-10))));
       } catch { /* Song files remain usable when browser storage is unavailable. */ }
-      this.onApply({ chart, song: this.draft.song, backing: this.draft.buffer ? { buffer: this.draft.buffer, name: this.draft.audioName, offset: this.draft.offset, volume: this.draft.volume } : null });
+      this.onApply({ chart, song: this.draft.song, schoolSource: this.draft.schoolSource || null, backing: this.draft.buffer ? { buffer: this.draft.buffer, name: this.draft.audioName, offset: this.draft.offset, volume: this.draft.volume } : null });
       this.dialog.close();
     } catch (error) { this.message(error.message, true); }
   }

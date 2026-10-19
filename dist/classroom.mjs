@@ -1,0 +1,221 @@
+import { escapeHtml } from './song-import.mjs';
+import { DRUMS } from './engine.mjs';
+import { FOCUS_OPTIONS } from './practice.mjs';
+
+export class SchoolClient {
+  constructor({ onIdentity, onHistory, beforeOpen }) {
+    this.onIdentity = onIdentity; this.onHistory = onHistory; this.beforeOpen = beforeOpen;
+    this.user = null; this.csrf = ''; this.enabled = false; this.loaded = false; this.generation = 0; this.pending = []; this.requests = new Set(); this.roster = [];
+    this.el = id => document.getElementById(id);
+    document.body.insertAdjacentHTML('beforeend', schoolMarkup());
+    this.el('open-school').addEventListener('click', () => this.openAccount());
+    this.el('school-login-form').addEventListener('submit', event => { event.preventDefault(); this.authenticate(false); });
+    this.el('school-setup-form').addEventListener('submit', event => { event.preventDefault(); this.authenticate(true); });
+    this.el('school-password-form').addEventListener('submit', event => { event.preventDefault(); this.changePassword(); });
+    this.el('school-user-form').addEventListener('submit', event => { event.preventDefault(); this.createUser(); });
+    this.el('school-role').addEventListener('change', () => this.renderTeacherChoice());
+    this.el('school-open-dashboard').addEventListener('click', () => this.openDashboard());
+    this.el('school-change-password').addEventListener('click', () => this.openPassword());
+    this.el('school-signout').addEventListener('click', () => this.signout());
+    this.el('school-back-roster').addEventListener('click', () => this.loadRoster());
+    this.el('school-own-progress').addEventListener('click', () => this.showProgress(this.user.id));
+    this.el('school-more-results').addEventListener('click', () => this.showProgress(this.progressUser, true));
+    this.el('school-refresh-roster').addEventListener('click', () => this.loadRoster());
+    this.el('school-copy-login').addEventListener('click', () => this.copyCredentials());
+    this.el('school-roster').addEventListener('click', event => this.rosterAction(event));
+    for (const button of document.querySelectorAll('[data-school-close]')) button.addEventListener('click', () => this.el(button.dataset.schoolClose).close());
+    for (const id of ['school-account-dialog', 'school-dashboard-dialog', 'school-password-dialog']) this.el(id).addEventListener('close', () => { this.el('school-login-password').value = ''; this.el('school-setup-password').value = ''; this.el('school-current-password').value = ''; this.el('school-new-password').value = ''; if (id === 'school-dashboard-dialog') { this.el('school-credentials').hidden = true; this.el('school-credential-password').textContent = ''; } });
+    this.el('progress-summary').insertAdjacentHTML('afterend', '<div id="school-result-state" class="school-result-state" hidden><span id="school-result-message" role="status"></span><button id="school-retry-results" class="text-button" hidden>Retry saving</button></div>');
+    this.el('school-retry-results').addEventListener('click', () => this.flushRuns());
+    window.addEventListener('online', () => this.flushRuns());
+    window.addEventListener('focus', () => { if (this.user) this.refreshSession().catch(() => {}); });
+  }
+  get staff() { return this.user?.role === 'teacher' || this.user?.role === 'owner'; }
+  async request(route, { method = 'GET', data, signal } = {}) {
+    const version = this.generation, controller = new AbortController(); this.requests.add(controller);
+    const abort = () => controller.abort(); signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) controller.abort();
+    const binary = data instanceof ArrayBuffer || ArrayBuffer.isView(data);
+    try {
+      const response = await fetch(`/api${route}`, { method, credentials: 'same-origin', cache: 'no-store', signal: controller.signal, headers: { ...(method !== 'GET' && this.csrf ? { 'X-CSRF-Token': this.csrf } : {}), ...(data !== undefined ? { 'Content-Type': binary ? 'application/octet-stream' : 'application/json' } : {}) }, ...(data !== undefined ? { body: binary ? data : JSON.stringify(data) } : {}) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) { if (response.status === 401 && this.user && version === this.generation) this.identity(null, ''); const error = new Error(payload.error || 'The school service is unavailable. Try again.'); error.status = response.status; throw error; }
+      if (version !== this.generation) throw new Error('The signed-in account changed. Try again.');
+      return payload;
+    } finally { signal?.removeEventListener('abort', abort); this.requests.delete(controller); }
+  }
+  async download(route) {
+    const version = this.generation, response = await fetch(`/api${route}`, { credentials: 'same-origin', cache: 'no-store' });
+    if (!response.ok) { const error = await response.json().catch(() => ({})); if (response.status === 401 && this.user && version === this.generation) this.identity(null, ''); throw new Error(error.error || 'Could not download this song.'); }
+    const bytes = await response.arrayBuffer(); if (version !== this.generation) throw new Error('The signed-in account changed.'); return bytes;
+  }
+  identity(user, csrf) {
+    const changed = (this.user?.id ?? null) !== (user?.id ?? null);
+    if (changed) {
+      this.generation++; for (const controller of this.requests) controller.abort();
+      this.pending = []; this.roster = []; this.progressRecords = []; this.progressUser = null; this.nextCursor = null;
+      for (const id of ['school-account-dialog', 'school-dashboard-dialog', 'school-password-dialog']) this.el(id).close();
+      this.el('school-user-form').reset();
+      for (const id of ['school-roster', 'school-results', 'school-progress-name', 'school-progress-summary', 'school-credential-username', 'school-credential-password']) this.el(id).textContent = '';
+      this.el('school-credentials').hidden = true; this.el('school-roster-section').hidden = true; this.el('school-progress-section').hidden = true;
+    }
+    this.user = user; this.csrf = csrf || ''; this.renderAccount();
+    if (changed) this.onIdentity(user);
+    if (changed || !this.pending.length) this.resultState('');
+  }
+  async init() {
+    if (!['http:', 'https:'].includes(location.protocol)) { this.loaded = true; this.renderAccount(); return; }
+    try { await this.refreshSession(); } catch { this.loaded = true; this.renderAccount(); }
+  }
+  async refreshSession() {
+    const session = await this.request('/session');
+    this.enabled = session.enabled; this.loaded = true; this.setupNeeded = session.setupNeeded; this.setupTokenRequired = session.setupTokenRequired; this.schoolId = session.schoolId; this.schoolName = session.schoolName || 'School library';
+    this.identity(session.user, session.csrf);
+    if (this.user && !this.user.mustChangePassword) await this.refreshHistory();
+  }
+  renderAccount() {
+    this.el('open-school').textContent = this.user ? `${this.user.name} · ${this.staff ? 'Teacher' : 'Student'}` : 'School sign in';
+    this.el('school-account-title').textContent = this.user ? 'Your school account.' : this.setupNeeded ? 'Set up your school.' : 'Welcome back.';
+    this.el('school-account-unavailable').hidden = !this.loaded || this.enabled;
+    this.el('school-account-unavailable').textContent = location.protocol === 'file:' ? 'School accounts need the hosted web app. Open your school’s website to sign in; this offline copy still supports local practice.' : 'School accounts are not enabled on this server yet. The school owner needs to connect persistent storage. Local practice and device songs still work.';
+    this.el('school-login-form').hidden = !this.enabled || Boolean(this.user) || this.setupNeeded;
+    this.el('school-setup-form').hidden = !this.enabled || Boolean(this.user) || !this.setupNeeded;
+    this.el('school-setup-key-field').hidden = !this.setupTokenRequired;
+    this.el('school-setup-key').required = Boolean(this.setupTokenRequired);
+    this.el('school-signed-in').hidden = !this.user;
+    this.el('school-signed-in-name').textContent = this.user ? `${this.user.name} · @${this.user.username}${this.user.role === 'owner' ? ' · School owner' : ''}` : '';
+    this.el('school-open-dashboard').textContent = this.staff ? 'Open classroom' : 'My practice results';
+    this.el('school-open-dashboard').disabled = Boolean(this.user?.mustChangePassword);
+    this.el('school-account-description').textContent = this.user?.mustChangePassword ? 'Choose your own password to start using the school library and save results.' : 'Use the same account at school and home. Students use a teacher-created username; no student email is needed.';
+  }
+  openAccount() { this.beforeOpen(); this.renderAccount(); this.el('school-account-status').textContent = ''; this.el('school-account-dialog').showModal(); }
+  async authenticate(setup) {
+    const form = this.el(setup ? 'school-setup-form' : 'school-login-form'), submit = form.querySelector('button[type=submit]'); submit.disabled = true;
+    this.el('school-account-status').textContent = setup ? 'Creating the school owner account…' : 'Signing in…';
+    try {
+      const data = setup ? { username: this.el('school-setup-username').value, name: this.el('school-setup-name').value, schoolName: this.el('school-setup-name-school').value, password: this.el('school-setup-password').value, setupToken: this.el('school-setup-key').value } : { username: this.el('school-login-username').value, password: this.el('school-login-password').value };
+      const response = await this.request(setup ? '/setup' : '/login', { method: 'POST', data });
+      this.setupNeeded = false; this.identity(response.user, response.csrf); this.el('school-account-dialog').close();
+      if (this.user.mustChangePassword) this.openPassword(); else { if (setup) await this.refreshSession(); else await this.refreshHistory(); await this.openDashboard(); }
+    } catch (error) { this.el('school-account-status').textContent = error.message; }
+    finally { submit.disabled = false; this.el('school-login-password').value = ''; this.el('school-setup-password').value = ''; this.el('school-setup-key').value = ''; }
+  }
+  openPassword() { this.beforeOpen(); this.el('school-account-dialog').close(); this.el('school-password-status').textContent = this.user?.mustChangePassword ? 'Your temporary password works only until you choose your own. Use a passphrase of at least 15 characters.' : ''; this.el('school-password-dialog').showModal(); }
+  async changePassword() {
+    const button = this.el('school-password-submit'); button.disabled = true; this.el('school-password-status').textContent = 'Updating your password…';
+    try { const result = await this.request('/password', { method: 'POST', data: { currentPassword: this.el('school-current-password').value, password: this.el('school-new-password').value } }); this.identity(result.user, result.csrf); this.el('school-password-dialog').close(); await this.refreshHistory(); await this.openDashboard(); }
+    catch (error) { this.el('school-password-status').textContent = error.message; }
+    finally { button.disabled = false; }
+  }
+  async signout() {
+    if (this.pending.length) { await this.flushRuns(); if (this.pending.length && !confirm('Some practice results have not saved. Sign out and discard those unsaved results?')) return; }
+    try { await this.request('/logout', { method: 'POST', data: {} }); this.identity(null, ''); for (const id of ['school-account-dialog', 'school-dashboard-dialog', 'school-password-dialog']) this.el(id).close(); }
+    catch (error) { this.el('school-account-status').textContent = error.message; }
+  }
+  async openDashboard() {
+    if (!this.user || this.user.mustChangePassword) { this.openAccount(); return; }
+    this.beforeOpen(); this.el('school-account-dialog').close(); this.el('school-dashboard-title').textContent = this.staff ? 'Your classroom.' : 'Your practice progress.';
+    this.el('school-dashboard-school').textContent = this.schoolName; this.el('school-dashboard-dialog').showModal();
+    this.el('school-own-progress').hidden = !this.staff;
+    if (this.staff) await this.loadRoster(); else await this.showProgress(this.user.id);
+  }
+  async loadRoster() {
+    const version = this.generation; this.el('school-dashboard-status').textContent = 'Opening your roster…';
+    this.el('school-roster-section').hidden = false; this.el('school-progress-section').hidden = true;
+    this.el('school-role-field').hidden = this.user?.role !== 'owner';
+    try {
+      const response = await this.request('/users'); if (version !== this.generation) return;
+      this.roster = response.users;
+      this.el('school-roster').innerHTML = this.roster.length ? this.roster.map(user => `<article class="school-student"><div><strong>${escapeHtml(user.name)}</strong><small>@${escapeHtml(user.username)} · ${user.role === 'teacher' ? 'Teacher' : 'Student'}${!user.active ? ' · Inactive' : ''}${user.teacherName ? ` · ${escapeHtml(user.teacherName)}` : ''}</small></div><div class="school-student-metrics"><span><b>${user.attempts}</b> attempts</span><span>${user.recentAccuracy === null ? 'No results yet' : `${Math.round(user.recentAccuracy)}% recent match rate`}</span><span>${user.lastPractice ? `Last practice ${schoolDate(user.lastPractice)}` : 'Ready for a first practice'}</span></div><div class="school-row-actions"><button class="button secondary" data-student="${user.id}" data-action="progress">Results</button><button class="text-button" data-student="${user.id}" data-action="reset">Reset password</button><button class="text-button" data-student="${user.id}" data-action="active">${user.active ? 'Disable' : 'Enable'}</button></div></article>`).join('') : '<p class="school-empty">Add your first student below. Their completed practice runs will appear here.</p>';
+      this.renderTeacherChoice(); this.el('school-dashboard-status').textContent = 'Recent match rates average the last 30 completed attempts. Open Results to compare tempo, focus and timing.';
+    } catch (error) { this.el('school-dashboard-status').textContent = error.message; }
+  }
+  renderTeacherChoice() {
+    const owner = this.user?.role === 'owner', student = this.el('school-role').value === 'student';
+    this.el('school-teacher-field').hidden = !owner || !student;
+    this.el('school-teacher').innerHTML = this.user ? [{ id: this.user.id, name: `${this.user.name} (you)` }, ...this.roster.filter(user => user.role === 'teacher' && user.active)].map(user => `<option value="${user.id}">${escapeHtml(user.name)}</option>`).join('') : '';
+  }
+  async createUser() {
+    const button = this.el('school-create-user'); button.disabled = true; this.el('school-dashboard-status').textContent = 'Creating the account…';
+    try {
+      const response = await this.request('/users', { method: 'POST', data: { name: this.el('school-student-name').value, username: this.el('school-student-username').value, role: this.user.role === 'owner' ? this.el('school-role').value : 'student', teacherId: this.user.role === 'owner' ? this.el('school-teacher').value : undefined } });
+      this.showCredentials(response); this.el('school-student-name').value = ''; this.el('school-student-username').value = ''; await this.loadRoster();
+    } catch (error) { this.el('school-dashboard-status').textContent = error.message; }
+    finally { button.disabled = false; }
+  }
+  showCredentials(response) { this.el('school-credentials').hidden = false; this.el('school-credential-username').textContent = response.user.username; this.el('school-credential-password').textContent = response.temporaryPassword; }
+  async copyCredentials() { try { await navigator.clipboard.writeText(`Groove Lab\n${location.origin}\nUsername: ${this.el('school-credential-username').textContent}\nTemporary password: ${this.el('school-credential-password').textContent}\nChoose your own password the first time you sign in.`); this.el('school-dashboard-status').textContent = 'Login details copied. Share them directly with this student.'; } catch { this.el('school-dashboard-status').textContent = 'Select and copy the displayed login details.'; } }
+  async rosterAction(event) {
+    const button = event.target.closest('[data-student]'); if (!button) return;
+    const user = this.roster.find(item => item.id === button.dataset.student); if (!user) return;
+    if (button.dataset.action === 'progress') { await this.showProgress(user.id); return; }
+    button.disabled = true;
+    try {
+      if (button.dataset.action === 'reset') this.showCredentials(await this.request(`/users/${user.id}/reset-password`, { method: 'POST', data: {} }));
+      else await this.request(`/users/${user.id}/active`, { method: 'POST', data: { active: !user.active } });
+      await this.loadRoster();
+    } catch (error) { this.el('school-dashboard-status').textContent = error.message; }
+    finally { button.disabled = false; }
+  }
+  async showProgress(userId, append = false) {
+    const version = this.generation; this.el('school-dashboard-status').textContent = 'Opening practice results…';
+    try {
+      const result = await this.request(`/users/${userId}/progress${append && this.nextCursor ? `?cursor=${encodeURIComponent(this.nextCursor)}` : ''}`);
+      if (version !== this.generation) return;
+      this.progressUser = userId; this.nextCursor = result.nextCursor; this.progressRecords = append ? [...this.progressRecords, ...result.records] : result.records;
+      this.el('school-roster-section').hidden = true; this.el('school-progress-section').hidden = false; this.el('school-back-roster').hidden = !this.staff;
+      this.el('school-progress-name').textContent = `${result.user.name}’s practice`;
+      const summary = result.summary;
+      this.el('school-progress-summary').textContent = `${summary.attempts} completed attempt${summary.attempts === 1 ? '' : 's'} · ${summary.recentAccuracy === null ? 'Ready to begin' : `${Math.round(summary.recentAccuracy)}% recent match rate`}${summary.recentTimingMs === null ? '' : ` · ${Math.round(summary.recentTimingMs)} ms recent average error`}`;
+      this.el('school-results').innerHTML = this.progressRecords.length ? this.progressRecords.map(run => `<article class="school-run"><div class="school-run-heading"><div><h4>${escapeHtml(run.title)}</h4><small>${schoolDate(run.at)} · ${run.bpm}${run.endBpm !== run.bpm ? `→${run.endBpm}` : ''} BPM · Bars ${escapeHtml(run.section)} × ${run.repeats} · ${escapeHtml(FOCUS_OPTIONS[run.focus] || run.focus)} · ±${run.tolerance} ms</small></div><strong>${Math.round(run.accuracy)}%</strong></div><p>${run.hits}/${run.total} matched · ${run.total - run.hits} missed · ${run.extras} extra · Best streak ${run.bestStreak}${run.meanAbsMs === null ? '' : ` · ${Math.round(run.meanAbsMs)} ms average error · ${schoolTiming(run.meanMs)}`}</p><details><summary>Timing by drum</summary><div class="school-drum-stats">${run.drums.map(drum => `<span><b>${escapeHtml(DRUMS.find(item => item.id === drum.id)?.name || drum.id)}</b> ${drum.hits}/${drum.total} · ${drum.meanAbsMs === null ? 'No matched hits' : `${Math.round(drum.meanAbsMs)} ms avg. error · ${schoolTiming(drum.meanMs)}`}</span>`).join('')}</div></details></article>`).join('') : '<p class="school-empty">No completed practice runs yet. Finish a song or practice loop while signed in to save a result.</p>';
+      this.el('school-more-results').hidden = !this.nextCursor; this.el('school-dashboard-status').textContent = 'Only completed scored runs are saved. Listen mode and interrupted runs do not add results.';
+    } catch (error) { this.el('school-dashboard-status').textContent = error.message; }
+  }
+  async refreshHistory() { const id = this.user?.id, version = this.generation; if (!id || this.user.mustChangePassword) return; const response = await this.request(`/users/${id}/progress`); if (version === this.generation && id === this.user?.id) this.onHistory(response.records, response.summary); }
+  resultState(message, retry = false) { this.el('school-result-state').hidden = !message; this.el('school-result-message').textContent = message; this.el('school-retry-results').hidden = !retry; }
+  record(record, accountId) { if (!accountId || this.user?.id !== accountId) return; this.pending.push({ userId: accountId, record }); this.flushRuns(); }
+  async flushRuns() {
+    if (this.flushing || !this.pending.length || !this.user) return;
+    this.flushing = true; const version = this.generation;
+    try {
+      this.resultState('Saving practice results to your school account…');
+      while (this.pending.length && version === this.generation) { const item = this.pending[0]; if (item.userId !== this.user?.id) break; await this.request('/runs', { method: 'POST', data: item.record }); this.pending = this.pending.filter(entry => entry !== item); }
+      if (version === this.generation) { this.resultState('Results saved to your school account.'); await this.refreshHistory(); }
+    } catch (error) { if (version === this.generation) this.resultState(this.pending.length ? `Result not saved yet: ${error.message} Keep this page open and retry.` : 'Your result saved. Open My practice results to refresh the history when the connection is available.', this.pending.length > 0); }
+    finally { this.flushing = false; }
+  }
+  async saveSong(draft, progress = () => {}, { signal } = {}) {
+    if (!this.staff) throw new Error('A teacher account is required to publish songs.');
+    if (!(draft.midiBytes instanceof ArrayBuffer) || !draft.midiBytes.byteLength) throw new Error('Reimport the MIDI before publishing this song.');
+    const version = this.generation, source = draft.schoolSource?.schoolId === this.schoolId && draft.schoolSource.canManage ? draft.schoolSource : null;
+    let upload;
+    try {
+      progress('Preparing the school song…');
+      upload = await this.request('/library/uploads', { method: 'POST', signal, data: { title: (draft.schoolTitle || draft.song.title).slice(0, 120), fileName: draft.song.fileName, audioName: draft.audioName, selected: draft.selected, mapping: draft.mapping, offset: draft.offset, timeScale: draft.timeScale ?? 1, volume: draft.volume, midiBytes: draft.midiBytes.byteLength, audioBytes: draft.audioBytes?.byteLength || 0, ...(source ? { songId: source.songId, revisionId: source.revisionId } : {}) } });
+      progress('Uploading the MIDI drum part…'); await this.request(`/library/uploads/${upload.uploadId}/midi`, { method: 'PUT', data: draft.midiBytes, signal });
+      if (draft.audioBytes) { progress('Uploading the backing recording…'); await this.request(`/library/uploads/${upload.uploadId}/audio`, { method: 'PUT', data: draft.audioBytes, signal }); }
+      if (signal?.aborted || version !== this.generation) throw new Error('Publishing cancelled.');
+      progress('Checking the song and publishing it to the school…');
+      const response = await this.request(`/library/uploads/${upload.uploadId}/publish`, { method: 'POST', data: {}, signal });
+      return { ...response.song, schoolId: this.schoolId };
+    } catch (error) {
+      if (upload && version === this.generation) for (let attempt = 0; attempt < 3; attempt++) {
+        try { await this.request(`/library/uploads/${upload.uploadId}`, { method: 'DELETE' }); break; }
+        catch (cleanupError) { if (cleanupError.status !== 409 || attempt === 2) break; await new Promise(resolve => setTimeout(resolve, 250)); }
+      }
+      throw error;
+    }
+  }
+}
+
+function schoolDate(time) { return new Date(time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+function schoolTiming(value) { return Math.abs(value) < 1 ? 'On time on average' : `${Math.round(Math.abs(value))} ms ${value < 0 ? 'early' : 'late'} on average`; }
+function schoolMarkup() {
+  return `<dialog id="school-account-dialog" class="school-account-dialog" aria-labelledby="school-account-title"><div class="dialog-header"><div><p class="eyebrow">YOUR SCHOOL. YOUR RHYTHM.</p><h2 id="school-account-title">Welcome back.</h2></div><button class="close-button" data-school-close="school-account-dialog" aria-label="Close school sign in">×</button></div><p id="school-account-description" class="dialog-description"></p><p id="school-account-unavailable" class="school-message" hidden></p>
+  <form id="school-login-form" class="school-form" hidden><label>Username<input id="school-login-username" autocomplete="username" maxlength="40" required></label><label>Password<input id="school-login-password" type="password" autocomplete="current-password" maxlength="128" required></label><button class="button primary" type="submit">Sign in</button></form>
+  <form id="school-setup-form" class="school-form" hidden><p class="school-message">Create the first teacher account. This account is the school owner and can add other teachers.</p><label>School name<input id="school-setup-name-school" value="Sierra Charter School" maxlength="100" required></label><label>Your display name<input id="school-setup-name" autocomplete="name" maxlength="60" required></label><label>Your username<input id="school-setup-username" autocomplete="username" pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]{2,39}" maxlength="40" required></label><label>Your password or passphrase<input id="school-setup-password" type="password" autocomplete="new-password" minlength="15" maxlength="128" required><small>15 characters or longer.</small></label><label id="school-setup-key-field">School setup key<input id="school-setup-key" type="password" autocomplete="off"><small>The private key configured by the school owner on the hosting service.</small></label><button class="button primary" type="submit">Create school owner account</button></form>
+  <div id="school-signed-in" hidden><p id="school-signed-in-name" class="school-message"></p><div class="school-actions"><button id="school-open-dashboard" class="button primary">Open classroom</button><button id="school-change-password" class="button secondary">Change password</button><button id="school-signout" class="text-button">Sign out</button></div></div><p id="school-account-status" class="school-status" role="status"></p></dialog>
+  <dialog id="school-password-dialog" class="school-account-dialog" aria-labelledby="school-password-title"><div class="dialog-header"><div><p class="eyebrow">MAKE IT YOURS</p><h2 id="school-password-title">Choose your password.</h2></div><button class="close-button" data-school-close="school-password-dialog" aria-label="Close password change">×</button></div><form id="school-password-form" class="school-form"><label>Current or temporary password<input id="school-current-password" type="password" autocomplete="current-password" maxlength="128" required></label><label>New password or passphrase<input id="school-new-password" type="password" autocomplete="new-password" minlength="15" maxlength="128" required><small>Use 15–128 characters. A few memorable words work well.</small></label><button id="school-password-submit" type="submit" class="button primary">Save new password</button></form><p id="school-password-status" class="school-status" role="status"></p></dialog>
+  <dialog id="school-dashboard-dialog" class="school-dashboard-dialog" aria-labelledby="school-dashboard-title"><div class="dialog-header"><div><p id="school-dashboard-school" class="eyebrow">SCHOOL PRACTICE</p><h2 id="school-dashboard-title">Your classroom.</h2></div><button class="close-button" data-school-close="school-dashboard-dialog" aria-label="Close classroom">×</button></div><div class="school-actions"><button id="school-own-progress" class="text-button">My practice results</button></div>
+  <section id="school-roster-section"><div class="school-section-heading"><h3>Students &amp; teachers</h3><button id="school-refresh-roster" class="text-button">Refresh roster</button></div><div id="school-roster" class="school-roster"></div><h3>Add an account</h3><form id="school-user-form" class="school-form school-create-form"><label>Display name<input id="school-student-name" maxlength="60" required autocomplete="off"><small>A first name or nickname is enough.</small></label><label>Username<input id="school-student-username" maxlength="40" pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]{2,39}" required autocomplete="off"><small>At least 3 letters, numbers, dots, dashes or underscores.</small></label><label id="school-role-field" hidden>Account type<select id="school-role"><option value="student">Student</option><option value="teacher">Teacher</option></select></label><label id="school-teacher-field" hidden>Student’s teacher<select id="school-teacher"></select></label><button id="school-create-user" class="button primary" type="submit">Create account</button></form><p class="school-help">Students do not need email. A temporary password is shown once; they choose their own password at first sign-in. Reset password creates a new temporary password and signs that account out. Disabling an account keeps its results.</p><div id="school-credentials" class="school-credentials" hidden><h4>Share these login details directly.</h4><p>Username <code id="school-credential-username"></code></p><p>Temporary password <code id="school-credential-password"></code></p><button id="school-copy-login" class="button secondary">Copy login details</button><p class="school-help">This password is shown for this visit only. It cannot be retrieved later; reset it if needed.</p></div></section>
+  <section id="school-progress-section" hidden><button id="school-back-roster" class="text-button">← Back to roster</button><h3 id="school-progress-name"></h3><p id="school-progress-summary" class="school-message"></p><div id="school-results"></div><button id="school-more-results" class="button secondary" hidden>Load earlier results</button></section><p id="school-dashboard-status" class="school-status" role="status"></p></dialog>`;
+}

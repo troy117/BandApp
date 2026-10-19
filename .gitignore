@@ -5,3 +5,7 @@ artifacts/
 .openai/
 .env
 .env.*
+.groove-data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

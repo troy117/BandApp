@@ -1,11 +1,12 @@
 # Groove Lab — development handoff
 
-Updated October 16, 2026. This is the starting point for continuing at home.
+Updated October 19, 2026. This is the starting point for continuing at home.
 
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.6.1 / Prototype 06.1**. Static modules in `dist/`; no downloaded runtime dependencies or build step required.
+- Browser app, version **0.7.0 / Prototype 07**. Browser modules in `dist/`; optional school backend in `server/`. No downloaded runtime dependencies or build step required. Node 24 is required for school SQLite storage.
+- Teacher/student accounts, shared school songs and private student progress are implemented. **Railway still needs the persistent-volume/account configuration in [CLASSROOMS.md](CLASSROOMS.md).** Do not claim cloud accounts are live until that setup and a hosted sign-in/save check succeed.
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, to be tested when accessible on Monday. Continue keyboard testing until then. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
@@ -22,7 +23,7 @@ Start the next coding conversation with: “Read docs/HANDOFF.md and docs/DISCUS
 
 ## What travels between computers
 
-GitHub includes app source, tests, licensing, and these notes. It does **not** include imported songs, recordings, screenshots, browser practice history, or saved keyboard controls. No Fleetwood Mac recording or Songsterr MIDI is bundled.
+GitHub includes app source, tests, licensing, and these notes. It does **not** include accounts, passwords, the school database, published music, imported device songs, recordings, screenshots, browser practice history, or saved keyboard controls. No Fleetwood Mac recording or Songsterr MIDI is bundled. School data lives in the configured persistent storage directory and is ignored by Git.
 
 For a song already aligned at school, choose **Download song setup** in its import/setup dialog. Take that JSON plus the original MIDI and MP3 through your own file-transfer method. At home import those files, then **Load song setup** to restore the part selection, mapping, offset, MIDI speed, and volume. The exact MIDI fingerprint is checked. Save it in the home browser library for future visits. Browser libraries are separate per device, browser profile, and website origin; localhost and Railway also have separate libraries.
 
@@ -33,6 +34,7 @@ For a song already aligned at school, choose **Download song setup** in its impo
 3. Notation and hit cues: sheet/highway toggle, moving playhead, colored note heads, drum/key legend, highway hit boxes.
 4. Practice tools: 24 original tracks in four levels, section repeats, focus, built-in tempo ladder, per-pass reports, slower retry, next track, local journal.
 5. Song alignment and imported notation: automatic candidates, waveform, short audio/MIDI previews, manual one/two-point fit, MIDI speed scaling, portable setup JSON, imported rhythms/tuplets/meter changes. Version 0.6.1 adds colored MIDI-hit overlays, separate drum rows, and click-to-select MIDI beats on the recording waveform.
+6. Classroom system: school owner creates teachers, teachers create students without email, one shared school song library, per-account run history and teacher roster/results, device-to-school publishing, password resets/disable, private persistent storage and backup/recovery tools. The user confirmed teachers should see their own students' results and share one school library.
 
 ## How sync works
 
@@ -62,19 +64,22 @@ Imported notation uses musical quarter positions and per-measure meter. Standard
 | `dist/song-library.mjs` | IndexedDB song metadata and original file bytes |
 | `dist/practice.mjs`, `practice-tools.mjs` | Sections, repeats, focus, progress, curriculum UI |
 | `scripts/serve.mjs` | Static server, Railway PORT support, healthcheck |
+| `server/classroom.mjs` | SQLite, authenticated accounts/roles, sessions, shared music uploads, private progress APIs |
+| `dist/classroom.mjs`, `classroom.css` | School sign-in, roster, account controls and progress views |
+| `scripts/backup-school.mjs`, `reset-school-owner.mjs` | Private consistent backup and administrator owner recovery |
 | `scripts/standalone.mjs` | Dependency-free single HTML export; add new modules/styles here |
 
 ## Next milestone plan
 
-1. **Validate real songs at home.** Reimport the Dreams MIDI and the matching MP3, choose only drums, try a candidate, then preview a recognisable strike near the start and near the end. If it drifts steadily, apply two manual matches. Check an early/late loop in both views. Record exact setup values and troublesome bars; the actual user's song files were unavailable during implementation.
+1. **Activate the classroom release.** Follow CLASSROOMS.md to add a Railway volume, set the public origin and private setup key, create the real school owner, enable backups, and publish existing device songs. Then validate real teacher/student access from separate computers. Classroom data must stay out of GitHub.
 2. **Roland TD-17 input.** Add Web MIDI feature detection and a device/port picker in Chrome; learn pads by striking them, show velocity/mapping feedback, and funnel timestamps into the existing judge. Handle reconnect and permissions. Keep keyboard and on-screen pads fully available. Validate actual kit latency and hi-hat/cymbal variants on hardware before claiming support.
 3. **Pause, seek and section navigation.** Add stopped-position seeking in the score/highway, resume with an optional count-in, and clickable measure selection for loops. Keep backing slices, expected notes, and grading time consistent; interrupted runs should not be mistaken for full-song scores.
 4. **Notation refinements.** Consider separate hands/feet voices, expressive flams, ghost notes, articulations, printable/wrapped pages, and a configurable display grid. Preserve exact scoring times.
 5. **Optional advanced alignment.** If real songs show variable drift, consider piecewise anchor maps or beat tracking/dynamic alignment. Require reviewable local results and correct section-boundary scheduling. Do not silently warp a different arrangement.
-6. **Later classroom features.** Portable practice history or a PWA, then bass/guitar and vocals after drum input and timing are reliable. No student accounts/cloud database are currently planned.
+6. **Validate real songs and plan classroom refinements.** Check the user's Dreams MIDI/MP3 near the start and end, then an early/late loop in both views. Record the exact setup and troublesome bars; those files were unavailable during development. Later: assignments, printable login cards, optional progress exports and a PWA; bass/guitar/vocals remain future work.
 
 ## Validation and limitations
 
-Automated coverage includes offset/ratio math, onset detection (including anti-phase stereo), candidate search and rejection/cancellation, tempo changes, exact scoring, notation rhythms/meters/partial measures, and retimed loop recording slices. Browser QA uses original synthetic MIDI/audio rather than the user's Dreams files. This release has no hardware MIDI test. See CHANGELOG.md for release verification.
+All 56 tests pass, with module syntax and standalone export checks. Coverage includes classroom roles/private progress, shared music uploads and revisions, session revocation, cross-session/restart persistence, result pagination/validation, backup restore and owner recovery, plus existing sync, scoring, notation and loop behavior. Browser QA verifies teacher publishing, student login/password flow, shared playback, completed result saving, reload, sign-out privacy and teacher reports using original synthetic MIDI/audio and isolated test accounts. This release has no hardware MIDI or hosted classroom activation test. See CHANGELOG.md for release verification.
 
 Conceptual references: [Web Audio recording slices](https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode/start), [librosa onset strength](https://librosa.org/doc/0.11.0/generated/librosa.onset.onset_strength.html). Our simple energy novelty implementation is original and does not bundle librosa or claim its spectral-flux implementation.

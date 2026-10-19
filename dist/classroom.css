@@ -1,0 +1,44 @@
+.top-actions { gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+#open-school { max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.school-account-dialog { width: min(520px,calc(100vw - 32px)); }
+.school-dashboard-dialog { width: min(1000px,calc(100vw - 32px)); }
+.school-form { display: grid; gap: 18px; margin-top: 20px; }
+.school-form label, .school-publish label { display: grid; gap: 8px; font-size: 13px; color: #c4d3cb; }
+.school-form input, .school-form select, .school-publish input { width: 100%; min-width: 0; padding: 12px; background: #112421; color: #eef0e5; border: 1px solid #526e62; border-radius: 7px; font: inherit; font-size: 15px; }
+.school-form small, .school-help { color: #a5bbb0; font-size: 12px; line-height: 1.6; }
+.school-form button { justify-self: start; min-height: 44px; }
+.school-message { padding: 15px 18px; border-radius: 9px; background: #ffffff07; color: #d0dccb; font-size: 14px; line-height: 1.6; }
+.school-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 20px 0; }
+.school-status { color: #e8c17b; font-size: 13px; line-height: 1.7; margin: 20px 0 0; }
+.school-status:empty { display: none; }
+.school-section-heading { display: flex; justify-content: space-between; gap: 15px; align-items: center; }
+.school-student { border: 1px solid #ffffff15; padding: 19px; border-radius: 12px; display: grid; gap: 15px; background: #ffffff03; }
+.school-roster { display: grid; gap: 12px; margin: 16px 0 30px; }
+.school-student strong { font-size: 17px; color: #eef0df; }
+.school-student small { display: block; font-size: 12px; color: #a9c0b2; margin-top: 7px; }
+.school-student-metrics { display: flex; flex-wrap: wrap; gap: 10px 24px; font-size: 12px; color: #c2d4c4; }
+.school-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.school-create-form { grid-template-columns: 1fr 1fr; }
+.school-credentials { background: #b5d19d13; border: 1px solid #8aab74; border-radius: 10px; padding: 18px; margin-top: 24px; }
+.school-credentials h4 { margin: 0 0 15px; color: #e5edcc; }
+.school-credentials p { font-size: 13px; line-height: 1.7; }
+.school-credentials code { display: inline-block; margin-left: 10px; padding: 4px 8px; background: #10241e; border-radius: 5px; font-size: 14px; overflow-wrap: anywhere; }
+.school-run { padding: 20px 0; border-bottom: 1px solid #ffffff1a; }
+.school-run-heading { display: flex; gap: 15px; justify-content: space-between; }
+.school-run-heading h4 { margin: 0 0 8px; color: #e9eddd; font-size: 17px; }
+.school-run-heading strong { color: #e8c17b; font-size: 25px; }
+.school-run-heading small, .school-run p { color: #b7cabc; font-size: 12px; line-height: 1.7; }
+.school-run details { font-size: 12px; color: #bbd2bd; }
+.school-run summary { cursor: pointer; }
+.school-drum-stats { display: grid; gap: 8px; padding: 12px; background: #ffffff04; border-radius: 8px; margin-top: 10px; }
+.school-drum-stats b { color: #dee8d3; }
+.school-empty { padding: 22px 0; color: #b1c4b7; font-size: 14px; line-height: 1.7; }
+.school-library-tabs { display: flex; gap: 10px; margin: 20px 0; }
+.school-library-tabs [aria-pressed=true] { background: #e8c17b; color: #162821; }
+.school-publish { border: 1px solid #58745a; border-radius: 10px; padding: 18px; margin: 20px 0; background: #adc79a0b; }
+.school-publish p { color: #b2c9b7; line-height: 1.6; font-size: 12px; }
+.progress-heading { flex-wrap: wrap; }
+.school-result-state { display: flex; flex-wrap: wrap; flex-basis: 100%; gap: 12px; color: #c4d6b8; font-size: 12px; padding: 12px 0; }
+.library-song-actions { flex-wrap: wrap; }
+@media(max-width:850px) { .top-actions .connection { display: none; } }
+@media(max-width:700px) { .topbar { height: auto; min-height: 104px; flex-wrap: wrap; gap: 16px; padding-block: 18px; } .top-actions { width: 100%; justify-content: flex-start; gap: 8px; } .top-actions .button { font-size: 11px; padding: 10px 12px; } #open-school { max-width: 180px; } .school-create-form { grid-template-columns: 1fr; } .school-student { padding: 15px; } }

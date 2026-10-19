@@ -6,6 +6,7 @@ import { createNotation, drawSheet, nextHitGroup } from './notation.mjs';
 import { LEVELS } from './lessons.mjs';
 import { PracticeTools } from './practice-tools.mjs';
 import { practicePassAt, backingSegments, passSummaries } from './practice.mjs';
+import { SchoolClient } from './classroom.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
@@ -51,6 +52,22 @@ const canvas = $('highway');
 const ctx = canvas.getContext('2d');
 let viewport = { width: 800, height: 347, dpr: 1 };
 let notationCache = { chart: null, model: null };
+const school = new SchoolClient({
+  beforeOpen: () => { if (session || starting) stopRun('School account opened. Start a fresh run when you’re ready.'); },
+  onIdentity: user => {
+    stopRun('The signed-in account changed.');
+    lastReport = null; $('view-report').disabled = true;
+    if (loadedSong || settings.grooveId === 'imported') unloadSong();
+    importer.applied = null; importer.draft = null; importer.token++; importer.sync.reset();
+    for (const id of ['import-dialog', 'library-dialog', 'report-dialog']) $(id).close();
+    importer.setSchool(school); practice.setAccountHistory(user ? [] : null);
+    $('open-import').hidden = user?.role === 'student'; $('song-setup').hidden = user?.role === 'student';
+    $('practice-history-help').textContent = user ? `Signed in as ${user.name}. Completed scored runs save to your school account. Open School sign in → My practice results for your full history. Listen mode and stopped runs do not add results.` : 'Guest practice keeps the last 30 completed runs in this browser. Sign in to save your results to a school account.';
+    feedback(user ? `Welcome, ${user.name}.` : 'Ready for local practice.', user ? 'Choose a school song or a built-in track. Your completed runs save to your account.' : 'School accounts are signed out. Guest results stay in this browser.');
+  },
+  onHistory: (records, summary) => practice.setAccountHistory(records, summary),
+});
+importer.setSchool(school);
 
 function effectiveView() { return settings.view === 'sheet' ? 'sheet' : 'highway'; }
 function renderView() {
@@ -126,7 +143,7 @@ function renderGroove() {
     $('song-duration').textContent = formatDuration(previewChart.duration);
     $('loaded-song-info').textContent = loadedSong.backing ? `${loadedSong.backing.name} · offset ${loadedSong.backing.offset > 0 ? '+' : ''}${loadedSong.backing.offset.toFixed(3)}s · ${(100 / (loadedSong.chart.timeScale ?? 1)).toFixed(2)}% MIDI speed` : 'MIDI loaded · no backing recording';
     $('groove-description').textContent = `${previewChart.notes.length} drum hits across ${previewChart.bars} bars. ${previewChart.tempoChanges ? `${previewChart.tempoChanges} tempo change${previewChart.tempoChanges === 1 ? '' : 's'} preserved.` : 'Follow the MIDI beat grid.'}${previewChart.ignored ? ` ${previewChart.ignored} unmapped or ignored notes are excluded.` : ''}`;
-    $('lesson-tip').textContent = 'Use Song setup to adjust the drum assignments or backing alignment. Files stay on this device.';
+    $('lesson-tip').textContent = school.user?.role === 'student' ? 'Your teacher prepared the drum part and backing alignment. Choose a section or drum focus to practice.' : loadedSong.schoolSource ? 'Use Song setup to adjust the drum assignments or backing alignment, then publish an update when it is ready.' : 'Use Song setup to adjust the drum assignments or backing alignment. Teachers can publish this song to the school library.';
     return;
   }
   const track = GROOVES[settings.grooveId];
@@ -168,6 +185,7 @@ function setLocked(locked) {
 }
 function elapsed() { return session ? audio.audibleTime() - session.startAt : 0; }
 async function startRun(mode = 'practice') {
+  if (school.user?.mustChangePassword) { school.openPassword(); return; }
   if (session || starting) { stopRun(); return; }
   const enteredBpm = Number($('bpm').value);
   if (settings.grooveId !== 'imported' && (!$('bpm').value || !Number.isFinite(enteredBpm) || enteredBpm < 40 || enteredBpm > 160)) {
@@ -190,7 +208,7 @@ async function startRun(mode = 'practice') {
     if (myGeneration !== generation) return;
     const chart = previewChart;
     const beat = chart.countInBeatSeconds;
-    session = { mode, judge: new Judge(chart, settings.tolerance), sourceKey: practice.key, startAt: audio.context.currentTime + 0.18 + chart.countInBeats * beat, scheduledBeat: 0, scheduledCount: 0, scheduledNote: 0, settings: { ...settings }, backing: settings.grooveId === 'imported' ? loadedSong.backing : null, lastCount: null };
+    session = { mode, judge: new Judge(chart, settings.tolerance), sourceKey: practice.key, accountId: school.user?.id || null, schoolSource: settings.grooveId === 'imported' ? loadedSong.schoolSource : null, startAt: audio.context.currentTime + 0.18 + chart.countInBeats * beat, scheduledBeat: 0, scheduledCount: 0, scheduledNote: 0, settings: { ...settings }, backing: settings.grooveId === 'imported' ? loadedSong.backing : null, lastCount: null };
     if (session.backing) for (const segment of backingSegments(chart, session.backing)) audio.playBacking(session.backing.buffer, session.startAt + segment.when, segment.offset, session.backing.volume, segment.duration);
     flashes.clear();
     $('start').innerHTML = '<span aria-hidden="true">■</span> Stop groove <kbd>Esc</kbd>';
@@ -241,7 +259,9 @@ function finishRun() {
   if (finished.mode === 'practice') {
     finished.judge.advance(Infinity);
     lastReport = { ...finished, backing: finished.backing ? { name: finished.backing.name, offset: finished.backing.offset, volume: finished.backing.volume } : null };
-    practice.record(finished.judge, finished.settings);
+    const record = practice.record(finished.judge, finished.settings);
+    const kind = finished.judge.chart.kind === 'groove' ? 'builtin' : finished.schoolSource ? 'school' : 'personal';
+    school.record({ ...record, sourceKind: kind, sourceId: kind === 'builtin' ? finished.judge.chart.grooveId : kind === 'school' ? finished.schoolSource.songId : finished.sourceKey, revisionId: finished.schoolSource?.revisionId || null }, finished.accountId);
   }
   session = null;
   audio.silence();
@@ -392,7 +412,8 @@ $('browse-tracks').addEventListener('click', () => { if (session || starting) st
 for (const view of ['sheet', 'highway']) $('view-' + view).addEventListener('click', () => { settings.view = view; persist(); renderView(); });
 for (const id of ['open-import', 'song-setup']) $(id).addEventListener('click', () => { if (session || starting) stopRun('Song setup opened. Start a fresh run when you’re ready.'); importer.open(); });
 $('open-library').addEventListener('click', () => { if (session || starting) stopRun('Song library opened. Start a fresh run when you’re ready.'); importer.openLibrary(); });
-$('clear-song').addEventListener('click', () => { stopRun(); loadedSong = null; importer.applied = null; importer.draft = null; importer.token++; importer.sync.reset(); $('groove').querySelector('option[value="imported"]')?.remove(); settings.grooveId = 'rock'; persist(); syncSettings(); notify(''); feedback('Back to the practice room.', 'Your keyboard controls are unchanged.'); });
+function unloadSong() { stopRun(); loadedSong = null; importer.applied = null; importer.draft = null; importer.token++; importer.sync.reset(); $('groove').querySelector('option[value="imported"]')?.remove(); settings.grooveId = 'rock'; persist(); syncSettings(); notify(''); feedback('Back to the practice room.', 'Your keyboard controls are unchanged.'); }
+$('clear-song').addEventListener('click', unloadSong);
 for (const [id, field] of [['groove', 'grooveId'], ['bars', 'bars'], ['bpm', 'bpm'], ['tolerance', 'tolerance'], ['offset', 'offset'], ['guide', 'guide'], ['metronome', 'metronome']]) {
   $(id).addEventListener(id === 'offset' ? 'input' : 'change', () => {
     if (session) return;
@@ -618,3 +639,4 @@ $('download-report').addEventListener('click', () => {
 window.addEventListener('resize', () => { if ($('report-dialog').open) drawTimingChart(); });
 $('groove').innerHTML = LEVELS.map((name, index) => `<optgroup label="Level ${index + 1} · ${name}">${Object.entries(GROOVES).filter(([, track]) => track.level === index + 1).map(([id, track]) => `<option value="${id}">${escapeHtml(track.name)}</option>`).join('')}</optgroup>`).join('');
 syncSettings(); renderPads(); persist(); resize(); requestAnimationFrame(frame);
+school.init();
