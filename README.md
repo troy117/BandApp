@@ -20,6 +20,14 @@ npm run dev
 
 Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open the standalone HTML file in Chrome, or serve the `dist` directory from an HTTPS host. No Electron or Linux subsystem is needed. The modular `dist/index.html` needs an HTTP server; the generated standalone copy also works directly from a file.
 
+## Connect a USB drumkit
+
+Choose **Connect drumkit** at the top (or open **Controls**), allow MIDI access in Chrome, then choose **TD-17**. Strike each pad to check the live readout. **Check or change pad assignments → Learn pad** adds or reassigns a pad/rim/edge by striking it. Choose **Done**, then **Start groove**; kit hits share the keyboard scoring clock in every view.
+
+Use the Roland module’s USB COMPUTER port. If it is not detected, **SETUP → USB → USB Driver Mode → GENERIC**, then power the module off/on, provides MIDI without a Roland driver. VENDOR works with Roland’s Windows driver. Generic mode carries MIDI only; backing audio/metronome play from the computer. App drum sounds for kit hits default off so you can use the module’s sounds. Keyboard/on-screen sounds remain available.
+
+Connections require a supported browser (target: Chrome on Windows/ChromeOS) on HTTPS or localhost. Pad mappings and sound preference save in this browser, separately from keyboard controls and song-import mappings. Hardware latency, pad variants and school browser policy still require testing with the real kit. See [the TD-17 setup and troubleshooting guide](docs/DRUMKIT.md).
+
 ## Play
 
 - Click **Start groove** or press Enter. Four metronome beats count you in.
@@ -134,6 +142,6 @@ Tests cover exercise timing, simultaneous voices, one-to-one matching, repeat hi
 
 Included: built-in drum sheet music with a scrolling playhead and live view toggle, highway hit boxes and grouped hit cues, a browser song library with saved MIDI/audio/setup and archive/restore, a Railway-ready static server, 24 original grooves in four levels, continuous section repeats with matching MIDI backing slices, drum focus, per-pass tempo building, local practice history, standard MIDI import, drum-part selection and note mapping, local backing audio with start alignment and volume, an original sample MIDI/WAV pair, synthesized drum sounds, configurable keyboard controls, listen mode, count-in, timing windows, reports, and CSV export. No external fonts, CDNs, analytics, or downloaded runtime packages are required. The MIT-licensed MIDI parser is bundled locally.
 
-Version 0.8 adds the full-sheet view, direct library loading, live backing-volume controls and a smaller page header. Version 0.7 adds teacher/student accounts, a shared school song library and saved account progress. Classroom features require the [persistent Railway storage setup](docs/CLASSROOMS.md). Version 0.6 added local audio alignment suggestions, waveform previews, one/two-point manual alignment, portable song setups, and sheet music for imported MIDI. Next: activate and verify the hosted classroom, then validate Web MIDI and pad learning with the school's Roland TD-17 when the kit is available. See [the milestone plan](docs/HANDOFF.md). This version does not yet connect MIDI hardware, install as a PWA, or warp changing drift.
+Version 0.8 adds the full-sheet view, direct library loading, live backing-volume controls and a smaller page header. Version 0.7 adds teacher/student accounts, a shared school song library and saved account progress. Classroom features require the [persistent Railway storage setup](docs/CLASSROOMS.md). Version 0.6 added local audio alignment suggestions, waveform previews, one/two-point manual alignment, portable song setups, and sheet music for imported MIDI. Version 0.9 adds USB MIDI drumkit input, a device picker, live pad feedback, pad learning and reconnection. Next: validate the real TD-17 pads/latency and activate and verify the hosted classroom. See [the milestone plan](docs/HANDOFF.md). This version does not yet install as a PWA or warp changing drift. Cymbal chokes, continuous hi-hat openness and hit strength are not graded.
 
 See THIRD_PARTY_NOTICES.md for the SightKick reuse assessment and license.

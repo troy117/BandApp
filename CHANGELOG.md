@@ -1,5 +1,13 @@
 # Changes
 
+## 0.9.0 — October 20, 2026 — Prototype 09
+
+- USB MIDI drumkit input in supported secure browsers, with an explicit Connect drumkit action, permission guidance, input picker and live pad/note/strength readout. Default mappings include common drum notes and Roland hi-hat variants; Learn pad adds rims/edges or moves a note to a different drum. Individual notes can be ignored and defaults restored.
+- Local device/mapping/sound preferences are separate from keyboard and song-import controls. App drum sounds for kit hits default off for use with the module's sounds. Keyboard/on-screen controls and every practice view continue using the same timestamped judge; MIDI velocity affects optional app sound volume, not grading.
+- Selected-device disconnect stops the run; reconnect restores that device without substituting other MIDI inputs. Cancelled permission/open requests cannot reopen a disconnected input. MIDI releases, clock, controllers and choke messages do not create false strikes. No MIDI output or SysEx access.
+- TD-17 setup/troubleshooting guide and updated development handoff/discussion log. Physical pad/latency and Chrome permission validation remain for the user's Windows/TD-17 test; the in-app browser keeps MIDI permission pending, with a usable Disconnect cancellation.
+- Validation: **80 automated tests pass**, module syntax and standalone export checks pass. Browser checks cover the connection panel, cancellation, mapping controls/preferences, keyboard practice and panel layout. MIDI hardware tests use simulated ports; no physical-kit verification is claimed.
+
 ## 0.8.1 — October 20, 2026 — Prototype 08.1
 
 - Full-screen icon for **Full sheet**, with a compact **Play/Stop**, **Listen first**, song title and exit toolbar. The score uses the available screen width/height and tighter row spacing. Browsers that deny native fullscreen still maximize within the page viewport.

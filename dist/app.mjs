@@ -9,6 +9,7 @@ import { practicePassAt, backingSegments, passSummaries } from './practice.mjs';
 import { SchoolClient } from './classroom.mjs';
 import { FullScoreView } from './full-score.mjs';
 import { ScoreScreen } from './score-screen.mjs';
+import { DrumkitControls } from './drumkit-controls.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
@@ -74,6 +75,14 @@ const school = new SchoolClient({
   onHistory: (records, summary) => practice.setAccountHistory(records, summary),
 });
 importer.setSchool(school);
+const drumkit = new DrumkitControls({
+  onHit: note => {
+    if (document.querySelector('dialog[open]') && !$('settings-dialog').open) return;
+    strike(note.drum, note.timestamp, 'midi', note.velocity, note.sound);
+  },
+  onLost: () => { if (session || starting) stopRun('Drumkit disconnected. Reconnect it before starting a fresh run, or continue with the keyboard.'); },
+  onLearn: () => { capture = null; renderMappings(); },
+});
 
 function effectiveView() { return settings.view; }
 function renderView() {
@@ -329,14 +338,14 @@ function flashDrum(id) {
   clearTimeout(padTimers.get(id));
   padTimers.set(id, setTimeout(() => pad.classList.remove('flash'), 130));
 }
-function strike(drum, timestamp, source = 'keyboard') {
+function strike(drum, timestamp, source = 'keyboard', velocity = 1, sound = true) {
   flashDrum(drum);
   const normalizedTimestamp = timestamp > 1e12 ? timestamp - performance.timeOrigin : timestamp;
   if (!audio.context || audio.context.state !== 'running') {
-    audio.ready().then(() => audio.play(drum)).catch(error => notify(error.message, true));
+    if (sound) audio.ready().then(() => audio.play(drum, undefined, velocity)).catch(error => notify(error.message, true));
     return;
   }
-  audio.play(drum);
+  if (sound) audio.play(drum, undefined, velocity);
   if (!session || session.mode !== 'practice') return;
   if (session.judge.chart.practice.focus !== 'all' && !session.judge.chart.focusDrums.includes(drum)) return;
   const time = audio.audibleTime(normalizedTimestamp) - session.startAt - session.settings.offset / 1000;
@@ -408,9 +417,11 @@ function openSettings() {
   $('settings-dialog').showModal();
 }
 for (const id of ['open-settings', 'edit-controls']) $(id).addEventListener('click', openSettings);
+$('open-drumkit').addEventListener('click', () => { openSettings(); $('connect-midi').focus(); });
 $('mapping-list').addEventListener('click', event => {
   const button = event.target.closest('button');
   if (!button) return;
+  drumkit.cancelLearn();
   if (button.dataset.remove) {
     bindings[button.dataset.drum] = bindings[button.dataset.drum].filter(code => code !== button.dataset.remove);
     capture = null;

@@ -5,10 +5,10 @@ Updated October 20, 2026. This is the starting point for continuing at home.
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.8.1 / Prototype 08.1**. Browser modules in `dist/`; optional school backend in `server/`. No downloaded runtime dependencies or build step required. Node 24 is required for school SQLite storage.
+- Browser app, version **0.9.0 / Prototype 09**. Browser modules in `dist/`; optional school backend in `server/`. No downloaded runtime dependencies or build step required. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. **Railway still needs the persistent-volume/account configuration in [CLASSROOMS.md](CLASSROOMS.md).** Do not claim cloud accounts are live until that setup and a hosted sign-in/save check succeed.
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
-- School kit: **Roland TD-17 V-Drums**, to be tested when accessible on Monday. Continue keyboard testing until then. Target Windows Chrome and ChromeOS.
+- School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
 
 ## Run on the home computer
@@ -37,6 +37,7 @@ For a song already aligned at school, choose **Download song setup** in its impo
 6. Classroom system: school owner creates teachers, teachers create students without email, one shared school song library, per-account run history and teacher roster/results, device-to-school publishing, password resets/disable, private persistent storage and backup/recovery tools. The user confirmed teachers should see their own students' results and share one school library.
 7. Full-sheet practice: entire score wraps into rows with a moving gold play bar and row following, using the same MIDI clock. All library songs open directly with saved settings; live backing volume is on the practice screen and detailed setup is separate. Removed the large intro banner. Keyboard controls and all three views remain available during a run.
 8. Full-screen score: corner icon expands the full-sheet view, with Play/Stop, Listen first and exit controls inside the score. Row spacing tightens to use the screen. Escape exits without changing playback; scored completion exits before showing the report. Embedded browsers retain a viewport-filling fallback.
+9. USB drumkit input: opt-in device permission, selected input only, TD-17/default drum note assignments, live note/strength feedback, Learn pad for rims/edges, ignored notes, local mapping/sound preferences, unplug handling and reconnect. Kit hits use the existing timestamped scoring path; all views and keyboard controls remain available. No MIDI output or SysEx access. [Setup guide](DRUMKIT.md).
 
 ## How sync works
 
@@ -64,6 +65,7 @@ Imported notation uses musical quarter positions and per-measure meter. Standard
 | `dist/notation.mjs` | Shared notation model and scrolling canvas staff |
 | `dist/song-import.mjs` | Import/setup, portable JSON, saved-song UI |
 | `dist/full-score.mjs` | Wrapped score layout, visible-row drawing and playback following |
+| `dist/midi-input.mjs`, `drumkit-controls.mjs` | Web MIDI connection lifecycle, note parsing, local pad learning and live controls |
 | `dist/score-screen.mjs` | Fullscreen/viewport expansion, transport controls and keyboard focus |
 | `dist/song-library.mjs` | IndexedDB song metadata and original file bytes |
 | `dist/practice.mjs`, `practice-tools.mjs` | Sections, repeats, focus, progress, curriculum UI |
@@ -76,7 +78,7 @@ Imported notation uses musical quarter positions and per-measure meter. Standard
 ## Next milestone plan
 
 1. **Activate the classroom release.** Follow CLASSROOMS.md to add a Railway volume, set the public origin and private setup key, create the real school owner, enable backups, and publish existing device songs. Then validate real teacher/student access from separate computers. Classroom data must stay out of GitHub.
-2. **Roland TD-17 input.** Add Web MIDI feature detection and a device/port picker in Chrome; learn pads by striking them, show velocity/mapping feedback, and funnel timestamps into the existing judge. Handle reconnect and permissions. Keep keyboard and on-screen pads fully available. Validate actual kit latency and hi-hat/cymbal variants on hardware before claiming support.
+2. **Validate the Roland TD-17 on hardware.** Input and pad learning are implemented. In the user’s Chrome, allow MIDI, select the kit, check each pad/rim/edge and open/closed/pedal hi-hat, then play a simple groove. Test unplug/replug, backing audio routing and measured timing. Leave delay correction at zero initially. Confirm physical behavior before calling the kit verified; choke/continuous pedal state and velocity are not graded. Keyboard and on-screen pads remain available.
 3. **Pause, seek and section navigation.** Add stopped-position seeking in the score/highway, resume with an optional count-in, and clickable measure selection for loops. Keep backing slices, expected notes, and grading time consistent; interrupted runs should not be mistaken for full-song scores.
 4. **Notation refinements.** Consider separate hands/feet voices, expressive flams, ghost notes, articulations, printable/wrapped pages, and a configurable display grid. Preserve exact scoring times.
 5. **Optional advanced alignment.** If real songs show variable drift, consider piecewise anchor maps or beat tracking/dynamic alignment. Require reviewable local results and correct section-boundary scheduling. Do not silently warp a different arrangement.
@@ -84,6 +86,6 @@ Imported notation uses musical quarter positions and per-measure meter. Standard
 
 ## Validation and limitations
 
-All 69 tests pass, with module syntax and standalone export checks. Fullscreen coverage includes denied/pending native requests, browser exit, focus/keyboard behavior, compact row spacing and the embedded transport. Coverage includes full-score row boundaries and clock alignment, bounded canvas size and row following, direct library application for teachers/students/guests, live backing gain changes, classroom permissions/persistence, and existing sync, scoring, notation and loops. Browser QA verifies all three views, keyboard scoring after switching, saved-song loading, live volume, detailed setup and narrow screens using original demo music. Classroom QA uses isolated synthetic accounts. This release has no hardware MIDI or hosted classroom activation test. See CHANGELOG.md for release verification.
+All 80 tests pass, with module syntax and standalone export checks. Fullscreen coverage includes denied/pending native requests, browser exit, focus/keyboard behavior, compact row spacing and the embedded transport. Coverage includes full-score row boundaries and clock alignment, bounded canvas size and row following, direct library application for teachers/students/guests, live backing gain changes, classroom permissions/persistence, and existing sync, scoring, notation and loops. Browser QA verifies all three views, keyboard scoring after switching, saved-song loading, live volume, detailed setup and narrow screens using original demo music. Classroom QA uses isolated synthetic accounts. MIDI tests use simulated input ports and DOM controls for permissions, parsing, pad learning/persistence, reconnect, cancellation and timestamped scoring. The in-app browser leaves MIDI permission pending, so its connection request was cancelled through Disconnect; Chrome permission and real USB input still need the user’s hardware check. This release has no physical-kit or hosted classroom activation test. See CHANGELOG.md for release verification.
 
 Conceptual references: [Web Audio recording slices](https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode/start), [librosa onset strength](https://librosa.org/doc/0.11.0/generated/librosa.onset.onset_strength.html). Our simple energy novelty implementation is original and does not bundle librosa or claim its spectral-flux implementation.

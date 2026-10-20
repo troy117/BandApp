@@ -10,3 +10,22 @@
 
 .library-dialog{width:min(720px,calc(100% - 36px))}.library-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;border-bottom:1px solid var(--line);padding-bottom:15px;margin-top:24px}.library-heading .text-button{font-size:10px}.library-list{min-height:110px;margin-bottom:18px}.library-song{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:20px 0;border-bottom:1px solid var(--line)}.library-song>div:first-child{min-width:0}.library-song h3{margin:0 0 8px;font-size:16px;font-weight:550;overflow-wrap:anywhere}.library-song p{font-size:10px;color:var(--gold);margin:0 0 8px}.library-song small{color:#97b2a2;font-size:10px;overflow-wrap:anywhere;display:block;line-height:1.6}.library-song-actions{display:flex;flex-direction:column;gap:12px;align-items:center;flex-shrink:0}.library-song-actions .button{font-size:10px;white-space:nowrap}.library-song-actions .text-button{font-size:10px}.library-empty{padding:24px 0;color:var(--muted);font-size:13px;line-height:1.9;max-width:480px}#import-dialog .dialog-actions{flex-wrap:wrap}#save-song{margin-left:auto}#open-library{white-space:nowrap}.top-actions{gap:16px}
 @media(max-width:540px){.top-actions{gap:6px}.top-actions .button{font-size:9px;padding:8px}.library-song{gap:12px}.library-song h3{font-size:13px}.library-song-actions .button{font-size:9px;padding:9px}.library-heading{gap:10px}.library-heading .eyebrow{font-size:7px}.library-heading .text-button{font-size:9px}#save-song{margin-left:0}#import-dialog .dialog-actions{gap:8px;justify-content:flex-end}}
+/* USB drumkit controls share the existing keyboard/scoring clock. */
+.top-actions button.connection { background: transparent; border: 1px solid var(--line, #344348); border-radius: 20px; padding: 8px 11px; color: inherit; cursor: pointer; font: inherit; font-size: 12px; }
+.midi-controls { border: 1px solid var(--line, #344348); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+.midi-controls h3 { margin: 0 0 8px; }
+.midi-controls p, .midi-help { font-size: 12px; line-height: 1.6; color: var(--muted, #a1b2b5); }
+.midi-device-row { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.midi-device-row label { display: grid; gap: 6px; flex: 1; min-width: 160px; font-size: 12px; }
+.midi-device-row select { width: 100%; min-height: 40px; padding: 8px; border: 1px solid #3e5559; border-radius: 6px; background: #122023; color: var(--text, #e6eeeb); }
+.midi-last-hit { border-radius: 8px; padding: 12px; background: #17292a; color: #b5e9de; font-size: 13px; margin: 12px 0; min-height: 42px; }
+.midi-sound { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.midi-sound input { accent-color: #63d9c4; }
+.midi-controls details { margin-top: 16px; }
+.midi-controls summary { cursor: pointer; font-size: 13px; }
+.midi-controls details a { color: #63d9c4; }
+.midi-mapping-row { display: grid; grid-template-columns: 90px 1fr auto; align-items: center; gap: 8px; border-bottom: 1px solid #2c3b3f; padding: 8px 0; font-size: 12px; }
+.midi-mapping-row.capturing { background: #293b33; }
+.midi-note-list { display: flex; flex-wrap: wrap; gap: 5px; color: #a1b2b5; }
+.midi-note-chip { border: 1px solid #3e5559; border-radius: 5px; background: #1b2a2d; color: #d4e4e5; padding: 4px 7px; cursor: pointer; font: inherit; }
+@media (max-width: 480px) { .midi-controls { padding: 12px; } .midi-mapping-row { grid-template-columns: 64px 1fr auto; gap: 4px; } .midi-mapping-row .button { padding: 7px; } }
