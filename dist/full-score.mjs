@@ -1,7 +1,7 @@
 import { drawSheet, scoreBeatAtTime } from './notation.mjs';
 
 // Keep the same note objects and timeline as the other views. Only their layout changes.
-export function fullScoreLayout(notation, width) {
+export function fullScoreLayout(notation, width, { compact = false } = {}) {
   const gutter = width < 480 ? 66 : 78, right = width - 24, available = Math.max(160, right - gutter);
   const groupsByBar = new Map();
   for (const group of notation.groups) {
@@ -30,7 +30,8 @@ export function fullScoreLayout(notation, width) {
     pending.push({ measure, groups, minimum }); used += minimum;
   }
   finish();
-  return { rows, width, gutter, right, rowHeight: 204, height: rows.length * 204 };
+  const rowHeight = compact ? 184 : 204;
+  return { rows, width, gutter, right, rowHeight, height: rows.length * rowHeight, staffTop: compact ? 80 : 82, lineGap: compact ? 10 : 11, countOffset: compact ? 32 : 48 };
 }
 
 export function fullScoreRow(layout, beat) {
@@ -55,9 +56,10 @@ export class FullScoreView {
   draw(notation, chart, time, running, demo) {
     const width = this.container.clientWidth, height = this.container.clientHeight;
     if (!width || !height || !notation) return;
-    if (this.notation !== notation || this.width !== width) {
+    const compact = Boolean(this.container.parentElement.classList?.contains('score-expanded'));
+    if (this.notation !== notation || this.width !== width || this.compact !== compact) {
       const changed = this.notation !== notation;
-      this.notation = notation; this.width = width; this.layout = fullScoreLayout(notation, width);
+      this.notation = notation; this.width = width; this.compact = compact; this.layout = fullScoreLayout(notation, width, { compact });
       this.container.parentElement.style.setProperty('--full-score-height', `${this.layout.height + 38}px`);
       this.followRow = -1;
       if (changed) this.container.scrollTop = 0;
@@ -87,8 +89,8 @@ export class FullScoreView {
     for (let index = first; index <= last; index++) {
       const row = this.layout.rows[index], top = index * this.layout.rowHeight - scroll;
       ctx.save(); ctx.translate(0, top); ctx.beginPath(); ctx.rect(0, 0, width, this.layout.rowHeight); ctx.clip();
-      const geometry = { gutter: this.layout.gutter, right: this.layout.right, staffTop: 82, lineGap: 11, playhead: fullScoreX(row, beat), x: value => fullScoreX(row, value) };
-      drawSheet(ctx, { width, height: this.layout.rowHeight }, row.notation, chart, time, running, demo, { compact: true, geometry, cursor: row === active, final: index === this.layout.rows.length - 1, meter: row.notation.measures[0] });
+      const geometry = { gutter: this.layout.gutter, right: this.layout.right, staffTop: this.layout.staffTop, lineGap: this.layout.lineGap, playhead: fullScoreX(row, beat), x: value => fullScoreX(row, value) };
+      drawSheet(ctx, { width, height: this.layout.rowHeight }, row.notation, chart, time, running, demo, { compact: true, geometry, countOffset: this.layout.countOffset, cursor: row === active, final: index === this.layout.rows.length - 1, meter: row.notation.measures[0] });
       ctx.strokeStyle = '#ffffff0d'; ctx.beginPath(); ctx.moveTo(20, this.layout.rowHeight - 1); ctx.lineTo(width - 20, this.layout.rowHeight - 1); ctx.stroke();
       ctx.restore();
     }

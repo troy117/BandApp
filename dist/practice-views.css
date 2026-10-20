@@ -23,6 +23,17 @@ main.wrap { padding-top: 24px; }
 #full-score { display: block; position: sticky; top: 0; }
 .full-score-view .stage-status { pointer-events: none; }
 .full-score-view .stage-overlay.counting { z-index: 2; pointer-events: none; }
+.score-icon-button { display: inline-flex; flex: 0 0 40px; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 8px; border: 1px solid #52625f; border-radius: 7px; background: #20302f; color: #d9e4d9; }
+.score-icon-button:hover { background: #354640; color: var(--gold); }
+.score-toolbar { position: absolute; inset: 0 0 auto; height: 56px; z-index: 3; display: flex; align-items: center; gap: 12px; padding: 7px 16px; background: #132321; border-bottom: 1px solid var(--line); }
+.score-toolbar .button { min-height: 40px; padding: 8px 15px; }
+.score-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #dce5d7; }
+.score-shortcuts { color: #98afa3; font-size: 10px; white-space: nowrap; }
+body.score-maximized { overflow: hidden; }
+.stage.full-score-view.score-expanded { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; max-height: none; z-index: 100; border: 0; border-radius: 0; background: #18272a; }
+.stage.score-expanded::backdrop { background: #18272a; }
+.score-expanded .full-score-scroll { top: 94px; }
+.score-expanded .stage-status { top: 73px; }
 .view-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid #3b4b4a; border-radius: 8px; flex-shrink: 0; }
 .view-switch button { border: 0; border-radius: 5px; padding: 8px 12px; background: transparent; font-size: 11px; color: #9eb2ac; min-height: 32px; }
 .view-switch button[aria-pressed="true"] { color: #172025; background: var(--gold); font-weight: 650; }
@@ -42,6 +53,10 @@ main.wrap { padding-top: 24px; }
 .stage.sheet-view .stage-overlay.counting strong { font-size: 22px; }
 .stage.sheet-view .stage-overlay.counting > span:last-child { font-size: 10px; }
 @media (max-width: 540px) {
+  .score-toolbar { gap: 8px; padding-inline: 10px; }
+  .score-toolbar .button { padding: 8px 11px; font-size: 11px; }
+  .score-shortcuts { display: none; }
+  .score-title { font-size: 11px; }
   main.wrap { padding-top: 16px; }
   .playback-volume { flex: 1 1 100%; }
   .full-score-workspace .coach-column { grid-template-columns: 1fr; }

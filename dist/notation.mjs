@@ -97,6 +97,7 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo, o
   const compact = options.compact;
   const clipTop = compact ? 0 : 47, labelY = compact ? 20 : 65, cursorTop = compact ? 36 : 73;
   const top = g.staffTop, gap = g.lineGap, bottom = top + gap * 4;
+  const countY = bottom + (options.countOffset ?? 48);
   const headY = drum => top + STAFF_POSITIONS[drum] * gap;
   const beamY = top - 42;
 
@@ -131,7 +132,7 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo, o
     ctx.fillStyle = sub ? '#829c94' : '#c0d0c5';
     ctx.font = sub ? '11px Segoe UI, sans-serif' : '600 12px Segoe UI, sans-serif'; ctx.textAlign = 'center';
     const triplets = measure.tuplets;
-    if (!sub || !triplets) ctx.fillText(sub ? (divisions === 4 ? ['', 'e', '&', 'a'][sub] : '&') : String(Math.floor(count / divisions) + 1), x, bottom + 48);
+    if (!sub || !triplets) ctx.fillText(sub ? (divisions === 4 ? ['', 'e', '&', 'a'][sub] : '&') : String(Math.floor(count / divisions) + 1), x, countY);
   }
   const finalX = g.x(notation.totalBeats) - 15;
   ctx.strokeStyle = '#91a69b'; ctx.lineWidth = 1;
@@ -198,7 +199,7 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo, o
   const currentMeter = options.meter || notation.measures.findLast(measure => measure.startQuarter <= beat) || notation.measures[0];
   ctx.fillText(String(currentMeter.numerator), g.gutter - 26, top + gap * 1.7); ctx.fillText(String(currentMeter.denominator), g.gutter - 26, top + gap * 3.5);
   ctx.fillStyle = '#9fb9ab'; ctx.font = '10px Segoe UI, sans-serif';
-  ctx.fillText('COUNT', g.gutter - 34, bottom + 48);
+  ctx.fillText('COUNT', g.gutter - 34, countY);
   ctx.textAlign = 'left';
 }
 

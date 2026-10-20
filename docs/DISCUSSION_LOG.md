@@ -56,3 +56,8 @@ Version 0.7 implements that setup, with the first teacher serving as school owne
 ## October 20, 2026 — full sheet and quicker song loading
 
 The user requested a third view showing the entire score in rows with a moving play bar, using Songsterr as a visual reference; library songs should open with their saved setup and only need a backing-volume control; and the large **Find your pocket** banner should be removed. Version 0.8 adds **Full sheet**, with the exact existing timing/scoring model and row following, direct device/school library loading for all roles, a live backing-volume slider, and a separate **Edit song setup** action for teachers/guests. The intro banner is removed. Long scores render visible rows rather than allocating a whole-song canvas. The user's actual song files and hardware remain unavailable, so verification uses original demo MIDI/audio.
+
+
+## October 20, 2026 — maximize the score
+
+The user asked for a fullscreen icon to show as many music rows as possible and a play button within that view. Version 0.8.1 expands Full sheet to the screen with tighter row spacing and an internal Play/Stop, Listen first, song title and exit toolbar. Entry and exit preserve the existing run and audio clock. Escape exits the expanded view; completed practice exits before opening the report. A viewport-filling layout remains available when a browser denies native fullscreen. Keyboard and browser checks use original practice/demo material, with no real student data or music uploaded.

@@ -1,5 +1,12 @@
 # Changes
 
+## 0.8.1 — October 20, 2026 — Prototype 08.1
+
+- Full-screen icon for **Full sheet**, with a compact **Play/Stop**, **Listen first**, song title and exit toolbar. The score uses the available screen width/height and tighter row spacing. Browsers that deny native fullscreen still maximize within the page viewport.
+- Keyboard scoring and the existing audio clock continue through entry/exit. Escape leaves full screen; stopping and starting use the existing transport. Completed scored runs leave full screen before opening the report.
+- Keyboard focus stays within the expanded score, exit restores the page, and fullscreen requests that finish after cancellation cannot reopen it.
+- Validation: **69 automated tests pass**, module syntax and standalone export pass. Browser checks cover fullscreen entry/exit, transport, a scored keyboard hit, report display and responsive layout using original exercises/demo music.
+
 ## 0.8.0 — October 20, 2026 — Prototype 08
 
 - Third practice view: **Full sheet** wraps the entire score into rows, with a moving gold play bar and automatic row following during playback. Built-in/imported songs, loops, focus, tempo changes, meters and keyboard scoring share the existing timing model. Long scores draw only visible rows on a viewport-sized canvas.

@@ -8,6 +8,7 @@ import { PracticeTools } from './practice-tools.mjs';
 import { practicePassAt, backingSegments, passSummaries } from './practice.mjs';
 import { SchoolClient } from './classroom.mjs';
 import { FullScoreView } from './full-score.mjs';
+import { ScoreScreen } from './score-screen.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
@@ -55,9 +56,11 @@ const ctx = canvas.getContext('2d');
 let viewport = { width: 800, height: 347, dpr: 1 };
 let notationCache = { chart: null, model: null };
 const fullScore = new FullScoreView($('full-score-scroll'), $('full-score-page'), $('full-score'));
+const scoreScreen = new ScoreScreen({ root: $('practice-stage'), opener: $('maximize-score'), exit: $('exit-score'), play: $('score-play'), listen: $('score-listen'), title: $('score-title'), toolbar: $('score-toolbar'), onPlay: () => startRun(), onListen: () => startRun('demo') });
 const school = new SchoolClient({
   beforeOpen: () => { if (session || starting) stopRun('School account opened. Start a fresh run when you’re ready.'); },
   onIdentity: user => {
+    scoreScreen.exit();
     stopRun('The signed-in account changed.');
     lastReport = null; $('view-report').disabled = true;
     if (loadedSong || settings.grooveId === 'imported') unloadSong();
@@ -76,6 +79,8 @@ function effectiveView() { return settings.view; }
 function renderView() {
   const sheet = effectiveView() !== 'highway', full = effectiveView() === 'full';
   const imported = previewChart.kind !== 'groove';
+  $('maximize-score').hidden = !full;
+  if (!full && scoreScreen.active) scoreScreen.exit();
   $('view-sheet').disabled = false;
   $('view-sheet').title = '';
   $('view-sheet').setAttribute('aria-pressed', String(sheet && !full));
@@ -128,6 +133,8 @@ function renderGroove() {
   sourceChart = imported ? loadedSong.chart : createChart(settings.grooveId, settings.bpm, settings.bars);
   practice.setSource(sourceChart, imported ? loadedSong.song.fingerprint : settings.grooveId);
   previewChart = practice.build(sourceChart);
+  scoreScreen.setTitle(previewChart.title);
+  renderScoreControls();
   $('start').disabled = !practice.valid;
   $('listen').disabled = !practice.valid;
   laneDrums = activeDrums(previewChart);
@@ -192,10 +199,12 @@ function setLocked(locked) {
   for (const id of ['groove', 'bpm', 'bars', 'metronome', 'guide']) $(id).disabled = locked || (id === 'bpm' && settings.grooveId === 'imported');
   $('view-report').disabled = locked || !lastReport;
   practice.lock(locked);
+  renderScoreControls();
 }
+function renderScoreControls() { scoreScreen.setPlayback({ running: Boolean(session), starting, valid: practice.valid }); }
 function elapsed() { return session ? audio.audibleTime() - session.startAt : 0; }
 async function startRun(mode = 'practice') {
-  if (school.user?.mustChangePassword) { school.openPassword(); return; }
+  if (school.user?.mustChangePassword) { await scoreScreen.exit(); school.openPassword(); return; }
   if (session || starting) { stopRun(); return; }
   const enteredBpm = Number($('bpm').value);
   if (settings.grooveId !== 'imported' && (!$('bpm').value || !Number.isFinite(enteredBpm) || enteredBpm < 40 || enteredBpm > 160)) {
@@ -239,6 +248,7 @@ async function startRun(mode = 'practice') {
   } finally {
     starting = false;
     if (!session) resetTransport();
+    renderScoreControls();
   }
 }
 function resetTransport() {
@@ -583,7 +593,9 @@ function timingText(value) {
   if (Math.abs(rounded) <= 5) return 'On time';
   return `${Math.abs(rounded)} ms ${rounded < 0 ? 'early' : 'late'}`;
 }
-function showReport() {
+async function showReport() {
+  if (!lastReport) return;
+  await scoreScreen.exit();
   if (!lastReport) return;
   const { judge, settings: runSettings } = lastReport;
   const score = judge.summary();

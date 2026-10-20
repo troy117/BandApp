@@ -45,6 +45,18 @@ test('full-score playback follows later rows while canvas allocation remains bou
   view.draw(notation, chart, time + 0.05, true, false); assert.equal(container.scrollTop, manualScroll);
 });
 
+test('fullscreen row spacing fits more music while preserving notes, cursor positions and count labels', () => {
+  const chart = createPracticeChart(createChart('rock', 100, 16)), notation = createNotation(chart);
+  const normal = fullScoreLayout(notation, 1200), compact = fullScoreLayout(notation, 1200, { compact: true });
+  assert.ok(compact.rowHeight < normal.rowHeight);
+  assert.ok(compact.staffTop + 4 * compact.lineGap + compact.countOffset < compact.rowHeight - 28);
+  assert.deepEqual(compact.rows.flatMap(row => row.notation.groups.flatMap(group => group.notes)), chart.notes);
+  for (const note of chart.notes) {
+    const beat = note.quarter ?? (note.bar - 1) * 4 + note.beat - 1;
+    assert.equal(fullScoreX(fullScoreRow(compact, beat), beat), fullScoreX(fullScoreRow(normal, beat), beat));
+  }
+});
+
 test('full-score cursor crosses rows on the MIDI clock through retimed tempos, focused repeats and partial meters', () => {
   const song = parseMidiSong(createDemoMidi()), source = alignMidiChart(makeMidiChart(song, song.selected), 1.04);
   const loop = createPracticeChart(source, { enabled: true, startBar: 2, endBar: 4, repeats: 4, focus: 'kick' });
