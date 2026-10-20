@@ -1,7 +1,7 @@
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 const root = new URL('../', import.meta.url);
-const files = ['lessons.mjs', 'engine.mjs', 'vendor/sightkick-input.mjs', 'vendor/midi-parser.mjs', 'audio.mjs', 'midi.mjs', 'demo-data.mjs', 'song-library.mjs', 'sync.mjs', 'audio-sync.mjs', 'song-import.mjs', 'notation.mjs', 'practice.mjs', 'practice-tools.mjs', 'classroom.mjs', 'app.mjs'];
+const files = ['lessons.mjs', 'engine.mjs', 'vendor/sightkick-input.mjs', 'vendor/midi-parser.mjs', 'audio.mjs', 'midi.mjs', 'demo-data.mjs', 'song-library.mjs', 'sync.mjs', 'audio-sync.mjs', 'song-import.mjs', 'notation.mjs', 'full-score.mjs', 'practice.mjs', 'practice-tools.mjs', 'classroom.mjs', 'app.mjs'];
 const modules = await Promise.all(files.map(file => readFile(new URL(`dist/${file}`, root), 'utf8')));
 const code = modules.map(source => source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '')).join('\n\n');
 const checked = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: code, encoding: 'utf8' });

@@ -5,7 +5,7 @@ Updated October 19, 2026. This is the starting point for continuing at home.
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.7.0 / Prototype 07**. Browser modules in `dist/`; optional school backend in `server/`. No downloaded runtime dependencies or build step required. Node 24 is required for school SQLite storage.
+- Browser app, version **0.8.0 / Prototype 08**. Browser modules in `dist/`; optional school backend in `server/`. No downloaded runtime dependencies or build step required. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. **Railway still needs the persistent-volume/account configuration in [CLASSROOMS.md](CLASSROOMS.md).** Do not claim cloud accounts are live until that setup and a hosted sign-in/save check succeed.
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, to be tested when accessible on Monday. Continue keyboard testing until then. Target Windows Chrome and ChromeOS.
@@ -35,6 +35,7 @@ For a song already aligned at school, choose **Download song setup** in its impo
 4. Practice tools: 24 original tracks in four levels, section repeats, focus, built-in tempo ladder, per-pass reports, slower retry, next track, local journal.
 5. Song alignment and imported notation: automatic candidates, waveform, short audio/MIDI previews, manual one/two-point fit, MIDI speed scaling, portable setup JSON, imported rhythms/tuplets/meter changes. Version 0.6.1 adds colored MIDI-hit overlays, separate drum rows, and click-to-select MIDI beats on the recording waveform.
 6. Classroom system: school owner creates teachers, teachers create students without email, one shared school song library, per-account run history and teacher roster/results, device-to-school publishing, password resets/disable, private persistent storage and backup/recovery tools. The user confirmed teachers should see their own students' results and share one school library.
+7. Full-sheet practice: entire score wraps into rows with a moving gold play bar and row following, using the same MIDI clock. All library songs open directly with saved settings; live backing volume is on the practice screen and detailed setup is separate. Removed the large intro banner. Keyboard controls and all three views remain available during a run.
 
 ## How sync works
 
@@ -61,6 +62,7 @@ Imported notation uses musical quarter positions and per-measure meter. Standard
 | `dist/audio-sync.mjs` | Sync UI, waveform, previews, candidate/manual application |
 | `dist/notation.mjs` | Shared notation model and scrolling canvas staff |
 | `dist/song-import.mjs` | Import/setup, portable JSON, saved-song UI |
+| `dist/full-score.mjs` | Wrapped score layout, visible-row drawing and playback following |
 | `dist/song-library.mjs` | IndexedDB song metadata and original file bytes |
 | `dist/practice.mjs`, `practice-tools.mjs` | Sections, repeats, focus, progress, curriculum UI |
 | `scripts/serve.mjs` | Static server, Railway PORT support, healthcheck |
@@ -80,6 +82,6 @@ Imported notation uses musical quarter positions and per-measure meter. Standard
 
 ## Validation and limitations
 
-All 56 tests pass, with module syntax and standalone export checks. Coverage includes classroom roles/private progress, shared music uploads and revisions, session revocation, cross-session/restart persistence, result pagination/validation, backup restore and owner recovery, plus existing sync, scoring, notation and loop behavior. Browser QA verifies teacher publishing, student login/password flow, shared playback, completed result saving, reload, sign-out privacy and teacher reports using original synthetic MIDI/audio and isolated test accounts. This release has no hardware MIDI or hosted classroom activation test. See CHANGELOG.md for release verification.
+All 63 tests pass, with module syntax and standalone export checks. Coverage includes full-score row boundaries and clock alignment, bounded canvas size and row following, direct library application for teachers/students/guests, live backing gain changes, classroom permissions/persistence, and existing sync, scoring, notation and loops. Browser QA verifies all three views, keyboard scoring after switching, saved-song loading, live volume, detailed setup and narrow screens using original demo music. Classroom QA uses isolated synthetic accounts. This release has no hardware MIDI or hosted classroom activation test. See CHANGELOG.md for release verification.
 
 Conceptual references: [Web Audio recording slices](https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode/start), [librosa onset strength](https://librosa.org/doc/0.11.0/generated/librosa.onset.onset_strength.html). Our simple energy novelty implementation is original and does not bundle librosa or claim its spectral-flux implementation.

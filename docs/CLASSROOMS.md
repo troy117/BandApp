@@ -28,7 +28,7 @@ The new code needs persistent storage; GitHub alone does not hold accounts or mu
 
    Generate a private setup key on your own computer with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`. Paste it into Railway Variables and keep it private. It is not a student login. Do not put it in GitHub or chat.
 3. Keep the start command **`npm start`**, Node **24.x**, healthcheck **`/healthz`**, and one service replica. Deploy the latest commit.
-4. Open the HTTPS school website. The footer should show **Prototype 07**. Choose **School sign in**, enter the setup key, and create your own teacher username and password. This creates the school owner. First-time setup closes permanently after that account exists.
+4. Open the HTTPS school website. The footer should show **Prototype 08** or newer. Choose **School sign in**, enter the setup key, and create your own teacher username and password. This creates the school owner. First-time setup closes permanently after that account exists.
 5. Open **classroom** and create the other teachers/students. New accounts receive a generated temporary password, shown at creation. Copy/share that login directly; the user chooses their own password on first sign-in. Names can be first names or nicknames. Passwords/passphrases need at least 15 characters.
 6. Enable scheduled volume backups in Railway's **Backups** tab and retain a private copy of the original music. Backups and owner recovery are described below.
 

@@ -101,6 +101,26 @@ test('backing audio schedules on the shared audio clock and stops with the sessi
   assert.equal(source.stopped, true);
   assert.equal(audio.sources.size, 0);
 });
+test('backing volume changes current and scheduled loop audio without restarting it or altering drum audio', () => {
+  const gains = [], starts = [], sources = [], audio = new DrumAudio();
+  audio.master = { gain: { value: 0.48 } };
+  audio.context = {
+    currentTime: 5,
+    createBufferSource: () => {
+      const source = Object.assign(new EventTarget(), { connect: target => target, start: (...args) => starts.push(args), stop() {}, disconnect() {} });
+      sources.push(source); return source;
+    },
+    createGain: () => { const gain = { gain: { value: 0 }, connect() {}, disconnect() {} }; gains.push(gain); return gain; },
+  };
+  audio.playBacking({}, 10, 2, 0.65, 4); audio.playBacking({}, 14, 2, 0.65, 4);
+  assert.equal(audio.setBackingVolume(0.2), 0.2); assert.deepEqual(gains.map(gain => gain.gain.value), [0.2, 0.2]);
+  assert.equal(audio.master.gain.value, 0.48); assert.deepEqual(starts, [[10, 2, 4], [14, 2, 4]]);
+  audio.setBackingVolume(0); assert.deepEqual(gains.map(gain => gain.gain.value), [0, 0]);
+  assert.equal(audio.setBackingVolume(2), 1); assert.equal(audio.setBackingVolume(-1), 0);
+  sources[0].dispatchEvent(new Event('ended')); assert.equal(audio.backingGains.size, 1);
+  audio.silence(); assert.equal(audio.backingGains.size, 0);
+});
+
 test('original sample recording is a valid PCM WAV aligned to the MIDI duration', () => {
   const wav = createDemoWav();
   const view = new DataView(wav);

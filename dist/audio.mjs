@@ -1,6 +1,7 @@
 export class DrumAudio {
   context = null;
   sources = new Set();
+  backingGains = new Set();
   initialize() {
     if (!this.context) {
       const Context = globalThis.AudioContext || globalThis.webkitAudioContext;
@@ -31,12 +32,21 @@ export class DrumAudio {
     const gain = this.context.createGain();
     source.buffer = buffer;
     gain.gain.value = Math.max(0, Math.min(1, volume));
+    this.backingGains.add(gain);
     source.connect(gain).connect(this.output);
     this.sources.add(source);
-    source.addEventListener('ended', () => { this.sources.delete(source); source.disconnect(); gain.disconnect(); }, { once: true });
+    source.addEventListener('ended', () => { this.sources.delete(source); this.backingGains.delete(gain); source.disconnect(); gain.disconnect(); }, { once: true });
     if (duration === undefined) source.start(when, offset);
     else source.start(when, offset, duration);
     return source;
+  }
+  setBackingVolume(volume) {
+    const level = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0.65;
+    for (const gain of this.backingGains) {
+      if (gain.gain.setTargetAtTime) gain.gain.setTargetAtTime(level, this.context.currentTime, 0.015);
+      else gain.gain.value = level;
+    }
+    return level;
   }
   audibleTime(timestamp = performance.now()) {
     if (!this.context) return 0;
@@ -85,5 +95,5 @@ export class DrumAudio {
     else this.tone({ tom1: 235, tom2: 175, tom3: 118 }[drum] || 180, 65, time, 0.22, 0.65 * level, 'triangle');
   }
   click(time, downbeat = false) { this.tone(downbeat ? 1300 : 900, downbeat ? 1300 : 900, Math.max(time, this.context.currentTime), 0.035, downbeat ? 0.28 : 0.18); }
-  silence() { for (const source of this.sources) { try { source.stop(); } catch {} } this.sources.clear(); }
+  silence() { for (const source of this.sources) { try { source.stop(); } catch {} } this.sources.clear(); this.backingGains.clear(); }
 }

@@ -89,29 +89,31 @@ export function nextHitGroup(chart, time) {
   return { time: at, notes, due: time >= at - 0.075 && time <= at + 0.11 };
 }
 
-export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
+export function drawSheet(ctx, viewport, notation, chart, time, running, demo, options = {}) {
   const { width: w, height: h } = viewport;
   ctx.clearRect(0, 0, w, h);
   const beat = running ? scoreBeatAtTime(notation, Math.max(0, time)) : 0;
-  const g = sheetGeometry(w, h, notation.totalBeats, beat, notation.subdivisions);
+  const g = options.geometry || sheetGeometry(w, h, notation.totalBeats, beat, notation.subdivisions);
+  const compact = options.compact;
+  const clipTop = compact ? 0 : 47, labelY = compact ? 20 : 65, cursorTop = compact ? 36 : 73;
   const top = g.staffTop, gap = g.lineGap, bottom = top + gap * 4;
   const headY = drum => top + STAFF_POSITIONS[drum] * gap;
   const beamY = top - 42;
 
   ctx.fillStyle = '#18272a'; ctx.fillRect(0, 0, w, h);
-  ctx.save(); ctx.beginPath(); ctx.rect(g.gutter - 15, 47, g.right - g.gutter + 30, h - 75); ctx.clip();
+  ctx.save(); ctx.beginPath(); ctx.rect(g.gutter - 15, clipTop, g.right - g.gutter + 30, h - clipTop - 28); ctx.clip();
   // Alternating bar backgrounds make the measures readable while they scroll.
   for (let bar = 0; bar < notation.bars; bar++) {
     const measure = notation.measures[bar];
     const x = g.x(measure.startQuarter) - 15, end = g.x(measure.endQuarter) - 15;
     if (end < g.gutter - 15 || x > g.right) continue;
     ctx.fillStyle = bar % 2 ? '#ffffff03' : '#ffffff08';
-    ctx.fillRect(x, 48, end - x, h - 80);
+    ctx.fillRect(x, clipTop + 1, end - x, h - clipTop - 33);
     ctx.fillStyle = '#91aaa6'; ctx.font = '10px Segoe UI, sans-serif'; ctx.textAlign = 'left';
-    const pass = chart.passes?.find(item => bar + 1 >= item.firstBar && bar + 1 < item.firstBar + item.bars);
-    const sourceBar = pass ? chart.practice.startBar + bar + 1 - pass.firstBar : bar + 1;
-    ctx.fillText(`${chart.practice?.repeats > 1 ? `P${pass.index} · ` : ''}BAR ${sourceBar}`, x + 8, 65);
-    if (bar && (measure.numerator !== notation.measures[bar - 1].numerator || measure.denominator !== notation.measures[bar - 1].denominator)) { ctx.fillStyle = '#e8c17b'; ctx.fillText(`${measure.numerator}/${measure.denominator}`, x + 8, 82); }
+    const pass = chart.passes?.find(item => measure.bar >= item.firstBar && measure.bar < item.firstBar + item.bars);
+    const sourceBar = measure.sourceBar ?? (pass ? chart.practice.startBar + measure.bar - pass.firstBar : measure.bar);
+    ctx.fillText(`${chart.practice?.repeats > 1 ? `P${pass.index} · ` : ''}BAR ${sourceBar}`, x + 8, labelY);
+    if (bar && (measure.numerator !== notation.measures[bar - 1].numerator || measure.denominator !== notation.measures[bar - 1].denominator)) { ctx.fillStyle = '#e8c17b'; ctx.fillText(`${measure.numerator}/${measure.denominator}`, x + 8, labelY + 17); }
     ctx.strokeStyle = '#718884'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
   }
@@ -133,13 +135,13 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
   }
   const finalX = g.x(notation.totalBeats) - 15;
   ctx.strokeStyle = '#91a69b'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(finalX - 4, top); ctx.lineTo(finalX - 4, bottom); ctx.stroke();
-  ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(finalX, top); ctx.lineTo(finalX, bottom); ctx.stroke();
+  if (options.final !== false) { ctx.beginPath(); ctx.moveTo(finalX - 4, top); ctx.lineTo(finalX - 4, bottom); ctx.stroke(); }
+  ctx.lineWidth = options.final === false ? 1 : 3; ctx.beginPath(); ctx.moveTo(finalX, top); ctx.lineTo(finalX, bottom); ctx.stroke();
 
   for (let i = 0; i < notation.groups.length; i++) {
     const group = notation.groups[i], x = g.x(group.beat);
     if (x < g.gutter - 60 || x > g.right + 60) continue;
-    if (group.tupletStart) { ctx.fillStyle = '#c5d4cb'; ctx.font = 'italic 12px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(String(group.tupletCount), x + g.spacing / 3, beamY - 9); }
+    if (group.tupletStart) { ctx.fillStyle = '#c5d4cb'; ctx.font = 'italic 12px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(String(group.tupletCount), x + (g.x(group.beat + 1) - x) / 3, beamY - 9); }
     if (group.rest) { drawRest(ctx, x, top + gap * 2, group.durationBeats, group.tuplet); continue; }
     const due = running && Math.abs(group.time - time) < 0.085;
     const lastY = Math.max(...group.notes.map(note => headY(note.drum)));
@@ -149,8 +151,8 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
       ctx.fillStyle = '#d1dcd2';
       const next = notation.groups[i + 1], previous = notation.groups[i - 1];
       for (let beam = 0; beam < rhythmFlags(group.durationBeats, group.tuplet); beam++) {
-        if (group.beamNext && rhythmFlags(next.durationBeats, next.tuplet) > beam) ctx.fillRect(x + 6, beamY + beam * 7, g.spacing * group.durationBeats + 1.6, beam ? 3 : 4);
-        else if (!(group.beamBack && rhythmFlags(previous.durationBeats, previous.tuplet) > beam)) { const stub = Math.min(11, g.spacing * group.durationBeats * 0.6); ctx.fillRect(x + 6 - (group.beamNext ? 0 : stub), beamY + beam * 7, stub, beam ? 3 : 4); }
+        if (group.beamNext && rhythmFlags(next.durationBeats, next.tuplet) > beam) ctx.fillRect(x + 6, beamY + beam * 7, g.x(next.beat) - x + 1.6, beam ? 3 : 4);
+        else if (!(group.beamBack && rhythmFlags(previous.durationBeats, previous.tuplet) > beam)) { const stub = Math.min(11, (g.x(group.beat + group.durationBeats) - x) * 0.6); ctx.fillRect(x + 6 - (group.beamNext ? 0 : stub), beamY + beam * 7, stub, beam ? 3 : 4); }
       }
     } else if (group.durationBeats < 1) {
       ctx.strokeStyle = '#d1dcd2'; ctx.lineWidth = 2;
@@ -178,20 +180,22 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo) {
     }
   }
   // The audible clock positions the cursor; rendering never supplies grading time.
-  ctx.fillStyle = '#e8c17b15'; ctx.fillRect(g.playhead - 11, 73, 22, bottom - 73 + 25);
+  if (options.cursor !== false) {
+  ctx.fillStyle = '#e8c17b15'; ctx.fillRect(g.playhead - 11, cursorTop, 22, bottom - cursorTop + 25);
   ctx.strokeStyle = '#e8c17b'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(g.playhead, 77); ctx.lineTo(g.playhead, bottom + 25); ctx.stroke();
-  ctx.fillStyle = '#e8c17b'; ctx.beginPath(); ctx.moveTo(g.playhead - 5, 73); ctx.lineTo(g.playhead + 5, 73); ctx.lineTo(g.playhead, 80); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(g.playhead, cursorTop + 4); ctx.lineTo(g.playhead, bottom + 25); ctx.stroke();
+  ctx.fillStyle = '#e8c17b'; ctx.beginPath(); ctx.moveTo(g.playhead - 5, cursorTop); ctx.lineTo(g.playhead + 5, cursorTop); ctx.lineTo(g.playhead, cursorTop + 7); ctx.closePath(); ctx.fill();
+  }
   ctx.restore();
 
   // Fixed percussion clef and meter stay visible as the score moves.
-  ctx.fillStyle = '#18272a'; ctx.fillRect(0, 47, g.gutter - 16, h - 75);
+  ctx.fillStyle = '#18272a'; ctx.fillRect(0, clipTop, g.gutter - 16, h - clipTop - 28);
   ctx.strokeStyle = '#81959188'; ctx.lineWidth = 1;
   for (let line = 0; line < 5; line++) { ctx.beginPath(); ctx.moveTo(10, top + line * gap); ctx.lineTo(g.gutter - 15, top + line * gap); ctx.stroke(); }
   ctx.strokeStyle = '#b7c8bc'; ctx.lineWidth = 3;
   for (const x of [18, 25]) { ctx.beginPath(); ctx.moveTo(x, top + gap); ctx.lineTo(x, top + gap * 3); ctx.stroke(); }
   ctx.fillStyle = '#d4ded0'; ctx.textAlign = 'center'; ctx.font = '600 22px Georgia, serif';
-  const currentMeter = notation.measures.findLast(measure => measure.startQuarter <= beat) || notation.measures[0];
+  const currentMeter = options.meter || notation.measures.findLast(measure => measure.startQuarter <= beat) || notation.measures[0];
   ctx.fillText(String(currentMeter.numerator), g.gutter - 26, top + gap * 1.7); ctx.fillText(String(currentMeter.denominator), g.gutter - 26, top + gap * 3.5);
   ctx.fillStyle = '#9fb9ab'; ctx.font = '10px Segoe UI, sans-serif';
   ctx.fillText('COUNT', g.gutter - 34, bottom + 48);

@@ -290,18 +290,17 @@ export class SongImporter {
       if (linked) draft.schoolSource = { ...linked, canManage: true };
       if (draft.audioBytes) draft.buffer = await this.audio.decodeBacking(draft.audioBytes.slice(0));
       if (token !== this.libraryToken) return;
-      // Opening setup lets the student review the part and alignment before a run.
-      this.el('library-dialog').close();
       this.token++; this.busy = false; this.draft = draft;
       this.el('midi-file').value = ''; this.el('audio-file').value = '';
       this.message('Saved song ready, including its drum assignments and backing setup.');
-      this.sync.reset(); this.render(); this.dialog.showModal(); this.sync.draw();
+      this.sync.reset(); this.render();
+      if (this.apply()) this.el('library-dialog').close();
     } catch (error) {
       if (token === this.libraryToken) {
         this.el('library-status').textContent = `Could not open: ${error.message}`;
         this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; });
       }
-    } finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('show-archived').disabled = false; } }
+    } finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('show-archived').disabled = false; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
   }
   async loadSchoolSong(id) {
     const token = ++this.libraryToken; this.libraryBusy = true;
@@ -319,12 +318,11 @@ export class SongImporter {
       if (token !== this.libraryToken) return;
       alignMidiChart(makeMidiChart(draft.song, draft.selected, draft.mapping), draft.timeScale);
       if (draft.buffer) backingSchedule(0, draft.offset, draft.buffer.duration);
-      this.el('library-dialog').close(); this.token++; this.busy = false; this.draft = draft;
+      this.token++; this.busy = false; this.draft = draft;
       this.el('midi-file').value = ''; this.el('audio-file').value = ''; this.sync.reset(); this.render();
-      if (!this.school.staff) this.apply();
-      else { this.message('School song loaded with the teacher’s drum mapping and sync settings.'); this.dialog.showModal(); this.sync.draw(); }
+      if (this.apply()) this.el('library-dialog').close();
     } catch (error) { if (token === this.libraryToken) { this.el('library-status').textContent = error.message; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
-    finally { if (token === this.libraryToken) this.libraryBusy = false; }
+    finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
   }
   async publishDeviceSong(id) {
     if (!this.school?.staff || this.libraryBusy) return;
@@ -377,6 +375,12 @@ export class SongImporter {
       } catch { /* Song files remain usable when browser storage is unavailable. */ }
       this.onApply({ chart, song: this.draft.song, schoolSource: this.draft.schoolSource || null, backing: this.draft.buffer ? { buffer: this.draft.buffer, name: this.draft.audioName, offset: this.draft.offset, volume: this.draft.volume } : null });
       this.dialog.close();
-    } catch (error) { this.message(error.message, true); }
+      return true;
+    } catch (error) { this.message(error.message, true); if (this.el('library-dialog').open) this.el('library-status').textContent = error.message; return false; }
+  }
+  setPlaybackVolume(volume) {
+    if (!this.applied) return;
+    this.applied.volume = volume;
+    if (this.draft?.song.fingerprint === this.applied.song.fingerprint) this.draft.volume = volume;
   }
 }

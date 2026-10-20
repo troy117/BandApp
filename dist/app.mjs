@@ -7,6 +7,7 @@ import { LEVELS } from './lessons.mjs';
 import { PracticeTools } from './practice-tools.mjs';
 import { practicePassAt, backingSegments, passSummaries } from './practice.mjs';
 import { SchoolClient } from './classroom.mjs';
+import { FullScoreView } from './full-score.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
@@ -22,7 +23,7 @@ let settings = {
   tolerance: [70, 100, 140].includes(saved.tolerance) ? saved.tolerance : 140,
   offset: validNumber(saved.offset, 0, -200, 200),
   metronome: saved.metronome !== false, guide: saved.guide === true,
-  view: saved.view === 'sheet' ? 'sheet' : 'highway',
+  view: ['sheet', 'full'].includes(saved.view) ? saved.view : 'highway',
 };
 let session = null;
 let lastReport = null;
@@ -38,6 +39,7 @@ const practice = new PracticeTools(() => { renderGroove(); }, chooseTrack);
 const importer = new SongImporter(audio, song => {
   stopRun();
   loadedSong = song;
+  $('live-score').textContent = '—'; $('live-hits').textContent = '0'; $('live-streak').textContent = '0';
   let option = $('groove').querySelector('option[value="imported"]');
   if (!option) { option = document.createElement('option'); option.value = 'imported'; $('groove').append(option); }
   option.textContent = `Imported · ${song.chart.title}`;
@@ -52,6 +54,7 @@ const canvas = $('highway');
 const ctx = canvas.getContext('2d');
 let viewport = { width: 800, height: 347, dpr: 1 };
 let notationCache = { chart: null, model: null };
+const fullScore = new FullScoreView($('full-score-scroll'), $('full-score-page'), $('full-score'));
 const school = new SchoolClient({
   beforeOpen: () => { if (session || starting) stopRun('School account opened. Start a fresh run when you’re ready.'); },
   onIdentity: user => {
@@ -69,18 +72,22 @@ const school = new SchoolClient({
 });
 importer.setSchool(school);
 
-function effectiveView() { return settings.view === 'sheet' ? 'sheet' : 'highway'; }
+function effectiveView() { return settings.view; }
 function renderView() {
-  const sheet = effectiveView() === 'sheet';
+  const sheet = effectiveView() !== 'highway', full = effectiveView() === 'full';
   const imported = previewChart.kind !== 'groove';
   $('view-sheet').disabled = false;
   $('view-sheet').title = '';
-  $('view-sheet').setAttribute('aria-pressed', String(sheet));
+  $('view-sheet').setAttribute('aria-pressed', String(sheet && !full));
+  $('view-full').setAttribute('aria-pressed', String(full));
   $('view-highway').setAttribute('aria-pressed', String(!sheet));
   $('practice-stage').classList.toggle('sheet-view', sheet);
+  $('practice-stage').classList.toggle('full-score-view', full);
+  $('workspace').classList.toggle('full-score-workspace', full);
+  canvas.hidden = full; $('full-score-scroll').hidden = !full;
   $('lane-labels').hidden = sheet;
   $('sheet-legend').hidden = !sheet;
-  $('view-help').textContent = sheet ? 'Play each note as the gold playhead crosses it. Notes stacked together are played together.' : 'Hit when each colored bar is centered in its matching box. The center mark is the beat.';
+  $('view-help').textContent = full ? 'The whole score wraps into rows. Play each note as the gold bar crosses it; the page follows the current row. Scroll to review any section. Stacked notes play together.' : sheet ? 'Play each note as the gold playhead crosses it. Notes stacked together are played together.' : 'Hit when each colored bar is centered in its matching box. The center mark is the beat.';
   if (sheet && imported) $('view-help').textContent += ' MIDI rhythms are rounded for readable notation; playback and scoring keep the original timing. Lyrics and original engraving are not included in MIDI.';
   $('view-availability').hidden = true;
   canvas.setAttribute('aria-label', sheet ? 'Drum sheet music on a five-line percussion staff. Filled heads are drums, X heads are cymbals, and rests mean silence. Follow the gold playhead and the drum/key legend.' : 'Approaching drum notes. Press each drum key when its colored bar is centered in the matching hit box.');
@@ -141,7 +148,10 @@ function renderGroove() {
   $('track-number').textContent = imported ? 'MIDI' : `L${GROOVES[settings.grooveId].level}`;
   if (imported) {
     $('song-duration').textContent = formatDuration(previewChart.duration);
-    $('loaded-song-info').textContent = loadedSong.backing ? `${loadedSong.backing.name} · offset ${loadedSong.backing.offset > 0 ? '+' : ''}${loadedSong.backing.offset.toFixed(3)}s · ${(100 / (loadedSong.chart.timeScale ?? 1)).toFixed(2)}% MIDI speed` : 'MIDI loaded · no backing recording';
+    $('loaded-song-info').textContent = loadedSong.backing ? loadedSong.backing.name : 'MIDI only · no backing recording';
+    $('playback-volume-control').hidden = !loadedSong.backing;
+    $('playback-volume').value = Math.round((loadedSong.backing?.volume ?? 0.65) * 100);
+    $('playback-volume-value').textContent = `${$('playback-volume').value}%`;
     $('groove-description').textContent = `${previewChart.notes.length} drum hits across ${previewChart.bars} bars. ${previewChart.tempoChanges ? `${previewChart.tempoChanges} tempo change${previewChart.tempoChanges === 1 ? '' : 's'} preserved.` : 'Follow the MIDI beat grid.'}${previewChart.ignored ? ` ${previewChart.ignored} unmapped or ignored notes are excluded.` : ''}`;
     $('lesson-tip').textContent = school.user?.role === 'student' ? 'Your teacher prepared the drum part and backing alignment. Choose a section or drum focus to practice.' : loadedSong.schoolSource ? 'Use Song setup to adjust the drum assignments or backing alignment, then publish an update when it is ready.' : 'Use Song setup to adjust the drum assignments or backing alignment. Teachers can publish this song to the school library.';
     return;
@@ -219,7 +229,7 @@ async function startRun(mode = 'practice') {
     $('live-score').textContent = '—';
     $('live-hits').textContent = '0';
     $('live-streak').textContent = '0';
-    feedback(mode === 'demo' ? 'Listen to the pattern.' : 'Here comes the count-in.', mode === 'demo' ? 'No score in listen mode. Play along if you like.' : effectiveView() === 'sheet' ? 'Play the notes as the gold playhead crosses them.' : 'Meet each colored bar in the center of its hit box.');
+    feedback(mode === 'demo' ? 'Listen to the pattern.' : 'Here comes the count-in.', mode === 'demo' ? 'No score in listen mode. Play along if you like.' : effectiveView() !== 'highway' ? 'Play the notes as the gold playhead crosses them.' : 'Meet each colored bar in the center of its hit box.');
     schedule();
   } catch (error) {
     session = null;
@@ -322,12 +332,12 @@ function strike(drum, timestamp, source = 'keyboard') {
   const time = audio.audibleTime(normalizedTimestamp) - session.startAt - session.settings.offset / 1000;
   if (time < -session.settings.tolerance / 1000 || time > session.judge.chart.duration + session.settings.tolerance / 1000) return;
   const result = session.judge.strike(drum, time, source);
-  if (result.type === 'extra') feedback('An extra hit.', effectiveView() === 'sheet' ? 'Keep following the notes and gold playhead.' : 'Keep following the bars into their hit boxes.', '#f58c99');
+  if (result.type === 'extra') feedback('An extra hit.', effectiveView() !== 'highway' ? 'Keep following the notes and gold playhead.' : 'Keep following the bars into their hit boxes.', '#f58c99');
   else {
     const ms = Math.round(Math.abs(result.errorMs));
     const name = DRUMS.find(item => item.id === drum).name;
     const title = ms <= 25 ? 'Right in the pocket.' : `${ms} ms ${result.errorMs < 0 ? 'early' : 'late'}.`;
-    feedback(title, `${name} · ${ms <= 25 ? 'Keep that feeling.' : result.errorMs < 0 ? 'Give the beat a little room.' : effectiveView() === 'sheet' ? 'Try meeting the playhead a little sooner.' : 'Try meeting the box center a little sooner.'}`, ms <= 50 ? '#63d9c4' : '#e8c17b');
+    feedback(title, `${name} · ${ms <= 25 ? 'Keep that feeling.' : result.errorMs < 0 ? 'Give the beat a little room.' : effectiveView() !== 'highway' ? 'Try meeting the playhead a little sooner.' : 'Try meeting the box center a little sooner.'}`, ms <= 50 ? '#63d9c4' : '#e8c17b');
   }
   updateStats(session.judge);
 }
@@ -409,7 +419,13 @@ $('about').addEventListener('click', () => { if (session || starting) stopRun();
 $('start').addEventListener('click', () => startRun());
 $('listen').addEventListener('click', () => startRun('demo'));
 $('browse-tracks').addEventListener('click', () => { if (session || starting) stopRun(); practice.openTracks(); });
-for (const view of ['sheet', 'highway']) $('view-' + view).addEventListener('click', () => { settings.view = view; persist(); renderView(); });
+for (const view of ['sheet', 'highway', 'full']) $('view-' + view).addEventListener('click', () => { settings.view = view; persist(); renderView(); });
+$('playback-volume').addEventListener('input', () => {
+  if (!loadedSong?.backing) return;
+  const volume = audio.setBackingVolume(Number($('playback-volume').value) / 100);
+  loadedSong.backing.volume = volume; importer.setPlaybackVolume(volume);
+  $('playback-volume-value').textContent = `${Math.round(volume * 100)}%`;
+});
 for (const id of ['open-import', 'song-setup']) $(id).addEventListener('click', () => { if (session || starting) stopRun('Song setup opened. Start a fresh run when you’re ready.'); importer.open(); });
 $('open-library').addEventListener('click', () => { if (session || starting) stopRun('Song library opened. Start a fresh run when you’re ready.'); importer.openLibrary(); });
 function unloadSong() { stopRun(); loadedSong = null; importer.applied = null; importer.draft = null; importer.token++; importer.sync.reset(); $('groove').querySelector('option[value="imported"]')?.remove(); settings.grooveId = 'rock'; persist(); syncSettings(); notify(''); feedback('Back to the practice room.', 'Your keyboard controls are unchanged.'); }
@@ -434,6 +450,7 @@ window.addEventListener('blur', () => { if (session || starting) { stopRun('The 
 
 function resize() {
   const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
   viewport = { width: rect.width, height: rect.height, dpr: Math.min(devicePixelRatio || 1, 2) };
   canvas.width = Math.round(rect.width * viewport.dpr);
   canvas.height = Math.round(rect.height * viewport.dpr);
@@ -530,7 +547,7 @@ function frame() {
     } else {
       $('stage-overlay').hidden = true;
       $('session-chip').textContent = session.mode === 'demo' ? 'Listening' : 'Playing';
-      $('play-state').textContent = session.mode === 'demo' ? 'LISTEN MODE · NO SCORING' : effectiveView() === 'sheet' ? 'FOLLOW THE GOLD PLAYHEAD' : 'MEET THE NOTES IN THE BOXES';
+      $('play-state').textContent = session.mode === 'demo' ? 'LISTEN MODE · NO SCORING' : effectiveView() !== 'highway' ? 'FOLLOW THE GOLD PLAYHEAD' : 'MEET THE NOTES IN THE BOXES';
       const position = beatAtTime(chart, time);
       const pass = practicePassAt(chart, time);
       $('bar-status').textContent = `${chart.practice.repeats > 1 ? `PASS ${pass.index}/${chart.practice.repeats} · ` : ''}BAR ${position.sourceBar ?? position.bar}${chart.practice.full && chart.practice.repeats === 1 ? ` / ${sourceChart.bars}` : ''}`;
@@ -548,9 +565,10 @@ function frame() {
     if (time > session.judge.chart.duration + 0.35) finishRun();
   }
   const chart = session?.judge.chart || previewChart;
-  if (effectiveView() === 'sheet') {
+  if (effectiveView() !== 'highway') {
     if (notationCache.chart !== chart) notationCache = { chart, model: createNotation(chart) };
-    drawSheet(ctx, viewport, notationCache.model, chart, time, Boolean(session), session?.mode === 'demo');
+    if (effectiveView() === 'full') fullScore.draw(notationCache.model, chart, time, Boolean(session), session?.mode === 'demo');
+    else drawSheet(ctx, viewport, notationCache.model, chart, time, Boolean(session), session?.mode === 'demo');
   } else drawHighway(time);
   const next = nextHitGroup(chart, session ? time : -1);
   const cue = next ? `${session && next.due ? 'HIT NOW' : 'UP NEXT'} · ${[...new Set(next.notes.map(note => DRUMS.find(drum => drum.id === note.drum).name))].join(' + ')}` : 'FINAL BEAT · Keep it steady.';

@@ -1,5 +1,13 @@
 # Changes
 
+## 0.8.0 — October 20, 2026 — Prototype 08
+
+- Third practice view: **Full sheet** wraps the entire score into rows, with a moving gold play bar and automatic row following during playback. Built-in/imported songs, loops, focus, tempo changes, meters and keyboard scoring share the existing timing model. Long scores draw only visible rows on a viewport-sized canvas.
+- Device and school library songs open directly into practice with saved mappings, backing audio and sync settings. Teachers/guests can open **Edit song setup** separately.
+- Live backing-volume slider beside the loaded song; volume changes apply to current/scheduled backing slices without restarting the song or changing synthesized drums.
+- Removed the **Find your pocket** intro banner, moved practice directly below the header, and let the full-sheet view use the page width. Short scores use less vertical space.
+- Validation: **63 automated tests pass**, syntax check and standalone export pass. Browser checks cover wrapped built-in/imported scores, keyboard scoring after live view switches, direct saved-song loading, live volume changes, reopening detailed setup and a 390-pixel layout. Original demo files only; the user's Dreams MIDI/recording and TD-17 hardware were unavailable.
+
 ## 0.7.0 — October 19, 2026 — Prototype 07
 
 - School owner and teacher accounts; teachers create student usernames without email and see their own students' practice results. The owner can create teachers and assign new students to them.
