@@ -1,6 +1,6 @@
 # Groove Lab
 
-A browser drum-practice prototype for Sierra Charter School. Works without a build step or downloaded dependencies.
+Browser drum and MIDI-keyboard practice for Sierra Charter School, with teacher-led two-student sessions. No build step; the Node server uses the pinned ws package for shared sessions.
 
 Source repository: [troy117/BandApp](https://github.com/troy117/BandApp). Prepared for Railway hosting. Guest imports stay on the device; teacher publishing explicitly uploads songs and sync settings to the shared school library. Optional teacher/student accounts store practice results on the server. See [school accounts and Railway setup](docs/CLASSROOMS.md).
 
@@ -12,13 +12,22 @@ To generate a standalone copy from a fresh source checkout, run `npm run standal
 
 For development:
 
-Use Node.js 24 LTS. There are no runtime dependencies to install.
+Use Node.js 24 LTS and install the pinned server dependency from the lockfile.
 
 ```sh
+npm ci
 npm run dev
 ```
 
 Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open the standalone HTML file in Chrome, or serve the `dist` directory from an HTTPS host. No Electron or Linux subsystem is needed. The modular `dist/index.html` needs an HTTP server; the generated standalone copy also works directly from a file.
+
+## Keyboard and shared sessions
+
+Prototype 11 adds the **Keyboard** and **Jam session** practice areas. Start with Together on one: a drum groove and a one-hand C-major melody. Keyboard notes are graded for pitch and onset timing, with an on-screen key guide, configurable computer keys, optional synthesized sound and a per-note CSV report.
+
+Teachers can invite two existing students, assign parts, wait for Ready and start a shared count-in. Each student sees their own part; the teacher sees separate live progress and saved reports. See [the classroom test guide](docs/BAND_TESTING.md) for the first drum-and-keyboard test, [milestone status](docs/JAM_SESSIONS.md) and [account/storage setup](docs/CLASSROOMS.md). The software is tested with simulated MIDI and browser keyboard input; physical TD-17/keyboard timing on the school network still needs validation.
+
+**Prepare MIDI duet** assigns MIDI tracks/channels to drums and/or keys and publishes both parts with shared backing settings. Existing drum songs remain valid. A file containing only drums stays drum-only. Keyboard uses the note highway in this pilot; keyboard staff notation, chords/hold/pedal grading follow the classroom trial.
 
 ## Connect a USB drumkit
 
@@ -119,7 +128,7 @@ The **device library** uses IndexedDB on the current website address, browser pr
 4. Set the healthcheck path to **/healthz**, then generate a public domain in the service's networking settings.
 5. Open the HTTPS domain in Chrome on Windows or Chromebook. Import files there and choose Save to library to start that browser's library.
 
-The production server listens on **0.0.0.0** and Railway's **PORT**. Guest practice works without a database. **School accounts require a persistent volume and hosting variables**; follow [CLASSROOMS.md](docs/CLASSROOMS.md) before creating real accounts. Node 24's built-in SQLite handles the school database, with music files on the same volume; no runtime package installation is needed. The development command binds to localhost and uses ignored `.groove-data/` storage. Production startup can be checked locally with `npm start`; stop a development server using port 4173 first, or set a different PORT. The static app is already in `dist`; generated exports and school data are excluded from Git.
+The production server listens on **0.0.0.0** and Railway's **PORT**. Guest practice works without a database. **School accounts require a persistent volume and hosting variables**; follow [CLASSROOMS.md](docs/CLASSROOMS.md) before creating real accounts. Node 24's built-in SQLite handles the school database, with music files on the same volume; npm ci installs the pinned ws server dependency. The development command binds to localhost and uses ignored `.groove-data/` storage. Production startup can be checked locally with `npm start`; stop a development server using port 4173 first, or set a different PORT. The static app is already in `dist`; generated exports and school data are excluded from Git.
 
 See the official [start command](https://docs.railway.com/deployments/start-command), [listening address](https://docs.railway.com/networking/troubleshooting/application-failed-to-respond), and [healthcheck](https://docs.railway.com/deployments/healthchecks) documentation.
 
@@ -140,10 +149,10 @@ Tests cover exercise timing, simultaneous voices, one-to-one matching, repeat hi
 
 ## Current scope and next steps
 
-Included: built-in drum sheet music with a scrolling playhead and live view toggle, highway hit boxes and grouped hit cues, a browser song library with saved MIDI/audio/setup and archive/restore, a Railway-ready static server, 24 original grooves in four levels, continuous section repeats with matching MIDI backing slices, drum focus, per-pass tempo building, local practice history, standard MIDI import, drum-part selection and note mapping, local backing audio with start alignment and volume, an original sample MIDI/WAV pair, synthesized drum sounds, configurable keyboard controls, listen mode, count-in, timing windows, reports, and CSV export. No external fonts, CDNs, analytics, or downloaded runtime packages are required. The MIT-licensed MIDI parser is bundled locally.
+Included: built-in drum sheet music with a scrolling playhead and live view toggle, highway hit boxes and grouped hit cues, a browser song library with saved MIDI/audio/setup and archive/restore, a Railway-ready static server, 24 original grooves in four levels, continuous section repeats with matching MIDI backing slices, drum focus, per-pass tempo building, local practice history, standard MIDI import, drum-part selection and note mapping, local backing audio with start alignment and volume, an original sample MIDI/WAV pair, synthesized drum sounds, configurable keyboard controls, listen mode, count-in, timing windows, reports, and CSV export. No external fonts, CDNs or analytics are used. The browser has no downloaded runtime packages; the Node server installs the pinned ws dependency. The MIT-licensed MIDI parser is bundled locally.
 
-Version 0.10 adds fullscreen in every practice view, school storage/mount/identity checks and private database recovery copies before version updates. Use the same Railway volume across deployments and enable independent backups; GitHub does not hold school data. See [storage and recovery](docs/CLASSROOMS.md#preserve-data-through-every-update). The [jam-session roadmap](docs/JAM_SESSIONS.md) now plans solo MIDI keyboard practice followed by a teacher-led drum-and-keyboard duet; pitched keyboard practice and shared sessions are not implemented yet.
+Version 0.10 adds fullscreen in every practice view, school storage/mount/identity checks and private database recovery copies before version updates. Use the same Railway volume across deployments and enable independent backups; GitHub does not hold school data. See [storage and recovery](docs/CLASSROOMS.md#preserve-data-through-every-update). Prototype 11 implements the solo keyboard and teacher-led drum-and-keyboard pilot. See [milestone status](docs/JAM_SESSIONS.md) and the [hardware test guide](docs/BAND_TESTING.md).
 
-Version 0.8 adds the full-sheet view, direct library loading, live backing-volume controls and a smaller page header. Version 0.7 adds teacher/student accounts, a shared school song library and saved account progress. Classroom features require the [persistent Railway storage setup](docs/CLASSROOMS.md). Version 0.6 added local audio alignment suggestions, waveform previews, one/two-point manual alignment, portable song setups, and sheet music for imported MIDI. Version 0.9 adds USB MIDI drumkit input, a device picker, live pad feedback, pad learning and reconnection. Next: verify the real TD-17 pads/latency and the current school’s backup/redeploy behavior, then build the teacher-led jam pilot. See [the milestone plan](docs/HANDOFF.md). This version does not yet install as a PWA or warp changing drift. Cymbal chokes, continuous hi-hat openness and hit strength are not graded.
+Version 0.8 adds the full-sheet view, direct library loading, live backing-volume controls and a smaller page header. Version 0.7 adds teacher/student accounts, a shared school song library and saved account progress. Classroom features require the [persistent Railway storage setup](docs/CLASSROOMS.md). Version 0.6 added local audio alignment suggestions, waveform previews, one/two-point manual alignment, portable song setups, and sheet music for imported MIDI. Version 0.9 adds USB MIDI drumkit input, a device picker, live pad feedback, pad learning and reconnection. Next: verify the real TD-17 pads/latency and the current school’s backup/redeploy behavior, then validate the drum-and-keyboard pilot with the actual instruments. See [the milestone plan](docs/HANDOFF.md). This version does not yet install as a PWA or warp changing drift. Cymbal chokes, continuous hi-hat openness and hit strength are not graded.
 
 See THIRD_PARTY_NOTICES.md for the SightKick reuse assessment and license.

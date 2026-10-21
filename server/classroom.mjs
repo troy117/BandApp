@@ -5,9 +5,11 @@ import { mkdir, open, rename, unlink, readFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseMidiSong, makeMidiChart } from '../dist/midi.mjs';
-import { alignMidiChart, validateAlignment } from '../dist/sync.mjs';
+import { parseMidiSong } from '../dist/midi.mjs';
+import { validateAlignment } from '../dist/sync.mjs';
 import { DRUMS, GROOVES } from '../dist/engine.mjs';
+import { arrangementParts, importedArrangement } from '../dist/arrangements.mjs';
+import { BAND_SCHEMA, migrateBandStorage } from './band-results.mjs';
 
 const derivePassword = promisify(scrypt);
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -56,7 +58,8 @@ export class ClassroomStore {
     this.directory = directory; this.now = options.now || Date.now; this.passwords = new SchoolPasswords(); this.uploading = new Set(); this.publishing = new Set();
     this.storageLimit = options.storageLimit ?? 1024 * 1024 * 1024;
     this.db = new DatabaseSync(path.join(directory, 'school.sqlite'));
-    if (this.db.prepare('PRAGMA user_version').get().user_version > 1) { this.db.close(); throw new Error('This school database requires a newer app version.'); }
+    const schemaBefore = this.db.prepare('PRAGMA user_version').get().user_version;
+    if (schemaBefore > BAND_SCHEMA) { this.db.close(); throw new Error('This school database requires a newer app version.'); }
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','teacher','student')), teacher_id TEXT REFERENCES users(id), password_hash TEXT NOT NULL, must_change INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -70,7 +73,8 @@ export class ClassroomStore {
       CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL, record TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS runs_user_date ON runs(user_id,created_at DESC);
       CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, actor_id TEXT, action TEXT NOT NULL, subject_id TEXT, created_at INTEGER NOT NULL);
-      PRAGMA user_version=1;`);
+      `);
+    migrateBandStorage(this.db);
     this.db.prepare("INSERT OR IGNORE INTO settings(key,value) VALUES ('school_id',?)").run(randomUUID());
   }
   close() { this.db.close(); }
@@ -194,7 +198,9 @@ export class ClassroomStore {
     if (!input.mapping || typeof input.mapping !== 'object' || Array.isArray(input.mapping) || Object.keys(input.mapping).length > 128 || !Object.entries(input.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && Number(pitch) <= 127 && (drum === 'ignore' || DRUMS.some(item => item.id === drum)))) throw new SchoolError(400, 'Invalid drum assignments.');
     let alignment; try { alignment = validateAlignment(input.offset, input.timeScale); } catch (error) { throw new SchoolError(400, error.message); }
     if (!Number.isFinite(input.volume) || input.volume < 0 || input.volume > 1) throw new SchoolError(400, 'Invalid recording volume.');
-    return { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume };
+    let parts;
+    try { parts = arrangementParts(input.parts, input.selected); } catch (error) { throw new SchoolError(400, error.message); }
+    return { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...(input.parts ? { arrangementVersion: 1, parts } : {}) };
   }
   canManageSong(actor, song) { return isStaff(actor) && (actor.role === 'owner' || song.teacher_id === actor.id); }
   beginUpload(actor, input) {
@@ -241,7 +247,8 @@ export class ClassroomStore {
     this.requireStaff(actor); const row = this.draft(actor, id);
     if (row.midi_received !== row.midi_expected || row.audio_received !== row.audio_expected || this.uploading.has(`${id}:midi`) || this.uploading.has(`${id}:audio`)) throw new SchoolError(409, 'Wait for both music files to finish uploading.');
     const meta = JSON.parse(row.metadata), bytes = await readFile(this.musicPath(id, 'midi'));
-    const song = parseMidiSong(bytes, meta.fileName), chart = alignMidiChart(makeMidiChart(song, meta.selected, meta.mapping), meta.timeScale);
+    const song = parseMidiSong(bytes, meta.fileName);
+    const arrangement = importedArrangement(song, meta), chart = (arrangement.parts.find(part => part.instrument === 'drums') || arrangement.parts[0]).chart;
     Object.assign(meta, { fingerprint: song.fingerprint, notes: chart.notes.length, duration: chart.duration, bpm: chart.bpm, bytes: row.midi_expected + row.audio_expected });
     this.transaction(() => {
       const current = this.db.prepare('SELECT * FROM songs WHERE id=?').get(row.song_id);
@@ -359,6 +366,7 @@ export class ClassroomApi {
       if (pathname === '/api/logout' && method === 'POST') { this.store.db.prepare('DELETE FROM sessions WHERE hash=?').run(session.hash); this.cookie(response, ''); send(200, { signedOut: true }); return true; }
       if (pathname === '/api/password' && method === 'POST') { const result = await this.store.changePassword(actor, await this.json(request)); this.cookie(response, result.token); send(200, { user: result.user, csrf: result.csrf }); return true; }
       if (actor.mustChangePassword) throw new SchoolError(428, 'Choose your own password before continuing.');
+      if (pathname.startsWith('/api/band/') && this.band) { return await this.band.handle(request, response, url, actor, send); }
       if (pathname === '/api/storage' && method === 'GET') {
         if (actor.role !== 'owner') throw new SchoolError(403, 'Only the school owner can view storage details.');
         const storage = this.options.storage;

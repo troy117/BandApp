@@ -56,7 +56,7 @@ export class FullScoreView {
   draw(notation, chart, time, running, demo) {
     const width = this.container.clientWidth, height = this.container.clientHeight;
     if (!width || !height || !notation) return;
-    const compact = Boolean(this.container.parentElement.classList?.contains('score-expanded'));
+    const compact = Boolean(this.container.parentElement.classList?.contains('score-expanded') || this.container.parentElement.classList?.contains('band-expanded'));
     if (this.notation !== notation || this.width !== width || this.compact !== compact) {
       const changed = this.notation !== notation;
       this.notation = notation; this.width = width; this.compact = compact; this.layout = fullScoreLayout(notation, width, { compact });

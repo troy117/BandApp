@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile, realpath, stat, mkdir, writeFile, chmod, link, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BAND_SCHEMA } from './band-results.mjs';
 
 export const STORAGE_UNAVAILABLE = 'School storage is unavailable. Account changes are paused to protect existing data. The school owner needs to check the attached volume, data folder and backups. Individual practice still works.';
 const within = (root, target) => { const relative = path.relative(root, target); return !relative || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative)); };
@@ -45,7 +46,7 @@ export async function prepareSchoolStorage({ directory, local = false, env = pro
   const source = new DatabaseSync(database, { readOnly: true });
   try {
     if (source.prepare('PRAGMA quick_check(1)').get().quick_check !== 'ok') throw new Error('The school database failed its integrity check. Restore a verified backup.');
-    if (source.prepare('PRAGMA user_version').get().user_version > 1) throw new Error('This database needs a newer app version. Refusing to downgrade it.');
+    if (source.prepare('PRAGMA user_version').get().user_version > BAND_SCHEMA) throw new Error('This database needs a newer app version. Refusing to downgrade it.');
     const schoolId = source.prepare("SELECT value FROM settings WHERE key='school_id'").get()?.value;
     if (!schoolId || (expected && expected !== schoolId) || (marker && marker.schoolId !== schoolId)) throw new Error('The school identity does not match this database. Check the selected volume, environment and GROOVE_EXPECTED_SCHOOL_ID.');
     result.schoolId = schoolId;

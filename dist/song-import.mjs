@@ -308,11 +308,17 @@ export class SongImporter {
     try {
       const meta = (await this.school.request(`/library/${id}`)).song;
       if (token !== this.libraryToken) return;
+      if (meta.parts?.length && (!meta.parts.some(part => part.instrument === 'drums') || this.bandActive?.() && meta.parts.some(part => part.instrument === 'keyboard'))) {
+        this.el('library-dialog').close();
+        window.dispatchEvent(new CustomEvent('band-load-school', { detail: { id } }));
+        return;
+      }
       const midiBytes = await this.school.download(`/library/${id}/revisions/${meta.revisionId}/midi`);
       if (token !== this.libraryToken) return;
       const audioBytes = meta.audioName ? await this.school.download(`/library/${id}/revisions/${meta.revisionId}/audio`) : null;
       if (token !== this.libraryToken) return;
       const draft = this.makeDraft(parseMidiSong(midiBytes, meta.fileName)); draft.song.title = meta.title;
+      draft.arrangementParts = meta.parts || null;
       Object.assign(draft, { midiBytes, audioBytes, audioName: meta.audioName, selected: meta.selected, mapping: meta.mapping, offset: meta.offset, timeScale: meta.timeScale, volume: meta.volume, schoolTitle: meta.title, schoolSource: { schoolId: this.school.schoolId, songId: id, revisionId: meta.revisionId, canManage: meta.canManage } });
       if (audioBytes) draft.buffer = await this.audio.decodeBacking(audioBytes.slice(0));
       if (token !== this.libraryToken) return;

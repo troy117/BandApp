@@ -1,5 +1,14 @@
 # Changes
 
+## 0.11.0 — October 21, 2026 — Prototype 11
+
+- Solo MIDI keyboard practice: selected input/channel, held-key feedback, configurable computer keys and octave, optional synthesized tones, keyboard note highway/fullscreen, pitch/onset timing judge, wrong-note feedback, per-note report and CSV. Releases and computer repeat suppression are distinct from drum input.
+- Three original drum-and-keyboard duets and versioned published arrangements with explicit track/channel assignments, shared tempo/meter/backing alignment and portable setup JSON. Existing drum songs still work; the drum editor retains keyboard parts when updating mixed arrangements. Keyboard staff/chord/hold/pedal grading remains future work.
+- Teacher-owned rooms invite two existing students and assign their parts. Audio/input readiness and clock measurements precede a future shared count-in. Teacher Start, Stop/prepare-next-take and Close controls; each performer is graded locally from native timestamps.
+- Live teacher performer cards, individual school histories and recent grouped takes. Completed results save idempotently. Lost input, hidden tabs, expired sessions, duplicated tabs, stale commands and server restarts have explicit interrupted/rejoin states.
+- Additive schema-2 migration for take/result tables after the existing recovery-copy check. School identity, accounts, published music and legacy results are retained. Active rooms are temporary; completed and interrupted take records persist. Server requires the pinned MIT-licensed ws dependency via npm ci; browser/standalone have no downloaded runtime package.
+- Validation: **105 tests pass**, module syntax and standalone export checks pass. Browser QA uses synthetic accounts/original music: teacher starts two simulated performers, then a keyboard student browser follows a simulated teacher/drummer and saves a shared report. Verified key remapping across refresh, fullscreen/Escape continuity, MIDI publication and drum notation. Real TD-17/keyboard drivers, three-computer audible synchronization, school Wi-Fi and the hosted post-deploy round trip still require the classroom trial in [BAND_TESTING.md](docs/BAND_TESTING.md). Production accounts and music were not used in QA.
+
 ## 0.10.0 — October 20, 2026 — Prototype 10
 
 - Fullscreen for **Note highway**, **Sheet music** and **Full sheet**. The embedded Play/Stop/Listen toolbar adds a View selector; switching preserves the run and keyboard/MIDI timing. Sheet legends remain inside fullscreen. Escape returns to the page without stopping playback.

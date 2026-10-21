@@ -10,9 +10,11 @@ import { SchoolClient } from './classroom.mjs';
 import { FullScoreView } from './full-score.mjs';
 import { ScoreScreen } from './score-screen.mjs';
 import { DrumkitControls } from './drumkit-controls.mjs';
+import { BandPractice } from './band-practice.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
+let band = null;
 const storageKey = 'sierra-groove-lab-v1';
 let storageAvailable = true;
 let saved = {};
@@ -39,6 +41,7 @@ let previewChart = sourceChart;
 let laneDrums = activeDrums(previewChart);
 const practice = new PracticeTools(() => { renderGroove(); }, chooseTrack);
 const importer = new SongImporter(audio, song => {
+  if (band?.active) band.setMode('drums');
   stopRun();
   loadedSong = song;
   $('live-score').textContent = '—'; $('live-hits').textContent = '0'; $('live-streak').textContent = '0';
@@ -59,8 +62,9 @@ let notationCache = { chart: null, model: null };
 const fullScore = new FullScoreView($('full-score-scroll'), $('full-score-page'), $('full-score'));
 const scoreScreen = new ScoreScreen({ root: $('practice-stage'), opener: $('maximize-score'), exit: $('exit-score'), play: $('score-play'), listen: $('score-listen'), title: $('score-title'), toolbar: $('score-toolbar'), onPlay: () => startRun(), onListen: () => startRun('demo') });
 const school = new SchoolClient({
-  beforeOpen: () => { if (session || starting) stopRun('School account opened. Start a fresh run when you’re ready.'); },
+  beforeOpen: () => { if (session || starting) stopRun('School account opened. Start a fresh run when you’re ready.'); band?.stop('School account opened.'); band?.rooms.unready('School account opened.'); },
   onIdentity: user => {
+    band?.identity();
     scoreScreen.exit();
     stopRun('The signed-in account changed.');
     lastReport = null; $('view-report').disabled = true;
@@ -77,10 +81,11 @@ const school = new SchoolClient({
 importer.setSchool(school);
 const drumkit = new DrumkitControls({
   onHit: note => {
+    if (band?.active) { band.onKitHit(note); return; }
     if (document.querySelector('dialog[open]') && !$('settings-dialog').open) return;
     strike(note.drum, note.timestamp, 'midi', note.velocity, note.sound);
   },
-  onLost: () => { if (session || starting) stopRun('Drumkit disconnected. Reconnect it before starting a fresh run, or continue with the keyboard.'); },
+  onLost: () => { if (session || starting) stopRun('Drumkit disconnected. Reconnect it before starting a fresh run, or continue with the keyboard.'); if (band?.active && !band.rooms.teacher && band.part.instrument === 'drums') { band.stop('Drumkit disconnected.'); band.rooms.unready('Drumkit disconnected.'); } },
   onLearn: () => { capture = null; renderMappings(); },
 });
 
@@ -372,6 +377,7 @@ function updateStats(judge) {
 
 // Timestamped input goes to the judge; animation frames only draw the view.
 new KeyboardSource().start(event => {
+  if (band?.active) return;
   if (document.querySelector('dialog[open]')) return;
   const code = event.controlId.slice('keyboard:'.length);
   if (code === 'Escape') { if (session || starting) { event.nativeEvent.preventDefault(); stopRun(); } return; }
@@ -412,6 +418,7 @@ document.addEventListener('keydown', event => {
 }, true);
 
 function openSettings() {
+  if (band?.active) { band.stop('Controls opened.'); band.rooms.unready('Controls opened.'); }
   if (session || starting) stopRun('Controls opened. Start a fresh run after changing settings.');
   capture = null;
   renderMappings();
@@ -451,7 +458,7 @@ $('playback-volume').addEventListener('input', () => {
   $('playback-volume-value').textContent = `${Math.round(volume * 100)}%`;
 });
 for (const id of ['open-import', 'song-setup']) $(id).addEventListener('click', () => { if (session || starting) stopRun('Song setup opened. Start a fresh run when you’re ready.'); importer.open(); });
-$('open-library').addEventListener('click', () => { if (session || starting) stopRun('Song library opened. Start a fresh run when you’re ready.'); importer.openLibrary(); });
+$('open-library').addEventListener('click', () => { band?.stop('Song library opened.'); band?.rooms.unready('Song library opened.'); if (session || starting) stopRun('Song library opened. Start a fresh run when you’re ready.'); importer.openLibrary(); });
 function unloadSong() { stopRun(); loadedSong = null; importer.applied = null; importer.draft = null; importer.token++; importer.sync.reset(); $('groove').querySelector('option[value="imported"]')?.remove(); settings.grooveId = 'rock'; persist(); syncSettings(); notify(''); feedback('Back to the practice room.', 'Your keyboard controls are unchanged.'); }
 $('clear-song').addEventListener('click', unloadSong);
 for (const [id, field] of [['groove', 'grooveId'], ['bars', 'bars'], ['bpm', 'bpm'], ['tolerance', 'tolerance'], ['offset', 'offset'], ['guide', 'guide'], ['metronome', 'metronome']]) {
@@ -683,4 +690,7 @@ $('download-report').addEventListener('click', () => {
 window.addEventListener('resize', () => { if ($('report-dialog').open) drawTimingChart(); });
 $('groove').innerHTML = LEVELS.map((name, index) => `<optgroup label="Level ${index + 1} · ${name}">${Object.entries(GROOVES).filter(([, track]) => track.level === index + 1).map(([id, track]) => `<option value="${id}">${escapeHtml(track.name)}</option>`).join('')}</optgroup>`).join('');
 syncSettings(); renderPads(); persist(); resize(); requestAnimationFrame(frame);
+band = new BandPractice({ school, beforeEnter: () => { scoreScreen.exit(); stopRun(); }, getDrumBindings: () => bindings, openDrumControls: () => openSettings() });
+importer.bandActive = () => band.active;
+$('settings-dialog').addEventListener('close', () => { if (band.active && band.part.instrument === 'drums') band.renderKeys(); });
 school.init();

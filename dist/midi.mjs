@@ -69,18 +69,29 @@ export function parseMidiSong(input, fileName = 'Imported song.mid') {
   tracks.forEach((events, trackIndex) => {
     let tick = 0;
     const name = events.find(event => event.type === 'trackName')?.text || `Track ${trackIndex + 1}`;
-    const channels = new Map();
+    const channels = new Map(), held = new Map();
     for (const event of events) {
       tick += event.deltaTime;
       if (!Number.isSafeInteger(tick) || tick < 0) throw new Error('The MIDI contains invalid note timing.');
       if (event.type === 'setTempo') tempos.push({ tick, microsecondsPerBeat: event.microsecondsPerBeat });
       if (event.type === 'timeSignature') signatures.push({ tick, numerator: event.numerator, denominator: event.denominator });
-      if (event.type !== 'noteOn' || event.velocity === 0) continue;
+      if (event.type === 'noteOff' || (event.type === 'noteOn' && event.velocity === 0)) {
+        const queue = held.get(event.channel + ':' + event.noteNumber);
+        const note = queue?.shift();
+        if (note) note.endTick = tick;
+        continue;
+      }
+      if (event.type !== 'noteOn') continue;
       if (!Number.isInteger(event.noteNumber) || event.noteNumber < 0 || event.noteNumber > 127 || !Number.isInteger(event.velocity) || event.velocity < 1 || event.velocity > 127) throw new Error('The MIDI contains an invalid note.');
       if (!channels.has(event.channel)) channels.set(event.channel, { id: `${trackIndex}:${event.channel}`, name, track: trackIndex + 1, channel: event.channel + 1, notes: [] });
-      channels.get(event.channel).notes.push({ tick, pitch: event.noteNumber, velocity: event.velocity });
+      const note = { tick, pitch: event.noteNumber, velocity: event.velocity };
+      channels.get(event.channel).notes.push(note);
+      const key = event.channel + ':' + event.noteNumber;
+      if (!held.has(key)) held.set(key, []);
+      held.get(key).push(note);
     }
     endTick = Math.max(endTick, tick);
+    for (const queue of held.values()) for (const note of queue) note.endTick = Math.max(note.tick, tick);
     parts.push(...channels.values());
   });
   if (!parts.length) throw new Error('This MIDI contains no played notes.');

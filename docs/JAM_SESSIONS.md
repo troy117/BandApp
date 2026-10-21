@@ -1,96 +1,65 @@
 # Teacher led drum and keyboard sessions
 
-Updated October 20, 2026. Proposed development after Prototype 10. Shared sessions and pitched keyboard practice are not implemented yet.
+Updated October 21, 2026 for Prototype 11.
 
-## First classroom test
+## Milestone status
 
-Use one teacher computer and two student computers. Student A connects the Roland TD-17; Student B connects a MIDI keyboard. Each signs in to their own account and sees their assigned part. The teacher selects a duet, waits for both students to press Ready, then starts a shared count-in. Both students play at the same song position while the teacher sees their separate progress and results.
+The software for milestones 1–5 is implemented. Automated tests and browser trials use synthetic school accounts, original music, simulated MIDI and computer keys. Milestone 6 needs the actual TD-17, MIDI keyboard, student computers and school network. Use [BAND_TESTING.md](BAND_TESTING.md) for that trial before treating physical synchronization as verified.
 
-Keep configurable computer-keyboard controls for both instruments so every stage can be tested without the physical instruments. Begin with a short original duet: an eight-bar drum groove and a one-hand C-major melody at the same tempo. A keyboard-only MIDI controller can use a simple browser-generated tone; keyboards with their own sounds can use those instead.
-
-Target Chrome on Windows or a Chromebook and verify that the actual keyboard exposes a MIDI input. Web MIDI requires a secure context and permission; a managed school browser can restrict it. MIDI carries musical events rather than the keyboard's audio. See the [Web MIDI guide](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) and [Web MIDI specification](https://webaudio.github.io/web-midi-api/).
-
-For the first room test, play backing audio through one teacher-controlled classroom speaker. Student timelines and grading still run locally. Monitor drums and keyboard locally, with optional browser sounds. A headphone mode with backing on every device can follow after output latency is measured.
-
-## Reuse from the current app
-
-Reuse school accounts/rosters, published songs and immutable revisions, audio alignment, the Web Audio clock, keyboard bindings, timing reports, fullscreen controls and the existing drum views. A session layer will coordinate these features.
-
-Some components need instrument support first:
-
-- `dist/midi-input.mjs` accepts played note-on messages and maps pitches to drums. Separate device access from instrument interpretation. Preserve timestamps, pitch, channel and velocity, and add release events/held-key state for keys. Retain the drum adapter and pad learning.
-- `dist/midi.mjs` already groups imported notes by track/channel and builds a tempo/meter timeline. It currently retains onsets, discards releases and makes drum charts. Extend it to keep pitched notes and durations and produce distinct drum/keyboard parts.
-- `dist/engine.mjs` judges drum identity and timing. Add a keyboard judge for pitch and onset time with its own report fields. Piano notes must not become drums because their MIDI numbers overlap drum assignments.
-- School publishing in `server/classroom.mjs` currently requires drum selections/mappings. Add versioned arrangement/part metadata while keeping existing songs valid as drum arrangements.
-- The notation renderers engrave percussion. A keyboard piano-roll view comes first; pitched treble-clef notation follows the initial duet.
-
-## Milestone sequence
-
-Each milestone ends with a usable demonstration and checks before the next one. Simulated MIDI and computer keys support development; final acceptance needs the school hardware/network.
-
-| Milestone | What we build | Completion check |
+| Milestone | Delivered in Prototype 11 | Remaining check |
 | --- | --- | --- |
-| 1. Solo keyboard practice | Instrument/input selection, live key highlights, configurable computer keys, a simple keyboard note highway, optional synthesized sound and pitch/onset feedback | Play an original one-octave melody using MIDI or computer keys. Correct, wrong, early, late, missed and extra notes produce the intended feedback; existing drum practice still works. |
-| 2. Separate song parts | Drum/keyboard parts sharing one timeline, backing alignment and song version; original duets; teacher MIDI track/channel assignment; publication of both parts together | Load one duet as drums, then keys. Notes differ while bars/tempo/duration/backing agree. Existing drum songs work without republishing; a drum-only MIDI does not acquire an invented keyboard part. |
-| 3. Teacher room and readiness | Teacher creates a room, selects a duet, invites two students from their roster and assigns parts. Students choose their local inputs and press Ready after loading/checking sound | Teacher sees both accounts, parts and readiness. Start is unavailable while a student is unready, disconnected or using a different revision. Students cannot change the room transport. |
-| 4. Shared start | Clock measurements, preloaded files, teacher Start, future scheduled count-in and shared song position. Teacher Stop/restart uses a fresh count-in | Both timelines follow the same take. Simulated network delay does not change local grades. Measure real start skew and drift on separate computers before classroom rollout. |
-| 5. Live progress and reports | Separate drum/keyboard cards or lanes with position, accuracy, streak, misses, timing tendency and connection state; grouped session with individual reports | Teacher watches both performers and opens separate reports. Students retain their own histories. Reconnect/retried saving cannot duplicate results or mark an interrupted take completed. |
-| 6. Classroom trial and recovery | Actual TD-17/keyboard tests, unplugging, Wi-Fi delay, hidden tabs, slow loading, teacher/server restart and migration/redeploy tests using synthetic data | Complete several duets, identify latency adjustments, retain school data/stats and show a clear state for each interruption. |
+| 1. Solo keyboard practice | Keyboard area, MIDI input/channel selection, C4–C5 computer-key mapping with octave controls, illuminated keys, note highway/fullscreen, optional synthesized sound, pitch/onset grading and timing CSV | Actual keyboard permission, driver, range and local sound setup |
+| 2. Separate song parts | Three original duets; drum/keyboard charts on one timeline; explicit MIDI track/channel assignments; shared backing offset/speed/volume; portable arrangement setup and teacher publication; old songs remain drums | Try the school's own multi-track MIDI and matching recordings |
+| 3. Teacher room and readiness | Existing roster/account permissions, two student assignments, invitations, part loading, local input selection, audio activation and Ready checks | Sign in on the actual three computers and verify inputs |
+| 4. Shared start | Measured clock offsets, future shared count-in, teacher Start/Stop/prepare-next-take and timestamped local grading | Measure audible start skew and drift on school equipment |
+| 5. Live progress and reports | Separate performer cards; position, hits/misses/wrong/extra/streak/timing; individual school histories; teacher's recent grouped takes; idempotent result saves | Review two real students' completed and interrupted takes |
+| 6. Classroom trial and recovery | Software tests cover role isolation, duplicated tabs, stale commands, delays, interruption, expired sessions, restart, additive migration and recovery | Physical kits/keys, Chrome/Chromebook, Wi-Fi, unplug/replug, audio routing and hosted redeploy round trip |
 
-Order: **keyboard solo → shared song parts → teacher room → shared start → live results → classroom trial**. Milestones 1 and 2 provide useful keyboard practice before networking. Milestone 4 demonstrates simultaneous drum/keyboard playback; milestones 5 and 6 make it useful for teaching.
+Start with one teacher computer, one student on the TD-17 and another on MIDI keys, each with a separate school login. The teacher chooses Together on one, assigns parts and waits for both students. Each presses Ready; the teacher enables the classroom speaker and starts one count-in. Students see their own music and retain separate results.
 
-The earlier 2–4 developer-week estimate described two existing drum players. This scope also adds pitched input, keyboard rendering/scoring and publishing changes. Use these milestones as reviewable increments, without promised calendar dates or a fixed number of chat sessions. Reassess remaining effort after the solo keyboard and arrangement demonstrations.
+Use one audible backing source on the teacher computer for the first classroom test. Provided duets use a synthesized guide; published arrangements use their saved backing recording when present. Students monitor their instruments locally. A MIDI controller without sounds can use app tones. Configurable computer keys remain available for every step.
 
-## Keyboard scope
+## Implementation and reuse
 
-Start with one hand, one note at a time, a small range around middle C (MIDI note 60) and quarter/eighth-note rhythms. Display expected keys/received pitches with a consistent octave reference. Allow explicit range/octave settings and configurable computer keys; do not silently forgive wrong octaves.
+- `dist/instruments.mjs` provides pitched-message parsing, saved keyboard controls, the pitch/onset judge and low-round-trip clock estimation. `dist/midi-input.mjs` retains selected-port connection/reconnect behavior and accepts a keyboard parser without changing drum mapping semantics.
+- `dist/midi.mjs` now retains note releases and durations. `dist/arrangements.mjs` creates separate drum/keyboard charts from tracks/channels using the same tempo, meter, alignment and song version. No keyboard part is invented from a drum-only file.
+- `dist/band-practice.mjs`, `band-markup.mjs`, `band.css` and `piano-audio.mjs` supply the practice UI, local sound, shared-time input/report path and fullscreen. Existing solo drum views remain; the session drum part also supports highway, sheet and full sheet. Keyboard staff notation comes later.
+- `dist/band-import.mjs` publishes arrangements through the existing private song upload system. A failed new revision leaves published music intact. The legacy drum editor preserves keyboard parts when updating a mixed song.
+- `dist/band-link.mjs` and `band-rooms.mjs` handle browser connections, invitations, readiness, live progress, saved-result confirmation and grouped teacher history.
+- `server/band-sessions.mjs` uses the maintained, pinned ws package for authenticated WebSockets on the existing server. `server/band-results.mjs` adds two tables in an explicit schema-2 transaction and validates/stores results. Existing school identities, songs and prior runs are preserved.
 
-Grade correct pitch and key-press timing. Retain release/duration data for display and future lessons, but leave hold length, pedal technique, dynamics and fingering outside the first pilot. Define wrong-note versus missed/extra-note matching so one mistake is not counted twice under misleading labels. Ignore computer-key auto-repeat and clear held keys/synth voices on blur, disconnect or Stop.
+The Node server requires npm ci after pulling this release. The browser remains buildless, and the generated standalone HTML supports local solo drums/keys without the server package. Accounts, school songs and shared sessions require the hosted app/server.
 
-Handle note-off and zero-velocity note-on releases. Keep selected MIDI input/channel local to each computer and never silently substitute a different device after unplugging. Keep MIDI output/SysEx outside the pilot. Later lessons can add chords, held-note scoring, two hands, pedal behavior and explicit partial-credit rules. Treble-clef sheet music and a wrapped fullscreen keyboard score can follow the first duet. Preserve all three drum views and fullscreen controls throughout.
+## Keyboard teaching scope
 
-## Arrangements and library compatibility
+The first provided melody uses one hand and single notes around middle C (MIDI note 60, displayed as C4). Grade pitch and key-press timing. A wrong note consumes one expected event and is reported separately from a miss; extra notes remain separate. MIDI note-off and zero-velocity note-on releases clear held keys and sound, while computer auto-repeat cannot score repeated notes.
 
-An arrangement needs a stable ID/version, shared tempo/meter map, duration, backing reference/alignment and a list of parts. Each part has an ID, instrument, source tracks/channels and expected notes. Drums retain pad mappings; keys retain pitches/durations. Identify participants separately from instruments so two students can later play the same part.
+Imported note durations are retained for display and later lessons. Hold length, fingering, dynamics, pedal technique and advanced chord partial-credit rules are not graded in this pilot. Computer-key octave controls affect computer keys; MIDI pitches stay literal, with no silent octave forgiveness. Published keyboard parts can use a wider range than the provided one-octave exercises.
 
-Provide original duets of increasing difficulty, including sparse simultaneous beats for alignment checks and a longer repeated exercise for drift testing. Keep these fixtures in the repository without student data or commercial music.
+Input controls collapse when playback starts so students can see their music. In a room, the assigned song/part is locked; input settings remain adjustable before a take, and changes clear readiness. Each student can choose a view for drums. Keyboard uses a piano note highway and key guide.
 
-For imports, teachers preview and explicitly assign tracks/channels. A percussion-only MIDI remains a valid drum song; mixed practice requires a provided duet or a MIDI with a keyboard part. Both parts use the same arrangement/backing alignment. Mismatched source arrangements need preparation instead of unrelated offsets during a take.
+## Timing and networking
 
-Version published metadata and portable song-setup files. Interpret existing records as drum-only arrangements. Validate both part types and preserve the old revision if publication fails. Editing creates a new revision; an active room retains its selected revision until a new take is prepared.
+The teacher controls one room transport and locks the song revision/parts for the take. Every take has a unique ID. Ready activates browser audio and loads the files needed on that device. The teacher must explicitly enable classroom audio too; a remote Start message cannot substitute for that user interaction.
 
-## Room timing and controls
+Repeated round trips estimate the server clock against each client's monotonic clock. A future start is mapped to the local audio clock. Input grading uses local native timestamps and local timing correction, independent of packet arrival. Teacher progress is batched at roughly five updates per student per second. Estimated clock uncertainty is displayed; it is not a measurement of physical audio latency.
 
-Use a teacher-owned room with participant assignments and one transport. Suggested states: preparing, counting in, playing, completed, interrupted and closed. Give each take a fresh ID; duplicate/delayed commands cannot affect a different take. Lock arrangement revision, tempo, section and alignment when ready/playing; changes require preparation again.
+Disconnects, hidden student tabs, lost audio and stale/late starts have explicit outcomes. Rejoining a running take waits for a fresh take. The teacher uses Stop / prepare next take, everyone presses Ready again, then a new count-in starts. Live rooms are in memory on one server replica; a restart or deployment ends them. Finished reports and interrupted take states persist. Start with this behavior before adding pause/resume, seeking, shared loop changes or multiple server instances.
 
-Use authenticated WebSockets for room updates and clock measurements. Railway supports this transport; reconnection belongs in the app. Select a maintained server library during implementation. Start with one server instance: live rooms can be in memory, while finished takes/results persist. A server restart ends the active take clearly. See [Railway realtime transports](https://docs.railway.com/guides/sse-vs-websockets).
+No live instrument audio is streamed between computers. The initial room coordinates charts/backing and practice feedback. Headphone backing on each computer and remote live-audio jamming need separate output-latency/network tests.
 
-Each student presses Ready to activate local audio, preload files and confirm input. The teacher also enables audio on the speaker computer. Browser audio can require a user gesture; see [Web Audio best practices](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices).
+## Accounts and storage
 
-Measure clock offsets repeatedly with round trips, schedule a start in the future and map it to each local Web Audio clock. Measure device-clock drift, output latency and Wi-Fi jitter separately. Do not rely on a message arriving at the exact beat or silently jump the song/grading clock to hide drift.
+Reuse the current school login and roster. Room creation/control is limited to the teacher who owns that room. Students see only their own participant state/history. The teacher sees their assigned room's performers and their own recent grouped takes. A student cannot start the room, impersonate another performer, or open another student's results. One scored connection per account/room prevents duplicated tabs from grading twice.
 
-Grade locally from native input timestamps on each student's chart timeline. Network arrival time never determines early/late grades. Send bounded progress batches roughly 4–10 times per second for teacher monitoring, without re-grading messages on arrival. Display connection/synchronization quality and refuse an unsafe start; do not promise sample-accurate playback over Wi-Fi.
+WebSocket upgrades validate the school origin and session; the initial handshake also validates the anti-forgery token. Messages recheck current authentication and room membership, validate payloads and apply size/rate bounds. No password or raw unlimited MIDI stream is sent in the progress feed. These remain browser-reported practice statistics, not tamper-proof examination grades.
 
-Use the same count-in, section and position for both participants. Implement teacher Stop/restart first; synchronized pause/resume, seeking and loop changes can follow. Rejoining a take initially means waiting for the next one. Hidden tabs, lost audio or disconnected input must produce visible interruption rather than fabricated misses or automatic completion.
+Version 0.11 creates a recovery copy before opening an existing school and adds band_takes/band_results without replacing tables or school identity. Versioned arrangements are stored in published song metadata. Existing drum records need no republishing. Keep the same Railway volume/path, one replica and the existing [backup procedure](CLASSROOMS.md). Older app versions refuse schema 2 rather than downgrading it; fix forward or use a deliberate private backup/restore procedure.
 
-## Accounts and persistent results
+## Next work after the classroom trial
 
-Reuse school login and the teacher roster. Authorize account, room and part access for every command, including WebSocket handling; validate browser origin and the existing session/anti-forgery model. A room code alone cannot expose other students' history. Two tabs for one student should not create duplicate scored seats.
+Resolve measured hardware/network findings first. Then add keyboard treble-clef/fullscreen notation, chord and held-note lessons, two hands/pedals, more duet material and richer teacher lanes. The part/input/judge boundaries can support MIDI bass/guitar controllers later. Real guitar/bass audio recognition, vocal judging and remote live-audio streaming remain separate projects.
 
-Persist session/take IDs, teacher, arrangement revision, participant assignment, completion state and result reference. Save each participant/take once. Include instrument/part in report filters, retaining drum detail and adding keyboard pitch/timing detail. Show separate scores rather than implying that different parts measure the same task. Keep passwords and an unbounded raw MIDI stream out of the teacher feed.
+The previous 2–4 developer-week estimate was for two existing drum players. Milestones now describe reviewable results, not promised calendar dates or a fixed number of chat sessions.
 
-Before schema changes, preserve school identity, account/song/result counts and a private recovery copy. Use explicit additive migrations tested on synthetic existing schools. Update supported-schema checks in both `server/storage.mjs` and `server/classroom.mjs` deliberately; never reinitialize users/library. Keep the current Railway volume and [backup procedure](CLASSROOMS.md), and confirm hosted backups before classroom rollout.
-
-## Acceptance checks
-
-- Solo keyboard: MIDI/computer keys agree; wrong pitch/octave, releases, repeats and unplugging do not cause stuck voices or duplicate hits.
-- Library: preserve tempo/meter, pitches/durations and shared alignment; old drum records continue working; invalid new imports preserve published songs.
-- Rooms: correct teacher/two-student assignments, role isolation, expired/disabled accounts and duplicate joins are tested.
-- Timing: clock offsets, variable delay, stale/out-of-order commands, slow decoding and drift cannot alter local grades or launch unready students.
-- Reports: completed/stopped/interrupted states differ; save retries do not duplicate history; existing teacher/student privacy holds.
-- Storage: migrate/restart/redeploy a synthetic school, verify identities/counts and recovery; never use real school data for destructive tests.
-- Hardware: play short/long original duets using TD-17 and MIDI keys on separate computers. Measure start skew/drift against the teacher speaker, document an acceptable tolerance and resolve latency before broader use.
-
-## Subsequent work
-
-Add keyboard notation/chords/holds, more duet lessons, two students on the same part, headphone playback, assignments and a richer band overview. Keep part/input/judge interfaces reusable for MIDI bass/guitar controllers. Real guitar/bass audio recognition, vocals and remote live-audio streaming require separate milestones/equipment testing.
+Technical references: [Web MIDI guide](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API), [MIDI carries events rather than audio](https://webaudio.github.io/web-midi-api/), [browser audio activation](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices), [ws server documentation](https://github.com/websockets/ws), [Railway realtime transports](https://docs.railway.com/guides/sse-vs-websockets).

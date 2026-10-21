@@ -26,19 +26,22 @@ export function midiError(error) {
 
 // Only the selected input is opened. No MIDI outputs or system-exclusive access.
 export class MidiDrumInput {
-  constructor({ navigator = globalThis.navigator, secure = globalThis.isSecureContext, onNote = () => {}, onState = () => {}, onLost = () => {}, preferred = {} } = {}) {
-    Object.assign(this, { navigator, secure, onNote, onState, onLost });
+  constructor({ navigator = globalThis.navigator, secure = globalThis.isSecureContext, onNote = () => {}, onState = () => {}, onLost = () => {}, preferred = {}, parseMessage = midiNote, instrument = 'drums' } = {}) {
+    Object.assign(this, { navigator, secure, onNote, onState, onLost, parseMessage, instrument });
     this.preferred = { id: preferred.id || '', name: preferred.name || '' };
-    this.status = 'idle'; this.message = 'Connect your kit by USB, then allow MIDI access.';
+    this.status = 'idle'; this.message = instrument === 'keyboard' ? 'Connect your keyboard by USB, then allow MIDI access.' : 'Connect your kit by USB, then allow MIDI access.';
     this.access = null; this.port = null; this.devices = []; this.generation = 0; this.request = null;
     this.stateChange = () => { this.refresh(); };
     this.receive = event => {
       if (this.status !== 'ready' || this.port?.state !== 'connected') return;
-      const note = midiNote(event); if (note) this.onNote(note);
+      const note = this.parseMessage(event); if (note) this.onNote(note);
     };
   }
   snapshot() { return { status: this.status, message: this.message, devices: this.devices, selectedId: this.port?.id || this.preferred.id, name: this.port?.name || this.preferred.name }; }
-  publish(status = this.status, message = this.message) { this.status = status; this.message = message; this.onState(this.snapshot()); }
+  publish(status = this.status, message = this.message) {
+    if (this.instrument === 'keyboard') message = message.replaceAll('Drumkit', 'Keyboard').replaceAll('drumkit', 'MIDI keyboard').replaceAll('kit', 'keyboard').replaceAll('TD-17', 'keyboard').replace('Strike each pad to check its assignment, then choose Done and start a groove.', 'Play a key to check its pitch, then start a melody.').replace('USB COMPUTER', 'USB MIDI');
+    this.status = status; this.message = message; this.onState(this.snapshot());
+  }
   connect() {
     if (this.request) return this.request;
     if (this.access) return this.refresh(true);
@@ -71,7 +74,7 @@ export class MidiDrumInput {
       this.onLost();
     }
     // Reconnect the chosen device, never silently substitute a different kit.
-    const choice = ports.find(port => port.id === this.preferred.id) || (this.preferred.name && ports.find(port => port.name === this.preferred.name)) || (initial && !this.preferred.id && !this.preferred.name && (ports.find(port => /TD[- ]?17/i.test(port.name || '')) || ports[0]));
+    const choice = ports.find(port => port.id === this.preferred.id) || (this.preferred.name && ports.find(port => port.name === this.preferred.name)) || (initial && !this.preferred.id && !this.preferred.name && (this.instrument === 'keyboard' ? (ports.length === 1 && ports[0]) : (ports.find(port => /TD[- ]?17/i.test(port.name || '')) || ports[0])));
     if (choice) return this.select(choice.id);
     this.publish(this.preferred.id || this.preferred.name ? 'disconnected' : 'empty', ports.length ? 'Choose your drumkit from the list.' : 'No drumkit found. Turn the TD-17 on, check its USB COMPUTER connection, then reconnect. See USB setup below.');
     return Promise.resolve();

@@ -15,7 +15,7 @@ The renderer/input code is independent enough to reuse now. The existing judge (
 
 SightKick's chart parser uses rhythm-game chart data and notation-specific structures. Standard MIDI import in this milestone instead uses the portable midi-file decoder below, with an original track/channel selector, tempo/meter timeline, and drum-note mapper. SightKick's VexFlow renderer remains a candidate for the sheet-music milestone. The desktop MIDI backend, filesystem song library, stem splitting, update system, and Electron bridge were not carried into this browser prototype. No upstream songs, fixtures, branding, or audio were copied. Exercises, sample MIDI, and synthesized sounds are original.
 
-The eight drum IDs are compatible with SightKick's conceptual input elements. The included MIDI numbers are a preliminary common percussion mapping for future development, not a tested Roland module profile. Web MIDI device access and MIDI learning are not implemented in this milestone.
+The eight drum IDs are compatible with SightKick's conceptual input elements. The included MIDI numbers are a preliminary common percussion mapping for future development, not a tested Roland module profile. Browser MIDI access and drum pad learning were added in Prototype 09; Prototype 11 adds pitched keyboard input and shared sessions.
 
 ## midi-file
 
@@ -25,3 +25,10 @@ The eight drum IDs are compatible with SightKick's conceptual input elements. Th
 - License: MIT, included in `dist/licenses/midi-file.txt` and the standalone HTML.
 - Adapted file: `lib/midi-parser.js`, vendored as `dist/vendor/midi-parser.mjs`.
 - Changes: converted the CommonJS export to an ES module; added byte/event bounds, a four-byte variable-length limit, unsigned chunk sizes, chunked string conversion, and moved running-status initialization ahead of the event loop. These reject malformed input without bringing Node.js APIs or an external runtime dependency into the browser.
+
+## ws
+
+- Project: https://github.com/websockets/ws
+- Version: 8.22.0, pinned in package-lock.json.
+- License: MIT. The upstream notice is included in dist/licenses/ws.txt and the npm package.
+- Use: authenticated WebSocket sessions in the Node server. The browser and standalone HTML use the native browser WebSocket API and do not bundle this package.

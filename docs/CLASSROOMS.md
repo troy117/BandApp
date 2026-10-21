@@ -1,6 +1,6 @@
 # Teacher accounts, school songs and student progress
 
-Updated for version 0.10 / Prototype 10 · October 20, 2026
+Updated for version 0.11 / Prototype 11 · October 21, 2026
 
 ## What this release does
 
@@ -29,12 +29,18 @@ The new code needs persistent storage; GitHub alone does not hold accounts or mu
    | `GROOVE_STORAGE_MB` | Optional; `1024` by default. Keep below the volume capacity to leave database space. |
 
    Generate a private setup key on your own computer with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`. Paste it into Railway Variables and keep it private. It is not a student login. Do not put it in GitHub or chat.
-3. Keep the start command **`npm start`**, Node **24.x**, healthcheck **`/healthz`**, and one service replica. Deploy the latest commit.
-4. Open the HTTPS school website. The footer should show **Prototype 10** or newer. Choose **School sign in**, enter the setup key, and create your own teacher username and password. This creates the school owner. First-time setup closes after that account exists. Remove GROOVE_ALLOW_NEW_SCHOOL, then set GROOVE_EXPECTED_SCHOOL_ID to the displayed identity. Keep your current teacher account and data when upgrading an existing school; do not repeat first-time setup.
+3. Keep the start command **`npm start`**, Node **24.x**, healthcheck **`/healthz`**, and one service replica. Railway must install package-lock.json dependencies (npm ci includes ws). Deploy the latest commit.
+4. Open the HTTPS school website. The footer should show **Prototype 11** or newer. Choose **School sign in**, enter the setup key, and create your own teacher username and password. This creates the school owner. First-time setup closes after that account exists. Remove GROOVE_ALLOW_NEW_SCHOOL, then set GROOVE_EXPECTED_SCHOOL_ID to the displayed identity. Keep your current teacher account and data when upgrading an existing school; do not repeat first-time setup.
 5. Open **classroom** and create the other teachers/students. New accounts receive a generated temporary password, shown at creation. Copy/share that login directly; the user chooses their own password on first sign-in. Names can be first names or nicknames. Passwords/passphrases need at least 15 characters.
 6. Enable scheduled volume backups in Railway's **Backups** tab and retain a private copy of the original music. Backups and owner recovery are described below.
 
 Without `GROOVE_DATA_DIR`, production keeps serving guest practice and device libraries, but school accounts are disabled with a setup explanation. It never silently creates a temporary production database. With a data directory configured, invalid HTTPS/setup-key configuration stops startup. A failed storage/mount/identity/integrity check pauses school APIs and shows School storage needs attention while individual practice remains available. The app does not create a replacement school to hide the failure. Railway provides RAILWAY_VOLUME_MOUNT_PATH automatically; do not add a guessed value manually.
+
+## Shared drum and keyboard sessions
+
+Use the Keyboard and Jam session areas for solo keyboard practice or a teacher-led two-student take. Teachers assign existing students and published/provided parts. Each student joins and presses Ready; the teacher enables classroom audio and starts one shared count-in. Keep a separate computer/account for each performer. See [the test guide](BAND_TESTING.md).
+
+Version 0.11 adds only two tables for take/result grouping in an explicit schema-2 transaction, after the normal recovery copy. Existing identities, users, songs and legacy results stay in place. Existing songs are interpreted as drum-only unless a teacher publishes keyboard parts. Active rooms are temporary and end at a server restart or deployment; finished reports and interrupted take states remain stored.
 
 ## Preserve data through every update
 

@@ -4,12 +4,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ClassroomApi, ClassroomStore } from '../server/classroom.mjs';
 import { prepareSchoolStorage, sealSchoolStorage, STORAGE_UNAVAILABLE } from '../server/storage.mjs';
+import { BandSessions } from '../server/band-sessions.mjs';
 
 const publicRoot = fileURLToPath(new URL('../dist/', import.meta.url));
 const contentTypes = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
 export function createAppServer({ school = null, schoolUnavailable = '' } = {}) {
-  return http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -42,6 +43,8 @@ export function createAppServer({ school = null, schoolUnavailable = '' } = {}) 
     try { send(200, await readFile(file), contentTypes[path.extname(file)] || 'application/octet-stream'); }
     catch (error) { const missing = ['ENOENT', 'EISDIR', 'ENOTDIR'].includes(error.code); send(missing ? 404 : 500, missing ? 'Not found' : 'Unable to read file'); }
   });
+  if (school) { server.bandSessions = new BandSessions(school); server.bandSessions.attach(server); }
+  return server;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -76,6 +79,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const shutdown = () => {
     if (stopping) return;
     stopping = true;
+    server.bandSessions?.close();
     server.close(() => { store?.close(); process.exitCode = 0; });
     setTimeout(() => { server.closeAllConnections(); }, 10000).unref();
   };

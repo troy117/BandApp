@@ -129,3 +129,11 @@ The estimate described human developer effort including testing. Work with the a
 > I want you to give me a milestone plan for adding a second student where a teacher can start a session. I want to add a midi keyboard as the next instrument so that we can test both students playing at the same time.
 
 The revised [JAM_SESSIONS.md](JAM_SESSIONS.md) begins with solo keyboard practice and a provided drum-and-keyboard duet, then teacher room/readiness, shared start, live progress and separate saved results. Plan for one teacher computer and two student computers, one student on the TD-17 and one on keys. Preserve configurable computer-key testing and existing drum songs/data. Pitched keyboard notation, chords and hold/pedal grading follow the first duet. These are proposed milestones, not implemented features in Prototype 10.
+
+## October 21 implementation request
+
+> Build out milestone one and unless there is any testing you need me to do on my end continue building out the milestones in order. I'll test it tomorrow when I get to work
+
+Prototype 11 implements solo keyboard, separate song parts, teacher rooms/readiness, a scheduled shared start, live progress and saved individual/grouped results. Three original duets support computer-key or MIDI testing. Existing drum practice, library songs and accounts are preserved. New take tables use an additive migration after a recovery copy; the server now needs the pinned ws package installed from the lockfile.
+
+Validation uses 105 passing automated tests plus browser checks with original music and isolated synthetic accounts. Teacher and student browser flows were tested against simulated peers, including saved shared results, keyboard mappings, fullscreen and publication. The actual TD-17/keyboard, separate student computers, audible alignment and school network remain the user's next-workday trial. [BAND_TESTING.md](BAND_TESTING.md) gives those steps; the [handoff](HANDOFF.md) records current implementation and remaining work. Keyboard staff notation, chords/holds/pedals and additional instruments follow the classroom trial.
