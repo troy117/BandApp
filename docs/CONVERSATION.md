@@ -119,3 +119,13 @@ The user confirmed a `/data` volume and `GROOVE_DATA_DIR=/data/groove-lab`. A re
 A second anonymous setup check confirmed that the new owner account is recognized. The old volume's disappearance/cause is not verified. A new volume contains separate storage and does not automatically recover old accounts/music. Preserve the new volume, enable scheduled backups, keep a private off-volume backup and inspect an old volume/backup if it remains available. No old data was restored during development.
 
 Version 0.10 adds storage/mount/identity checks, intentional-first-setup protection and consistent database recovery copies per app version. School writes are paused on a bad configuration while solo practice remains available. Fullscreen now includes the highway and horizontal sheet, with Play/Stop, Listen and a view selector. [JAM_SESSIONS.md](JAM_SESSIONS.md) describes the proposed two-drummer pilot, synchronization approach, teacher overview, rough effort and later instrument adapters. The live jam feature itself is not built in this release.
+
+## Teacher started drum and keyboard sessions
+
+> 2-4 weeks for people to develop or for you?
+
+The estimate described human developer effort including testing. Work with the assistant can be reviewed in stages; physical synchronization still needs real computers, instruments and the school network. No fixed delivery date was promised.
+
+> I want you to give me a milestone plan for adding a second student where a teacher can start a session. I want to add a midi keyboard as the next instrument so that we can test both students playing at the same time.
+
+The revised [JAM_SESSIONS.md](JAM_SESSIONS.md) begins with solo keyboard practice and a provided drum-and-keyboard duet, then teacher room/readiness, shared start, live progress and separate saved results. Plan for one teacher computer and two student computers, one student on the TD-17 and one on keys. Preserve configurable computer-key testing and existing drum songs/data. Pitched keyboard notation, chords and hold/pedal grading follow the first duet. These are proposed milestones, not implemented features in Prototype 10.
