@@ -58,6 +58,8 @@ test('school accounts, shared music and private progress work across sessions an
   assert.match(setup.headers.get('set-cookie'), /HttpOnly; SameSite=Strict/); assert.equal('password_hash' in setup.data.user, false);
   assert.equal((await owner.request('/api/setup', 'POST', { username: 'owner2', name: 'Second', schoolName: 'Test school', password: passphrase, setupToken: env.setupToken })).status, 409);
   assert.equal((await guest.request('/api/library')).status, 401);
+  assert.equal((await guest.request('/api/storage')).status, 401);
+  const storage = await owner.request('/api/storage'); assert.equal(storage.status, 200); assert.equal(storage.data.schoolId, env.store.setting('school_id')); assert.equal(storage.data.accounts, 1); assert.equal('password_hash' in storage.data, false);
   assert.equal((await owner.request('/api/users', 'POST', {}, { 'X-CSRF-Token': 'é'.repeat(43) })).status, 403);
 
   async function teacher(username) {
@@ -76,6 +78,8 @@ test('school accounts, shared music and private progress work across sessions an
     return { client, user: created.data.user };
   }
   const studentA = await student(teacherA, 'student.a'), studentB = await student(teacherB, 'student.b');
+  assert.equal((await teacherA.client.request('/api/storage')).status, 403);
+  assert.equal((await studentA.client.request('/api/storage')).status, 403);
   assert.equal((await teacherA.client.request('/api/users')).data.users.length, 1);
   assert.equal((await owner.request('/api/users')).data.users.length, 4);
   assert.equal((await studentA.client.request('/api/users')).status, 403);

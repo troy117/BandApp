@@ -42,3 +42,10 @@
 .library-song-actions { flex-wrap: wrap; }
 @media(max-width:850px) { .top-actions .connection { display: none; } }
 @media(max-width:700px) { .topbar { height: auto; min-height: 104px; flex-wrap: wrap; gap: 16px; padding-block: 18px; } .top-actions { width: 100%; justify-content: flex-start; gap: 8px; } .top-actions .button { font-size: 11px; padding: 10px 12px; } #open-school { max-width: 180px; } .school-create-form { grid-template-columns: 1fr; } .school-student { padding: 15px; } }
+.school-storage { margin-top: 20px; padding: 14px; border: 1px solid #3e5551; border-radius: 8px; font-size: 12px; line-height: 1.7; }
+.school-storage summary { cursor: pointer; color: var(--gold); }
+.school-storage dl { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px; }
+.school-storage dt { color: #a3bab1; }
+.school-storage dd { margin: 0; overflow-wrap: anywhere; }
+.school-storage code { font-size: 11px; }
+@media(max-width: 540px) { .school-storage dl { grid-template-columns: 1fr; gap: 4px; } .school-storage dd { margin-bottom: 8px; } }

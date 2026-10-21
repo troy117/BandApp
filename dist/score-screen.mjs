@@ -43,6 +43,12 @@ export class ScoreScreen {
   }
   restoreFocus() { if (!this.opener.hidden && this.opener.getClientRects().length) this.opener.focus({ preventScroll: true }); }
   setTitle(title) { this.title.textContent = title; this.title.title = title; }
+  setView(view) {
+    const name = { highway: 'note highway', sheet: 'sheet music', full: 'full sheet' }[view] || 'note highway';
+    this.opener.setAttribute('aria-label', `Full screen ${name}`);
+    this.opener.title = `Full screen ${name}`;
+    this.root.setAttribute('aria-label', `${name} practice`);
+  }
   setPlayback({ running = false, starting = false, valid = true }) {
     const key = `${running}:${starting}:${valid}`;
     if (key === this.playbackKey) return;
@@ -57,7 +63,7 @@ export class ScoreScreen {
       event.preventDefault(); event.stopImmediatePropagation(); this.exit(); return;
     }
     if (event.key !== 'Tab') return;
-    const controls = [...this.root.querySelectorAll('button:not([disabled]), [tabindex="0"]')].filter(item => item.getClientRects().length);
+    const controls = [...this.root.querySelectorAll('button:not([disabled]), select:not([disabled]), [tabindex="0"]')].filter(item => item.getClientRects().length);
     const first = controls[0], last = controls.at(-1), current = this.doc.activeElement;
     if (!first) return;
     if (!this.root.contains(current) || (event.shiftKey && current === first) || (!event.shiftKey && current === last)) {

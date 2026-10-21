@@ -1,6 +1,6 @@
 # Teacher accounts, school songs and student progress
 
-Version 0.7 / Prototype 07 · October 19, 2026
+Updated for version 0.10 / Prototype 10 · October 20, 2026
 
 ## What this release does
 
@@ -16,7 +16,7 @@ Version 0.7 / Prototype 07 · October 19, 2026
 
 The new code needs persistent storage; GitHub alone does not hold accounts or music. This first school release uses one Railway service with SQLite and immutable music files on one persistent volume. It does not require an external database or object-storage provider. Keep the service at **one replica**; a larger deployment can later move to Postgres and object storage.
 
-1. Open the existing BandApp service in Railway. Attach a **persistent volume** with mount path **`/data`**. Choose capacity with room for music, the database and backups; the app defaults to a 1 GiB music quota. Volume storage is billed by Railway. See [Railway volumes](https://docs.railway.com/volumes).
+1. Open the existing BandApp service in Railway. Keep the existing school volume attached at **`/data`**. Create/attach a new volume only when intentionally creating a new school or performing a planned restore. A new volume does not contain the previous volume’s accounts or songs. Choose capacity with room for music, the database and backups; the app defaults to a 1 GiB music quota. Volume storage is billed by Railway. See [Railway volumes](https://docs.railway.com/volumes).
 2. Add these **service variables**:
 
    | Variable | Value |
@@ -24,15 +24,33 @@ The new code needs persistent storage; GitHub alone does not hold accounts or mu
    | `GROOVE_DATA_DIR` | `/data/groove-lab` |
    | `GROOVE_PUBLIC_ORIGIN` | `https://bandapp-production-9386.up.railway.app` (no trailing slash; change if using a custom domain) |
    | `GROOVE_SETUP_TOKEN` | A private random setup key of at least 24 characters |
+   | `GROOVE_ALLOW_NEW_SCHOOL` | Only for an intentionally brand-new school: `1` until the owner is created, then remove it. Existing schools do not need this variable. |
+   | `GROOVE_EXPECTED_SCHOOL_ID` | Recommended after setup: copy the school identity from School account → School storage & recovery. This pins the deployment to that school. |
    | `GROOVE_STORAGE_MB` | Optional; `1024` by default. Keep below the volume capacity to leave database space. |
 
    Generate a private setup key on your own computer with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`. Paste it into Railway Variables and keep it private. It is not a student login. Do not put it in GitHub or chat.
 3. Keep the start command **`npm start`**, Node **24.x**, healthcheck **`/healthz`**, and one service replica. Deploy the latest commit.
-4. Open the HTTPS school website. The footer should show **Prototype 08.1** or newer. Choose **School sign in**, enter the setup key, and create your own teacher username and password. This creates the school owner. First-time setup closes permanently after that account exists.
+4. Open the HTTPS school website. The footer should show **Prototype 10** or newer. Choose **School sign in**, enter the setup key, and create your own teacher username and password. This creates the school owner. First-time setup closes after that account exists. Remove GROOVE_ALLOW_NEW_SCHOOL, then set GROOVE_EXPECTED_SCHOOL_ID to the displayed identity. Keep your current teacher account and data when upgrading an existing school; do not repeat first-time setup.
 5. Open **classroom** and create the other teachers/students. New accounts receive a generated temporary password, shown at creation. Copy/share that login directly; the user chooses their own password on first sign-in. Names can be first names or nicknames. Passwords/passphrases need at least 15 characters.
 6. Enable scheduled volume backups in Railway's **Backups** tab and retain a private copy of the original music. Backups and owner recovery are described below.
 
-Without `GROOVE_DATA_DIR`, production keeps serving guest practice and device libraries, but school accounts are disabled with a setup explanation. It never silently creates a temporary production database. With a data directory configured, missing/invalid production setup configuration stops startup so an incorrectly configured school does not appear ready.
+Without `GROOVE_DATA_DIR`, production keeps serving guest practice and device libraries, but school accounts are disabled with a setup explanation. It never silently creates a temporary production database. With a data directory configured, invalid HTTPS/setup-key configuration stops startup. A failed storage/mount/identity/integrity check pauses school APIs and shows School storage needs attention while individual practice remains available. The app does not create a replacement school to hide the failure. Railway provides RAILWAY_VOLUME_MOUNT_PATH automatically; do not add a guessed value manually.
+
+## Preserve data through every update
+
+A normal GitHub/Railway app update should reuse the **same service, production environment, volume, mount path and GROOVE_DATA_DIR**. Deleting/replacing a volume or switching environments is a storage change, not an ordinary code update.
+
+Version 0.10 checks that the data path is inside Railway's attached volume, validates SQLite, and records its school identity in storage-identity.json. It refuses newer database schemas. An existing school is adopted without recreating its owner. Missing/ownerless production storage requires an explicit GROOVE_ALLOW_NEW_SCHOOL=1 initialization choice; keep that flag removed after setup. GROOVE_EXPECTED_SCHOOL_ID provides an additional check even if a different volume contains another valid school.
+
+Before opening a writable existing school database on each new app version, the server creates one consistent recovery/school-before-VERSION.sqlite copy. Repeated restarts of the same version retain that original copy. These private SQLite recovery files exclude active sessions and unfinished uploads. Published music stays immutable in music/. A recovery copy failure pauses school APIs rather than proceeding unprotected. Leave disk space for these copies; they are not automatically deleted.
+
+The owner can open **School sign in → School storage & recovery** to see the current data folder, school identity, account/song/result counts and database recovery copy. Other teachers/students cannot access this diagnostic. The development app identifies itself as local storage rather than claiming a verified Railway volume.
+
+**Database recovery copies are on the same volume and do not copy music.** They help recover from a bad database/code change, not a wiped volume. In Railway, enable Daily and optionally Weekly/Monthly schedules in the service's Backups tab, and download a complete private backup separately. Railway documents that wiping a volume also deletes its backups. See [Railway backups](https://docs.railway.com/volumes/backups).
+
+After the next deployment, sign in with your existing teacher account, verify the school/library counts and make a harmless test result. Deploy again and verify that the school identity and the result remain. Do this before enrolling a full class. Do not put real students into the development test environment.
+
+If data looks missing, avoid creating another school. Inspect the selected service/environment, mounted volume and data folder, then look for the previous volume or backups. The app cannot recover a volume or recording that no longer exists and has no backup.
 
 ## Publish existing songs
 
@@ -87,4 +105,4 @@ This uses `GROOVE_DATA_DIR`, revokes that owner's sessions, and prints a new tem
 
 `server/classroom.mjs` implements persistence and authenticated APIs. `dist/classroom.mjs` supplies sign-in, roster and results screens; the song importer supplies school/device library controls. This is one school per deployment, with a shared library and teacher-specific student rosters.
 
-Passwords use salted scrypt (`N=131072,r=8,p=1`), following the [OWASP password-storage guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Sessions use random tokens hashed in SQLite, HttpOnly/SameSite cookies, Secure cookies on HTTPS production, and per-session CSRF tokens. Permission checks are enforced by the API, not just hidden buttons. Uploads are authenticated, streamed with size/quota limits, and stored outside public files. Practice statistics are browser-measured feedback, not a verified examination system. No grades, assignments, parent portal, student email, hardware MIDI or cross-school tenancy are added in this release.
+Passwords use salted scrypt (`N=131072,r=8,p=1`), following the [OWASP password-storage guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). Sessions use random tokens hashed in SQLite, HttpOnly/SameSite cookies, Secure cookies on HTTPS production, and per-session CSRF tokens. Permission checks are enforced by the API, not just hidden buttons. Uploads are authenticated, streamed with size/quota limits, and stored outside public files. Practice statistics are browser-measured feedback, not a verified examination system. No grades, assignments, parent portal, student email or cross-school tenancy are added. USB MIDI setup is covered in DRUMKIT.md; shared jam sessions are planned in JAM_SESSIONS.md.

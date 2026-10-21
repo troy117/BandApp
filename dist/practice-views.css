@@ -30,10 +30,18 @@ main.wrap { padding-top: 24px; }
 .score-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #dce5d7; }
 .score-shortcuts { color: #98afa3; font-size: 10px; white-space: nowrap; }
 body.score-maximized { overflow: hidden; }
-.stage.full-score-view.score-expanded { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; max-height: none; z-index: 100; border: 0; border-radius: 0; background: #18272a; }
+.stage.score-expanded { position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh; max-height: none; z-index: 100; border: 0; border-radius: 0; background: #18272a; }
 .stage.score-expanded::backdrop { background: #18272a; }
-.score-expanded .full-score-scroll { top: 94px; }
+.score-expanded .full-score-scroll { top: 94px; bottom: 56px; }
 .score-expanded .stage-status { top: 73px; }
+.score-expanded #highway { position: absolute; top: 94px; left: 0; width: 100%; height: calc(100% - 94px); }
+.score-expanded.sheet-view:not(.full-score-view) #highway { height: calc(100% - 150px); }
+.score-expanded:not(.sheet-view) .stage-overlay { top: 145px; }
+.stage .score-legend { display: none; }
+.score-expanded.sheet-view .score-legend { display: flex; position: absolute; bottom: 0; left: 0; right: 0; z-index: 2; max-height: 56px; overflow: auto; padding: 9px 16px; gap: 7px 18px; border-top: 1px solid var(--line); }
+.score-legend small { display: none; }
+.score-view-label { display: flex; align-items: center; gap: 6px; color: #a3bab1; font-size: 11px; }
+.score-view-label select { color: #dce5d7; background: #203331; border: 1px solid #405751; border-radius: 6px; padding: 8px; max-width: 130px; }
 .view-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid #3b4b4a; border-radius: 8px; flex-shrink: 0; }
 .view-switch button { border: 0; border-radius: 5px; padding: 8px 12px; background: transparent; font-size: 11px; color: #9eb2ac; min-height: 32px; }
 .view-switch button[aria-pressed="true"] { color: #172025; background: var(--gold); font-weight: 650; }
@@ -57,6 +65,8 @@ body.score-maximized { overflow: hidden; }
   .score-toolbar .button { padding: 8px 11px; font-size: 11px; }
   .score-shortcuts { display: none; }
   .score-title { font-size: 11px; }
+  .score-view-label > span { display: none; }
+  .score-view-label select { width: 98px; padding: 8px 3px; font-size: 10px; }
   main.wrap { padding-top: 16px; }
   .playback-volume { flex: 1 1 100%; }
   .full-score-workspace .coach-column { grid-template-columns: 1fr; }

@@ -1,5 +1,13 @@
 # Changes
 
+## 0.10.0 — October 20, 2026 — Prototype 10
+
+- Fullscreen for **Note highway**, **Sheet music** and **Full sheet**. The embedded Play/Stop/Listen toolbar adds a View selector; switching preserves the run and keyboard/MIDI timing. Sheet legends remain inside fullscreen. Escape returns to the page without stopping playback.
+- School storage is checked before opening a writable database: the configured path must be inside Railway's attached volume, school identity must match its marker/optional environment pin, and SQLite integrity/schema checks must pass. An absent/ownerless production database needs an explicit new-school initialization flag; existing schools retain their owner/data.
+- Consistent private database recovery copy before each new app version, retaining the original copy across restarts. Copies omit active sessions/drafts, stay on the same volume and do not copy music. Independent backups remain necessary. Bad storage pauses school APIs and clearly explains the problem while individual practice remains available.
+- Owner-only school storage/recovery panel, revised Railway setup and recovery guide, conversation record, discussion/handoff updates and a scoped shared jam-session plan. A teacher-led two-drummer session is the proposed next milestone, not a feature in this release.
+- Validation: **88 tests pass**, module syntax and standalone export pass. Coverage includes three published demo songs/two accounts across updates, recovery-copy consistency, bad mounts, replacement/missing/corrupt databases, school identity and future-schema rejection, API permissions and safe write blocking. Browser QA covers fullscreen views/transport, live switching, scored keyboard input, Escape and owner storage diagnostics using synthetic data. Actual hardware input, hosted backup schedules and recovery of the old volume remain unverified.
+
 ## 0.9.0 — October 20, 2026 — Prototype 09
 
 - USB MIDI drumkit input in supported secure browsers, with an explicit Connect drumkit action, permission guidance, input picker and live pad/note/strength readout. Default mappings include common drum notes and Roland hi-hat variants; Learn pad adds rims/edges or moves a note to a different drum. Individual notes can be ignored and defaults restored.

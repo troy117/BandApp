@@ -3,11 +3,12 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ClassroomApi, ClassroomStore } from '../server/classroom.mjs';
+import { prepareSchoolStorage, sealSchoolStorage, STORAGE_UNAVAILABLE } from '../server/storage.mjs';
 
 const publicRoot = fileURLToPath(new URL('../dist/', import.meta.url));
 const contentTypes = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json' };
 
-export function createAppServer({ school = null } = {}) {
+export function createAppServer({ school = null, schoolUnavailable = '' } = {}) {
   return http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
@@ -28,8 +29,8 @@ export function createAppServer({ school = null } = {}) {
     if (url.pathname.startsWith('/api/')) {
       if (school) { await school.handle(req, res, url); return; }
       res.setHeader('Cache-Control', 'private, no-store');
-      if (url.pathname === '/api/session' && req.method === 'GET') send(200, '{"enabled":false,"user":null,"setupNeeded":false}', 'application/json');
-      else send(503, '{"error":"School accounts need persistent storage configured on this server."}', 'application/json');
+      if (url.pathname === '/api/session' && req.method === 'GET') send(200, JSON.stringify({ enabled: false, user: null, setupNeeded: false, storageProblem: Boolean(schoolUnavailable), storageMessage: schoolUnavailable }), 'application/json');
+      else send(503, JSON.stringify({ error: schoolUnavailable || 'School accounts need persistent storage configured on this server.' }), 'application/json');
       return;
     }
     if (!['GET', 'HEAD'].includes(req.method)) {
@@ -54,9 +55,21 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (dataDir && !local && (!process.env.GROOVE_SETUP_TOKEN || process.env.GROOVE_SETUP_TOKEN.length < 24)) throw new Error('Set GROOVE_SETUP_TOKEN to a private setup key of at least 24 characters.');
   const storageMB = Number(process.env.GROOVE_STORAGE_MB || 1024);
   if (!Number.isInteger(storageMB) || storageMB < 128 || storageMB > 102400) throw new Error('GROOVE_STORAGE_MB must be between 128 and 102400.');
-  const store = dataDir ? await ClassroomStore.open(dataDir, { storageLimit: storageMB * 1024 * 1024 }) : null;
-  const school = store ? new ClassroomApi(store, { localSetup: local, secureCookies: !local, setupToken: process.env.GROOVE_SETUP_TOKEN, publicOrigin }) : null;
-  const server = createAppServer({ school });
+  let store = null, school = null, schoolUnavailable = '';
+  try {
+    if (dataDir) {
+      const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+      const prepared = await prepareSchoolStorage({ directory: dataDir, local, version });
+      store = await ClassroomStore.open(dataDir, { storageLimit: storageMB * 1024 * 1024 });
+      const storage = await sealSchoolStorage(store, prepared);
+      school = new ClassroomApi(store, { localSetup: local, secureCookies: !local, setupToken: process.env.GROOVE_SETUP_TOKEN, publicOrigin, storage });
+      console.log(`School storage checked: ${storage.volumeVerified ? 'Railway volume' : local ? 'local development' : 'configured directory'}; ${storage.snapshot ? 'database recovery copy ready' : 'initial school setup'}.`);
+    }
+  } catch (error) {
+    store?.close(); store = null; schoolUnavailable = STORAGE_UNAVAILABLE;
+    console.error(`SCHOOL STORAGE PROTECTION: ${error.message}`);
+  }
+  const server = createAppServer({ school, schoolUnavailable });
   server.listen(port, host, () => console.log(`Groove Lab listening on ${host}:${port}\nLocal: http://localhost:${port}/`));
   server.on('error', error => { console.error(error.message); process.exitCode = 1; });
   let stopping = false;

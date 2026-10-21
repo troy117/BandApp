@@ -88,8 +88,9 @@ function effectiveView() { return settings.view; }
 function renderView() {
   const sheet = effectiveView() !== 'highway', full = effectiveView() === 'full';
   const imported = previewChart.kind !== 'groove';
-  $('maximize-score').hidden = !full;
-  if (!full && scoreScreen.active) scoreScreen.exit();
+  $('maximize-score').hidden = false;
+  scoreScreen.setView(effectiveView());
+  $('score-view').value = effectiveView();
   $('view-sheet').disabled = false;
   $('view-sheet').title = '';
   $('view-sheet').setAttribute('aria-pressed', String(sheet && !full));
@@ -106,6 +107,7 @@ function renderView() {
   $('view-availability').hidden = true;
   canvas.setAttribute('aria-label', sheet ? 'Drum sheet music on a five-line percussion staff. Filled heads are drums, X heads are cymbals, and rests mean silence. Follow the gold playhead and the drum/key legend.' : 'Approaching drum notes. Press each drum key when its colored bar is centered in the matching hit box.');
   $('sheet-legend').innerHTML = laneDrums.map(drum => `<span style="--drum-color:${drum.color}"><i aria-hidden="true">${['hihat', 'crash', 'ride'].includes(drum.id) ? '×' : '●'}</i>${drum.name}<kbd>${bindings[drum.id].map(keyLabel).join(' / ') || 'Unassigned'}</kbd></span>`).join('') + '<small>Same column = play together · Rests = silence</small>';
+  $('score-legend').innerHTML = $('sheet-legend').innerHTML;
 }
 
 function notify(message, error = false) {
@@ -441,6 +443,7 @@ $('start').addEventListener('click', () => startRun());
 $('listen').addEventListener('click', () => startRun('demo'));
 $('browse-tracks').addEventListener('click', () => { if (session || starting) stopRun(); practice.openTracks(); });
 for (const view of ['sheet', 'highway', 'full']) $('view-' + view).addEventListener('click', () => { settings.view = view; persist(); renderView(); });
+$('score-view').addEventListener('change', () => { settings.view = $('score-view').value; persist(); renderView(); if (scoreScreen.active) $('score-play').focus({ preventScroll: true }); });
 $('playback-volume').addEventListener('input', () => {
   if (!loadedSong?.backing) return;
   const volume = audio.setBackingVolume(Number($('playback-volume').value) / 100);

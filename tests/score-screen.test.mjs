@@ -20,6 +20,14 @@ function fixture() {
   return { screen, doc, root, opener, exit, play, listen, title, toolbar, region, calls };
 }
 
+test('fullscreen can change between highway and both sheet views without interrupting playback or leaving fullscreen', async () => {
+  const env = fixture(); env.doc.fullscreenEnabled = false; env.screen.setPlayback({ running: true }); await env.screen.enter();
+  for (const [view, name] of [['highway', 'note highway'], ['sheet', 'sheet music'], ['full', 'full sheet']]) {
+    env.screen.setView(view); assert.equal(env.screen.active, true); assert.equal(env.root.attributes['aria-label'], `${name} practice`); assert.equal(env.opener.attributes['aria-label'], `Full screen ${name}`); assert.match(env.play.innerHTML, /Stop/);
+  }
+  assert.equal(env.calls.play, 0); await env.screen.exit();
+});
+
 test('fullscreen denial keeps a usable maximized score and exiting restores the page without affecting playback', async () => {
   const env = fixture();
   env.root.requestFullscreen = async () => { throw new Error('Embedded browser denial'); };

@@ -8,6 +8,8 @@ export class SchoolClient {
     this.user = null; this.csrf = ''; this.enabled = false; this.loaded = false; this.generation = 0; this.pending = []; this.requests = new Set(); this.roster = [];
     this.el = id => document.getElementById(id);
     document.body.insertAdjacentHTML('beforeend', schoolMarkup());
+    this.el('school-account-status').insertAdjacentHTML('beforebegin', '<details id="school-storage-details" class="school-storage" hidden><summary>School storage & recovery</summary><p id="school-storage-summary"></p><dl><dt>Data folder</dt><dd id="school-storage-folder"></dd><dt>School identity</dt><dd><code id="school-storage-id"></code></dd><dt>Database recovery copy</dt><dd id="school-storage-copy"></dd></dl><p class="school-help">Keep the same Railway volume attached across updates. Enable daily volume backups in Railway, and keep a complete private backup outside the running service.</p><p class="school-help">For protection against switching schools, set GROOVE_EXPECTED_SCHOOL_ID in Railway to the school identity above. Remove GROOVE_ALLOW_NEW_SCHOOL after first setup.</p><button id="school-storage-refresh" class="text-button">Refresh storage check</button><p id="school-storage-status" role="status"></p></details>');
+    this.el('school-storage-refresh').addEventListener('click', () => this.loadStorage());
     this.el('open-school').addEventListener('click', () => this.openAccount());
     this.el('school-login-form').addEventListener('submit', event => { event.preventDefault(); this.authenticate(false); });
     this.el('school-setup-form').addEventListener('submit', event => { event.preventDefault(); this.authenticate(true); });
@@ -68,15 +70,17 @@ export class SchoolClient {
   }
   async refreshSession() {
     const session = await this.request('/session');
-    this.enabled = session.enabled; this.loaded = true; this.setupNeeded = session.setupNeeded; this.setupTokenRequired = session.setupTokenRequired; this.schoolId = session.schoolId; this.schoolName = session.schoolName || 'School library';
+    this.enabled = session.enabled; this.storageMessage = session.storageMessage || ''; this.loaded = true; this.setupNeeded = session.setupNeeded; this.setupTokenRequired = session.setupTokenRequired; this.schoolId = session.schoolId; this.schoolName = session.schoolName || 'School library';
     this.identity(session.user, session.csrf);
     if (this.user && !this.user.mustChangePassword) await this.refreshHistory();
   }
   renderAccount() {
-    this.el('open-school').textContent = this.user ? `${this.user.name} · ${this.staff ? 'Teacher' : 'Student'}` : 'School sign in';
+    this.el('open-school').textContent = this.user ? `${this.user.name} · ${this.staff ? 'Teacher' : 'Student'}` : this.storageMessage ? 'School storage needs attention' : 'School sign in';
     this.el('school-account-title').textContent = this.user ? 'Your school account.' : this.setupNeeded ? 'Set up your school.' : 'Welcome back.';
     this.el('school-account-unavailable').hidden = !this.loaded || this.enabled;
-    this.el('school-account-unavailable').textContent = location.protocol === 'file:' ? 'School accounts need the hosted web app. Open your school’s website to sign in; this offline copy still supports local practice.' : 'School accounts are not enabled on this server yet. The school owner needs to connect persistent storage. Local practice and device songs still work.';
+    this.el('school-account-unavailable').textContent = this.storageMessage || (location.protocol === 'file:' ? 'School accounts need the hosted web app. Open your school’s website to sign in; this offline copy still supports local practice.' : 'School accounts are not enabled on this server yet. The school owner needs to connect persistent storage. Local practice and device songs still work.');
+    this.el('school-storage-details').hidden = this.user?.role !== 'owner';
+    if (this.user?.role !== 'owner') { this.el('school-storage-details').open = false; for (const id of ['school-storage-summary', 'school-storage-folder', 'school-storage-id', 'school-storage-copy', 'school-storage-status']) this.el(id).textContent = ''; }
     this.el('school-login-form').hidden = !this.enabled || Boolean(this.user) || this.setupNeeded;
     this.el('school-setup-form').hidden = !this.enabled || Boolean(this.user) || !this.setupNeeded;
     this.el('school-setup-key-field').hidden = !this.setupTokenRequired;
@@ -87,7 +91,20 @@ export class SchoolClient {
     this.el('school-open-dashboard').disabled = Boolean(this.user?.mustChangePassword);
     this.el('school-account-description').textContent = this.user?.mustChangePassword ? 'Choose your own password to start using the school library and save results.' : 'Use the same account at school and home. Students use a teacher-created username; no student email is needed.';
   }
-  openAccount() { this.beforeOpen(); this.renderAccount(); this.el('school-account-status').textContent = ''; this.el('school-account-dialog').showModal(); }
+  openAccount() { this.beforeOpen(); this.renderAccount(); this.el('school-account-status').textContent = ''; this.el('school-account-dialog').showModal(); if (this.user?.role === 'owner') this.loadStorage(); }
+  async loadStorage() {
+    if (this.user?.role !== 'owner') return;
+    const generation = this.generation;
+    this.el('school-storage-status').textContent = 'Checking school storage…';
+    try {
+      const storage = await this.request('/storage');
+      if (generation !== this.generation || this.user?.role !== 'owner') return;
+      this.el('school-storage-summary').textContent = `${storage.volumeVerified ? 'Railway volume checked' : storage.local ? 'Local development storage' : 'Server folder — confirm persistence with your host'} · ${storage.accounts} accounts · ${storage.songs} published songs · ${storage.attempts} practice results`;
+      this.el('school-storage-folder').textContent = storage.directory; this.el('school-storage-id').textContent = storage.schoolId;
+      this.el('school-storage-copy').textContent = storage.snapshot ? `${storage.snapshot.file} · ${schoolDate(storage.snapshot.createdAt)}` : 'A database recovery copy is created on the next app start after an owner exists.';
+      this.el('school-storage-status').textContent = storage.local ? 'Local test storage. Production protections apply to the hosted school.' : storage.newSchoolAllowed ? 'Remove GROOVE_ALLOW_NEW_SCHOOL from Railway now that setup is complete.' : 'Automatic creation of a replacement school is disabled.';
+    } catch (error) { if (generation === this.generation && this.user?.role === 'owner') this.el('school-storage-status').textContent = error.message; }
+  }
   async authenticate(setup) {
     const form = this.el(setup ? 'school-setup-form' : 'school-login-form'), submit = form.querySelector('button[type=submit]'); submit.disabled = true;
     this.el('school-account-status').textContent = setup ? 'Creating the school owner account…' : 'Signing in…';

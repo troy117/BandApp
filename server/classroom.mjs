@@ -56,6 +56,7 @@ export class ClassroomStore {
     this.directory = directory; this.now = options.now || Date.now; this.passwords = new SchoolPasswords(); this.uploading = new Set(); this.publishing = new Set();
     this.storageLimit = options.storageLimit ?? 1024 * 1024 * 1024;
     this.db = new DatabaseSync(path.join(directory, 'school.sqlite'));
+    if (this.db.prepare('PRAGMA user_version').get().user_version > 1) { this.db.close(); throw new Error('This school database requires a newer app version.'); }
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE, name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','teacher','student')), teacher_id TEXT REFERENCES users(id), password_hash TEXT NOT NULL, must_change INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -358,6 +359,11 @@ export class ClassroomApi {
       if (pathname === '/api/logout' && method === 'POST') { this.store.db.prepare('DELETE FROM sessions WHERE hash=?').run(session.hash); this.cookie(response, ''); send(200, { signedOut: true }); return true; }
       if (pathname === '/api/password' && method === 'POST') { const result = await this.store.changePassword(actor, await this.json(request)); this.cookie(response, result.token); send(200, { user: result.user, csrf: result.csrf }); return true; }
       if (actor.mustChangePassword) throw new SchoolError(428, 'Choose your own password before continuing.');
+      if (pathname === '/api/storage' && method === 'GET') {
+        if (actor.role !== 'owner') throw new SchoolError(403, 'Only the school owner can view storage details.');
+        const storage = this.options.storage;
+        send(200, { schoolId: this.store.setting('school_id'), directory: this.store.directory, volumeVerified: storage?.volumeVerified === true, local: this.options.localSetup === true, newSchoolAllowed: storage?.newSchoolAllowed === true, snapshot: storage?.snapshot ?? null, accounts: this.store.db.prepare('SELECT COUNT(*) AS n FROM users').get().n, songs: this.store.db.prepare('SELECT COUNT(*) AS n FROM songs WHERE revision_id IS NOT NULL').get().n, attempts: this.store.db.prepare('SELECT COUNT(*) AS n FROM runs').get().n }); return true;
+      }
       if (pathname === '/api/users' && method === 'GET') { send(200, { users: this.store.roster(actor) }); return true; }
       if (pathname === '/api/users' && method === 'POST') { this.limit(`create:${actor.id}`, 100, 60 * 60 * 1000); send(201, await this.store.createUser(actor, await this.json(request))); return true; }
       let match = pathname.match(/^\/api\/users\/([0-9a-f-]+)\/(reset-password|active|progress)$/);

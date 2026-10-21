@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
 import { createAppServer } from '../scripts/serve.mjs';
+import { STORAGE_UNAVAILABLE } from '../server/storage.mjs';
+
+test('storage failures keep individual practice available and disable account writes without exposing private settings', async t => {
+  const server = createAppServer({ schoolUnavailable: STORAGE_UNAVAILABLE }).listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  assert.equal((await fetch(origin)).status, 200);
+  const state = await (await fetch(origin + '/api/session')).json(); assert.equal(state.enabled, false); assert.equal(state.setupNeeded, false); assert.equal(state.storageProblem, true); assert.match(state.storageMessage, /protect existing data/);
+  const create = await fetch(origin + '/api/setup', { method: 'POST', body: '{}' }); assert.equal(create.status, 503); assert.equal((await create.json()).error, STORAGE_UNAVAILABLE);
+});
 
 test('deployment server serves the app, modules, health, and HEAD requests', async t => {
   const server = createAppServer().listen(0, '127.0.0.1');
