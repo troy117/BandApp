@@ -137,3 +137,15 @@ The revised [JAM_SESSIONS.md](JAM_SESSIONS.md) begins with solo keyboard practic
 Prototype 11 implements solo keyboard, separate song parts, teacher rooms/readiness, a scheduled shared start, live progress and saved individual/grouped results. Three original duets support computer-key or MIDI testing. Existing drum practice, library songs and accounts are preserved. New take tables use an additive migration after a recovery copy; the server now needs the pinned ws package installed from the lockfile.
 
 Validation uses 105 passing automated tests plus browser checks with original music and isolated synthetic accounts. Teacher and student browser flows were tested against simulated peers, including saved shared results, keyboard mappings, fullscreen and publication. The actual TD-17/keyboard, separate student computers, audible alignment and school network remain the user's next-workday trial. [BAND_TESTING.md](BAND_TESTING.md) gives those steps; the [handoff](HANDOFF.md) records current implementation and remaining work. Keyboard staff notation, chords/holds/pedals and additional instruments follow the classroom trial.
+
+## Local testing and existing piano tracks — October 21–22, 2026
+
+> railway is unable to re-deploy right now. Can I test locally?
+
+The local development server uses http://localhost:4173/ and its own ignored .groove-data directory. It is separate from Railway; accounts and songs do not automatically copy between the two. Running a separate server on each computer does not create a shared jam session. Cross-computer Web MIDI testing requires a single reachable HTTPS school host or an appropriately secured local setup.
+
+> In the music library Fleetwood Mac-Dreams-04-28-2026 has a piano part. If a midi has a piano part can we make sure that it will work with the keyboard and jam session for both piano and drums?
+
+Version 0.11.1 recognizes named piano/keyboard tracks and explicit General MIDI piano patches. Older library entries expose those tracks alongside their existing saved drums without rewriting their records or changing their revision. New publications retain detected instrument assignments. The library offers Practice keyboard and a teacher/owner Edit instrument parts action, which loads existing files and backing settings and publishes a revision of the same song. Explicit assignments are retained; ambiguous tracks can be selected manually.
+
+110 tests pass; browser QA uses an original two-part MIDI and isolated synthetic teacher/student accounts. No real school data was modified. The named Dreams MIDI is not in the local school database, so its exact track names, piano part and hardware playback remain for user verification after deployment or local import. Piano grading remains pitch/onset; piano staff notation and hold/pedal grading are future work.

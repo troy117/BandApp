@@ -63,7 +63,8 @@ export class BandPractice {
     q('b-retry-save').onclick = () => this.saveResult();
     this.renderCatalog(); this.renderPart(); this.renderMidi(this.midi.snapshot());
     this.timer = setInterval(() => this.tick(), 25); requestAnimationFrame(() => this.frame());
-    window.addEventListener('band-load-school', event => { this.setMode('keyboard'); this.attempt(() => this.loadChoice('school:' + event.detail.id)); });
+    window.addEventListener('band-load-school', event => { this.setMode('keyboard'); this.attempt(() => this.loadChoice('school:' + event.detail.id, undefined, 'keyboard')); });
+    window.addEventListener('band-edit-school', event => { this.setMode('keyboard'); this.importer.attempt(() => this.importer.editSchoolSong(event.detail.id)); });
   }
   get active() { return this.mode !== 'drums'; }
   message(text) { this.q('b-message').textContent = text; }
@@ -105,7 +106,7 @@ export class BandPractice {
   renderCatalog() {
     this.q('b-song').innerHTML = this.catalog.map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + (song.sourceKind === 'school' ? ' · School' : '') + '</option>').join('');
   }
-  async loadChoice(value, revision) {
+  async loadChoice(value, revision, instrument) {
     if (this.rooms.room) throw new Error('Leave the session before changing songs.');
     this.stop(); const token = ++this.loadToken, [kind, id] = value.split(':');
     let arrangement;
@@ -115,13 +116,13 @@ export class BandPractice {
       const response = await this.school.request('/band/arrangements/school/' + id + '?revision=' + encodeURIComponent(revision || song?.revisionId || '')); arrangement = response.arrangement;
     }
     if (token !== this.loadToken) return;
-    this.useArrangement(arrangement); this.message('Song ready. Listen first to check the selected part.');
+    this.useArrangement(arrangement, instrument); this.message('Song ready. Listen first to check the selected part.');
   }
-  useArrangement(arrangement) {
+  useArrangement(arrangement, instrument = this.part?.instrument) {
     this.loadToken++; this.stop(); this.arrangement = arrangement; this.backing = arrangement.backing || null; this.startedTake = null; this.teacherGuide = null;
     const volume = Math.round((this.backing?.volume ?? arrangement.audio?.volume ?? 0.65) * 100);
     this.q('b-volume').value = volume; this.q('b-speaker-volume').value = volume;
-    const part = arrangement.parts.find(part => part.instrument === this.part?.instrument) || arrangement.parts.find(part => part.instrument === 'keyboard') || arrangement.parts[0];
+    const part = arrangement.parts.find(part => part.instrument === instrument) || arrangement.parts.find(part => part.instrument === 'keyboard') || arrangement.parts[0];
     this.part = part; this.renderPart();
     const key = arrangement.sourceKind + ':' + arrangement.id;
     if ([...this.q('b-song').options].some(option => option.value === key)) this.q('b-song').value = key;

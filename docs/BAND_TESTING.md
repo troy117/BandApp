@@ -1,10 +1,10 @@
 # First drum and keyboard classroom test
 
-Prototype 11 · October 21, 2026
+Prototype 11.1 · October 22, 2026
 
 ## Before the lesson
 
-Confirm the hosted footer says Prototype 11. Keep the existing Railway service, volume and GROOVE_DATA_DIR. This update adds tables to the existing database; it does not need a new school, a new volume or new server variables. Railway must install the locked ws dependency; keep Node 24, npm start and one replica. Enable/check backups separately as described in [CLASSROOMS.md](CLASSROOMS.md).
+Confirm the hosted footer says Prototype 11.1. Keep the existing Railway service, volume and GROOVE_DATA_DIR. This update adds tables to the existing database; it does not need a new school, a new volume or new server variables. Railway must install the locked ws dependency; keep Node 24, npm start and one replica. Enable/check backups separately as described in [CLASSROOMS.md](CLASSROOMS.md).
 
 Use three computers: the teacher's computer with a classroom speaker, a student computer connected to the TD-17, and a student computer connected to the MIDI keyboard. Start in Chrome on Windows; Chromebook behavior also needs a real test. All computers open the same HTTPS school website. Each student uses a different teacher-created account and must have chosen their own password before being assigned to a session. Ordinary browser tabs share a login; use separate computers for the classroom trial.
 
@@ -49,3 +49,11 @@ Add optional backing audio and the shared offset/MIDI speed/volume. The existing
 - Duplicate sounds, missing permissions, disconnect messages, and whether reports persist after refresh/redeploy.
 
 Clock uncertainty is a software estimate, not proof of physical audio latency. The hardware trial is the remaining milestone; keyboard staff notation, chords, hold/pedal grading and additional instruments follow it.
+
+## Piano from an existing school song
+
+Open Song library and find the song. Recognized piano tracks appear as Piano / Keyboard with a Practice keyboard button. In Jam session, select that same school song and assign Drums to one student and Piano / Keyboard to the other; both use its saved tempo, backing offset and MIDI speed.
+
+If piano is not offered, the publishing teacher or school owner chooses Edit instrument parts in the library. The existing files and backing settings load automatically. Assign the actual piano track(s) to Piano / Keyboard, percussion to Drums and other instruments to Ignore, then Publish school song update. This keeps the same library song and creates a revision; earlier files/results remain. Other teachers/students can practice the song but cannot change its assignments.
+
+For Fleetwood Mac-Dreams-04-28-2026, verify the identified track is the piano performance and the same arrangement as the recording. The developer has not inspected that exact MIDI in the hosted library. Imported piano is graded for each note’s pitch and start time; sustain/pedal/duration grading and piano staff notation remain future work.

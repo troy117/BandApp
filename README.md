@@ -29,6 +29,8 @@ Teachers can invite two existing students, assign parts, wait for Ready and star
 
 **Prepare MIDI duet** assigns MIDI tracks/channels to drums and/or keys and publishes both parts with shared backing settings. Existing drum songs remain valid. A file containing only drums stays drum-only. Keyboard uses the note highway in this pilot; keyboard staff notation, chords/hold/pedal grading follow the classroom trial.
 
+Version 0.11.1 also recognizes piano tracks in older school-library MIDI songs. Choose **Practice keyboard**, or assign **Drums** and **Piano / Keyboard** in a jam session. Teachers can use **Edit instrument parts** to correct track assignments while retaining the song’s backing and alignment. Explicit assignments take precedence over detection.
+
 ## Connect a USB drumkit
 
 Choose **Connect drumkit** at the top (or open **Controls**), allow MIDI access in Chrome, then choose **TD-17**. Strike each pad to check the live readout. **Check or change pad assignments → Learn pad** adds or reassigns a pad/rim/edge by striking it. Choose **Done**, then **Start groove**; kit hits share the keyboard scoring clock in every view.

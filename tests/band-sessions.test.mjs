@@ -12,6 +12,7 @@ import { prepareSchoolStorage } from '../server/storage.mjs';
 import { BandSessions } from '../server/band-sessions.mjs';
 import { builtinArrangement } from '../dist/arrangements.mjs';
 import { duetMidi } from './duet-fixture.mjs';
+import { createDemoWav } from '../dist/demo-data.mjs';
 
 async function bandFixture(t) {
   const directory=await mkdtemp(path.join(tmpdir(),'groove-band-')),store=await ClassroomStore.open(directory),api=new ClassroomApi(store,{secureCookies:false}),server=createAppServer({school:api}),peers=[];
@@ -129,6 +130,50 @@ test('library publishes mixed or keyboard-only MIDI parts and failed revisions p
   assert.equal((await env.request(env.b,'/band/runs','POST',solo)).data.duplicate,true);
   assert.equal((await env.request(env.a,'/band/runs','POST',solo)).status,409);
 });
+test('existing drum-library MIDI exposes its piano without replacing the song, then supports both students and safe part updates',async t=>{
+  const env=await bandFixture(t),midi=duetMidi(),audio=new Uint8Array(createDemoWav());
+  const metadata={title:'Original piano and drums',fileName:'piano.mid',audioName:'original.wav',midiBytes:midi.length,audioBytes:audio.length,selected:['0:9'],mapping:{36:'tom3'},offset:-0.125,timeScale:1.25,volume:0.37};
+  const publish=async meta=>{
+    const begin=await env.request(env.setup,'/library/uploads','POST',meta);assert.equal(begin.status,201);
+    const id=begin.data.uploadId;
+    assert.equal((await env.request(env.setup,'/library/uploads/'+id+'/midi','PUT',midi)).status,200);
+    assert.equal((await env.request(env.setup,'/library/uploads/'+id+'/audio','PUT',audio)).status,200);
+    return env.request(env.setup,'/library/uploads/'+id+'/publish','POST',{});
+  };
+  const published=await publish(metadata);assert.equal(published.status,200);const song=published.data.song;
+  assert.deepEqual(song.parts.map(part=>part.instrument),['drums','keyboard']);
+  // Recreate metadata written before multi-instrument support. Reads must not rewrite it.
+  const legacy={...song};for(const key of ['parts','arrangementVersion','id','revisionId','ownerId','ownerName','canManage','archived','savedAt'])delete legacy[key];
+  const stored=JSON.stringify(legacy);env.store.db.prepare('UPDATE revisions SET metadata=? WHERE id=?').run(stored,song.revisionId);
+  const schoolId=env.store.setting('school_id'),users=env.store.db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+  const catalog=await env.request(env.a,'/band/catalog');assert.equal(catalog.status,200);
+  assert.deepEqual(catalog.data.songs.find(item=>item.id===song.id).parts.map(part=>part.instrument),['drums','keyboard']);
+  const listed=(await env.request(env.b,'/library')).data.songs.find(item=>item.id===song.id);
+  const loaded=(await env.request(env.b,'/library/'+song.id)).data.song;
+  assert.equal(listed.parts[1].id,'keyboard');assert.equal(loaded.revisionId,song.revisionId);assert.equal(loaded.offset,-0.125);assert.equal(loaded.volume,0.37);
+  assert.equal(env.store.db.prepare('SELECT metadata FROM revisions WHERE id=?').get(song.revisionId).metadata,stored);
+  const {arrangement}= (await env.request(env.b,'/band/arrangements/school/'+song.id+'?revision='+song.revisionId)).data;
+  assert.equal(arrangement.parts[0].chart.notes[0].drum,'tom3');assert.equal(arrangement.parts[1].chart.notes[1].time,0.625);
+  assert.equal(arrangement.parts[1].chart.notes[0].pitch,60);assert.equal(arrangement.parts[1].chart.notes[0].duration,0.3125);
+  assert.equal(arrangement.parts[0].chart.duration,arrangement.parts[1].chart.duration);assert.equal(arrangement.audio.offset,-0.125);assert.equal(arrangement.audio.volume,0.37);
+  const created=await env.request(env.setup,'/band/rooms','POST',{sourceKind:'school',sourceId:song.id,revisionId:song.revisionId,assignments:[{userId:env.a.user.id,partId:'drums'},{userId:env.b.user.id,partId:'keyboard'}]});assert.equal(created.status,201);
+  const {peers,room}=await readyRoom(env,created.data.room);
+  const started=(await env.request(env.setup,'/band/rooms/'+room.id+'/start','POST',{version:room.version})).data.room;
+  env.advance(started.startAt+arrangement.duration*1000+400);
+  for(const [index,peer] of peers.slice(1).entries()){
+    const total=arrangement.parts[index].chart.notes.length;
+    peer.send({type:'finish',takeId:started.takeId,summary:{total,hits:total,misses:0,wrong:0,extras:0,bestStreak:total,meanMs:0,meanAbsMs:0}});await peer.wait(m=>m.type==='saved');
+  }
+  await peers[0].wait(m=>m.type==='room'&&m.room.state==='completed');
+  const updated=await publish({...metadata,songId:song.id,revisionId:song.revisionId,parts:loaded.parts});assert.equal(updated.status,200);
+  assert.equal(updated.data.song.id,song.id);assert.notEqual(updated.data.song.revisionId,song.revisionId);
+  assert.deepEqual(updated.data.song.mapping,metadata.mapping);assert.equal(updated.data.song.offset,metadata.offset);assert.equal(updated.data.song.timeScale,metadata.timeScale);assert.equal(updated.data.song.volume,metadata.volume);
+  assert.deepEqual(await readFile(env.store.musicPath(song.revisionId,'midi')),Buffer.from(midi));assert.deepEqual(await readFile(env.store.musicPath(updated.data.song.revisionId,'audio')),Buffer.from(audio));
+  assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM songs').get().n,1);assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM runs').get().n,2);
+  assert.equal(env.store.setting('school_id'),schoolId);assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM users').get().n,users);
+  const stale=await env.request(env.setup,'/library/uploads','POST',{...metadata,songId:song.id,revisionId:song.revisionId,parts:loaded.parts});assert.equal(stale.status,409);
+});
+
 test('schema migration preserves existing school identities, users, songs and recovery before adding band tables',async t=>{
   const env=await bandFixture(t),id=env.store.setting('school_id'),count=env.store.db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
   const midi=duetMidi(),begin=await env.request(env.setup,'/library/uploads','POST',{title:'Existing drum song',fileName:'old.mid',audioName:'',midiBytes:midi.length,audioBytes:0,selected:['0:9'],mapping:{},offset:0,timeScale:1,volume:0.65});

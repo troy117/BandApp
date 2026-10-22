@@ -1,15 +1,21 @@
 # Groove Lab — development handoff
 
-Updated October 21, 2026. This is the starting point for continuing at home.
+Updated October 22, 2026. This is the starting point for continuing at home.
 
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.11.0 / Prototype 11**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Browser app, version **0.11.1 / Prototype 11.1**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Piano tracks in library songs
+
+Version 0.11.1 detects piano/keyboard track or instrument names and explicit General MIDI piano programs. Older school songs without instrument assignments expose detected piano alongside their saved drums on read; this does not rewrite the database, change the revision, replace files or change backing alignment. Explicit part assignments are respected. New publications store both detected parts. The library offers Practice keyboard and, for the publishing teacher/owner, Edit instrument parts. Edit loads the existing MIDI/backing/offset/speed/volume/drum map and publishes a new revision of that same song. Ambiguous tracks can be assigned manually; no piano part is generated from drums or an MP3.
+
+The user specifically mentioned Fleetwood Mac-Dreams-04-28-2026. That exact MIDI is not in this local school database, so its track labels and hardware playback have not been verified. Tests use original synthetic duets. Keep the current Railway volume and variables; no schema change is needed.
 
 ## Run on the home computer
 

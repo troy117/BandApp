@@ -1,5 +1,12 @@
 # Changes
 
+## 0.11.1 — October 22, 2026 — Prototype 11.1
+
+- Detect piano/keyboard track and instrument names plus explicit General MIDI piano programs, including program changes on another track of the same channel. Leave ambiguous guitar/bass/unidentified tracks unassigned; explicit instrument assignments win.
+- Older school songs without part metadata expose their detected piano alongside their saved drums in the library, keyboard practice and teacher session catalog. Detection reads the retained MIDI without replacing files, changing song/revision identity or rewriting existing records. New publications store the detected instrument parts.
+- Practice keyboard opens the actual piano part. Publishing teachers/owners can Edit instrument parts using the existing MIDI, backing, offset, speed, volume and drum map, then publish a revision of the same song. Existing files and practice results remain.
+- Validation: **110 tests pass**, syntax and standalone export pass. Coverage includes older-library detection, program/channel timing, explicit assignments, end-to-end imported-song two-student start/results, song revisions and backing preservation, and library action routing. Browser QA verifies detected piano practice, retained settings, revision publication and separate drum/piano session seats with isolated synthetic accounts and original music. The exact Dreams MIDI and physical instruments have not been verified locally.
+
 ## 0.11.0 — October 21, 2026 — Prototype 11
 
 - Solo MIDI keyboard practice: selected input/channel, held-key feedback, configurable computer keys and octave, optional synthesized tones, keyboard note highway/fullscreen, pitch/onset timing judge, wrong-note feedback, per-note report and CSV. Releases and computer repeat suppression are distinct from drum input.

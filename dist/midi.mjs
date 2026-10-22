@@ -65,10 +65,22 @@ export function parseMidiSong(input, fileName = 'Imported song.mid') {
   if (!header.ticksPerBeat) throw new Error('SMPTE-timed MIDI is not supported yet. Export MIDI with musical beat timing.');
   if (header.numTracks !== tracks.length || !tracks.length || header.numTracks > 512) throw new Error('The MIDI file is incomplete or contains too many tracks.');
   const tempos = [], signatures = [], parts = [];
+  const programEvents = new Map();
+  for (const events of tracks) {
+    let tick = 0;
+    for (const event of events) {
+      tick += event.deltaTime;
+      if (event.type !== 'programChange') continue;
+      if (!programEvents.has(event.channel)) programEvents.set(event.channel, []);
+      programEvents.get(event.channel).push({ tick, program: event.programNumber });
+    }
+  }
+  for (const events of programEvents.values()) events.sort((a, b) => a.tick - b.tick);
   let endTick = 0;
   tracks.forEach((events, trackIndex) => {
     let tick = 0;
     const name = events.find(event => event.type === 'trackName')?.text || `Track ${trackIndex + 1}`;
+    const instrumentName = events.find(event => event.type === 'instrumentName')?.text || '';
     const channels = new Map(), held = new Map();
     for (const event of events) {
       tick += event.deltaTime;
@@ -83,7 +95,10 @@ export function parseMidiSong(input, fileName = 'Imported song.mid') {
       }
       if (event.type !== 'noteOn') continue;
       if (!Number.isInteger(event.noteNumber) || event.noteNumber < 0 || event.noteNumber > 127 || !Number.isInteger(event.velocity) || event.velocity < 1 || event.velocity > 127) throw new Error('The MIDI contains an invalid note.');
-      if (!channels.has(event.channel)) channels.set(event.channel, { id: `${trackIndex}:${event.channel}`, name, track: trackIndex + 1, channel: event.channel + 1, notes: [] });
+      if (!channels.has(event.channel)) channels.set(event.channel, { id: `${trackIndex}:${event.channel}`, name, instrumentName, track: trackIndex + 1, channel: event.channel + 1, programs: [], notes: [] });
+      const part = channels.get(event.channel), channelPrograms = programEvents.get(event.channel);
+      const program = channelPrograms?.length && channelPrograms[0].tick <= tick ? lastBefore(channelPrograms, tick, 'tick').program : undefined;
+      if (program !== undefined && !part.programs.includes(program)) part.programs.push(program);
       const note = { tick, pitch: event.noteNumber, velocity: event.velocity };
       channels.get(event.channel).notes.push(note);
       const key = event.channel + ':' + event.noteNumber;
@@ -104,6 +119,13 @@ export function parseMidiSong(input, fileName = 'Imported song.mid') {
   for (const part of parts) {
     part.rhythmGame = /PART\s+DRUMS/i.test(part.name);
     part.drumCandidate = part.channel === 10 || /drum|percussion/i.test(part.name);
+    // Only explicit instrument evidence suggests piano. An unnamed melodic track
+    // without a program change might be guitar, bass or another instrument.
+    const label = part.name + ' ' + part.instrumentName;
+    const namedKeyboard = /\b(piano|pianoforte|keyboard|keys|clavinet|clavi|celesta|harpsichord|rhodes|wurlitzer)\b/i.test(label);
+    const namedOther = /\b(guitar|bass|vocal|voice|strings|violin|cello|sax|trumpet|flute)\b/i.test(label);
+    const pianoProgram = part.programs.length > 0 && part.programs.every(program => program >= 0 && program <= 7);
+    part.keyboardCandidate = !part.drumCandidate && (namedKeyboard || pianoProgram && !namedOther);
   }
   let selected = parts.filter(part => part.drumCandidate).map(part => part.id);
   if (!selected.length) {

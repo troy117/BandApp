@@ -14,6 +14,19 @@ const smf = (tracks, format = 1, division = 480) => new Uint8Array([...chunk('MT
 const eot = [0, 255, 47, 0];
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} != ${expected}`);
 
+test('piano suggestions use named instruments or explicit GM piano programs, not pitch ranges or default patches', () => {
+  const track = (name, channel, program, instrument = '') => [0,255,3,text(name).length,...text(name),...(instrument ? [0,255,4,text(instrument).length,...text(instrument)] : []),...(program === null ? [] : [0,0xc0+channel,program]),0,0x90+channel,60,100,...vlq(480),0x80+channel,60,0,...eot];
+  const song = parseMidiSong(smf([
+    track('Electric piano',0,null), track('Track 2',1,0), track('Track 3',2,4),
+    track('Guitar',3,0), track('Bass',4,33), track('Track 6',5,null),
+    track('Piano percussion',9,0), track('Track 8',7,null,'Grand Piano'),
+    track('Synth lead',8,80), track('Keys',10,null),
+  ]));
+  assert.deepEqual(song.parts.map(part=>part.keyboardCandidate),[true,true,true,false,false,false,false,true,false,true]);
+  assert.deepEqual(song.parts[1].programs,[0]);
+  assert.deepEqual(song.selected,['6:9']);
+});
+
 test('sample MIDI chooses percussion, excludes bass, and preserves the tempo change', () => {
   const song = parseMidiSong(createDemoMidi(), 'Sample.mid');
   assert.equal(song.parts.length, 2);
@@ -26,6 +39,19 @@ test('sample MIDI chooses percussion, excludes bass, and preserves the tempo cha
   near(chart.notes.find(note => note.tick === 3840).time, 4);
   near(chart.notes.find(note => note.tick === 4320).time, 4.6);
   assert.equal(activeDrums(chart).length, 8);
+});
+
+test('instrument programs follow their MIDI channel across tracks and do not apply before their own timestamp', () => {
+  const song = parseMidiSong(smf([
+    [0,0xc0,0,...eot],
+    [0,0x90,60,100,...vlq(480),0x80,60,0,...eot],
+    [...vlq(240),0xc1,0,...eot],
+    [0,0x91,64,100,...vlq(120),0x81,64,0,...eot],
+    [0,0xc2,0,...vlq(240),0xc2,25,...eot],
+    [0,0x92,67,100,...vlq(240),0x82,67,0,0,0x92,69,100,...vlq(240),0x82,69,0,...eot],
+  ]));
+  assert.deepEqual(song.parts.map(part=>part.keyboardCandidate),[true,false,false]);
+  assert.deepEqual(song.parts[2].programs,[0,25]);
 });
 test('MIDI tempo conversion and its inverse agree on both sides of changes', () => {
   const timeline = buildTimeline(480, [{ tick: 960, microsecondsPerBeat: 1000000 }], []);

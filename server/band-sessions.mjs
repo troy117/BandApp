@@ -37,6 +37,17 @@ export class BandSessions {
     if (this.cache.size > 12) this.cache.delete(this.cache.keys().next().value);
     return arrangement;
   }
+  async librarySong(actor, song) {
+    if (song.parts !== undefined) return song;
+    try {
+      const arrangement = await this.arrangement(actor, 'school', song.id, song.revisionId);
+      return { ...song, arrangementVersion: 1, parts: arrangement.parts.map(({ id, instrument, name, selected }) => ({ id, instrument, name, selected })) };
+    } catch {
+      // A damaged or unavailable MIDI must not hide the rest of the library.
+      // Loading that individual arrangement still reports its error normally.
+      return song;
+    }
+  }
   room(actor, id) {
     const room = this.rooms.get(id);
     if (!room || (room.teacherId !== actor.id && !room.participants.some(person => person.userId === actor.id)) || !this.eligible(room, actor.id)) throw bandError(404, 'Session not found.');
@@ -54,7 +65,11 @@ export class BandSessions {
   async handle(request, response, url, actor, send) {
     const path = url.pathname.slice('/api/band/'.length), method = request.method;
     if (path === 'catalog' && method === 'GET') {
-      const songs = this.store.listSongs(actor).map(song => ({ id: song.id, revisionId: song.revisionId, sourceKind: 'school', title: song.title, parts: arrangementParts(song.parts, song.selected) }));
+      const songs = [];
+      for (const stored of this.store.listSongs(actor)) {
+        const song = await this.librarySong(actor, stored);
+        songs.push({ id: song.id, revisionId: song.revisionId, sourceKind: 'school', title: song.title, parts: arrangementParts(song.parts, song.selected) });
+      }
       send(200, { songs: [...DUETS.map(song => descriptor(builtinArrangement(song.id))), ...songs] }); return true;
     }
     if (path === 'takes' && method === 'GET') {

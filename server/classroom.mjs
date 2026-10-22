@@ -249,6 +249,8 @@ export class ClassroomStore {
     const meta = JSON.parse(row.metadata), bytes = await readFile(this.musicPath(id, 'midi'));
     const song = parseMidiSong(bytes, meta.fileName);
     const arrangement = importedArrangement(song, meta), chart = (arrangement.parts.find(part => part.instrument === 'drums') || arrangement.parts[0]).chart;
+    meta.parts = arrangement.parts.map(({ id, instrument, name, selected }) => ({ id, instrument, name, selected }));
+    meta.arrangementVersion = 1;
     Object.assign(meta, { fingerprint: song.fingerprint, notes: chart.notes.length, duration: chart.duration, bpm: chart.bpm, bytes: row.midi_expected + row.audio_expected });
     this.transaction(() => {
       const current = this.db.prepare('SELECT * FROM songs WHERE id=?').get(row.song_id);
@@ -382,7 +384,11 @@ export class ClassroomApi {
         if (action === 'active' && method === 'POST') { send(200, { user: this.store.setActive(actor, id, (await this.json(request)).active) }); return true; }
       }
       if (pathname === '/api/runs' && method === 'POST') { this.limit(`runs:${actor.id}`, 240, 60 * 60 * 1000); send(200, this.store.saveRun(actor, await this.json(request))); return true; }
-      if (pathname === '/api/library' && method === 'GET') { send(200, { songs: this.store.listSongs(actor, url.searchParams.get('archived') === 'true') }); return true; }
+      if (pathname === '/api/library' && method === 'GET') {
+        const songs = this.store.listSongs(actor, url.searchParams.get('archived') === 'true');
+        const resolved = []; for (const song of songs) resolved.push(this.band ? await this.band.librarySong(actor, song) : song);
+        send(200, { songs: resolved }); return true;
+      }
       if (pathname === '/api/library/uploads' && method === 'POST') { this.limit(`uploads:${actor.id}`, 100, 60 * 60 * 1000); this.store.requireStaff(actor); await this.store.cleanDrafts(); send(201, this.store.beginUpload(actor, await this.json(request))); return true; }
       match = pathname.match(/^\/api\/library\/uploads\/([0-9a-f-]+)(?:\/(midi|audio|publish))?$/);
       if (match) {
@@ -394,7 +400,7 @@ export class ClassroomApi {
       match = pathname.match(/^\/api\/library\/([0-9a-f-]+)(?:\/(archive|revisions\/([0-9a-f-]+)\/(midi|audio)))?$/);
       if (match) {
         const [, id, action, revision, kind] = match;
-        if (!action && method === 'GET') { send(200, { song: this.store.getSong(actor, id) }); return true; }
+        if (!action && method === 'GET') { const song = this.store.getSong(actor, id); send(200, { song: this.band ? await this.band.librarySong(actor, song) : song }); return true; }
         if (action === 'archive' && method === 'POST') { this.store.archiveSong(actor, id, (await this.json(request)).archived); send(200, { updated: true }); return true; }
         if (revision && ['GET', 'HEAD'].includes(method)) { await this.store.sendFile(actor, id, revision, kind, request, response); return true; }
       }

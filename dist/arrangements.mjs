@@ -25,8 +25,21 @@ export function arrangementParts(input, legacySelected) {
     return { id: part.id, instrument: part.instrument, name: part.name.trim(), selected: [...new Set(part.selected)] };
   });
 }
+export function detectedArrangementParts(song, metadata = {}) {
+  // Explicit assignments always win, including a deliberate drum-only arrangement.
+  if (metadata.parts !== undefined) return arrangementParts(metadata.parts, metadata.selected || song.selected);
+  const selected = [...(metadata.selected || song.selected)];
+  const keyboard = song.parts.filter(part => part.keyboardCandidate && !selected.includes(part.id)).map(part => part.id);
+  const drums = selected.filter(id => song.parts.some(part => part.id === id && part.drumCandidate));
+  // A piano-only MIDI has no percussion selection: avoid turning its notes into drums.
+  const pianoOnly = !metadata.selected && !drums.length && song.parts.every(part => part.keyboardCandidate);
+  if (pianoOnly) return [{ id: 'keyboard', instrument: 'keyboard', name: 'Piano / Keyboard', selected: song.parts.map(part => part.id) }];
+  const parts = [{ id: 'drums', instrument: 'drums', name: 'Drums', selected }];
+  if (keyboard.length) parts.push({ id: 'keyboard', instrument: 'keyboard', name: 'Piano / Keyboard', selected: keyboard });
+  return arrangementParts(parts);
+}
 export function importedArrangement(song, metadata = {}) {
-  const parts = arrangementParts(metadata.parts, metadata.selected || song.selected);
+  const parts = detectedArrangementParts(song, metadata);
   const timeScale = metadata.timeScale ?? 1;
   const charts = parts.map(part => {
     if (!part.selected.every(id => song.parts.some(candidate => candidate.id === id))) throw new Error('An assigned MIDI track is missing.');

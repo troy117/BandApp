@@ -55,7 +55,7 @@ test('provided duets share one timeline while keeping keyboard pitches out of dr
     assert.equal(keys.chart.notes[0].time,drums.chart.notes[0].time);
   }
 });
-test('imported arrangements preserve keyboard releases, shared meter and scaling; legacy MIDI stays drum-only', () => {
+test('imported arrangements preserve keyboard releases, shared meter and scaling; old library metadata detects piano', () => {
   const song=parseMidiSong(duetMidi(),'Duet.mid'),keys=song.parts.find(part=>part.channel===1);
   assert.equal(keys.notes[0].endTick,240);assert.equal(keys.notes[1].endTick,720);
   const parts=[{id:'drums',instrument:'drums',name:'Drums',selected:[song.parts.find(p=>p.channel===10).id]},{id:'keyboard',instrument:'keyboard',name:'Keys',selected:[keys.id]}];
@@ -63,7 +63,11 @@ test('imported arrangements preserve keyboard releases, shared meter and scaling
   assert.equal(arr.parts[1].chart.notes[0].duration,0.5);
   assert.equal(arr.parts[1].chart.notes[1].time,1);
   assert.deepEqual(arr.parts[0].chart.measures,arr.parts[1].chart.measures);
-  assert.equal(importedArrangement(song).parts.length,1);
+  const legacy=importedArrangement(song,{selected:parts[0].selected,timeScale:2,mapping:{36:'tom3'}});
+  assert.equal(legacy.parts.length,2);assert.equal(legacy.parts[0].chart.notes[0].drum,'tom3');
+  assert.equal(legacy.parts[1].chart.notes[0].pitch,60);assert.equal(legacy.parts[1].chart.notes[0].duration,0.5);
+  assert.deepEqual(legacy.parts[0].chart.measures,legacy.parts[1].chart.measures);
+  assert.equal(importedArrangement(song,{parts:[parts[0]]}).parts.length,1);
   assert.throws(()=>arrangementParts([{...parts[0],id:'<bad>'}]),/Invalid/);
   assert.throws(()=>importedArrangement(song,{parts:[{...parts[1],selected:['99:0']}]}),/missing/);
 });
