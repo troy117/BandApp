@@ -1,12 +1,18 @@
 # Teacher accounts, school songs and student progress
 
-Updated for version 0.11 / Prototype 11 · October 21, 2026
+Updated for version 0.11.2 / Prototype 11.2 · October 22, 2026
+
+## Teacher-set student passwords
+
+In School sign in → Open classroom, enter Student password when adding a student, or choose Set password beside an existing student. Students can use 4–128 characters; teachers and the school owner use 8–128. A teacher can set passwords for their own students, and the school owner can manage all students. The student can sign in immediately and join jam sessions without changing a teacher-set password.
+
+Setting a password ends that student’s existing sign-ins and keeps their username, music access and practice results. Passwords are still stored as salted hashes, never retrievable as plain text. Login details are shown only for the current teacher visit. Existing accounts and passwords continue working; no storage migration or Railway variable is needed.
 
 ## What this release does
 
 - One shared school library. Teachers publish MIDI, optional backing audio, drum mapping and alignment together. Every signed-in student can practice those songs on any computer using the same school website.
 - The first teacher is the **school owner**. The owner can create teachers, assign students to a teacher, and view school results.
-- Teachers create student usernames without email addresses. Teachers see their own roster and their students' results. They can reset temporary passwords and disable/re-enable accounts without deleting history.
+- Teachers create student usernames without email addresses. Teachers see their own roster and their students' results. They can set student passwords and disable/re-enable accounts without deleting history.
 - Students can see their own results and practice all published songs and the 24 built-in tracks. Students cannot publish/archive school songs, create accounts, or view other students' results.
 - Completed scored runs save match rate, hits/misses/extras, streak, tempo range, section/passes/focus, timing window, signed early/late tendency, average absolute error and timing by drum. Listen mode and stopped runs do not save attempts.
 - The homepage shows recent account history; **School sign in → My practice results** opens paginated full history. Teachers use **Open classroom → Results** for a student.
@@ -31,7 +37,7 @@ The new code needs persistent storage; GitHub alone does not hold accounts or mu
    Generate a private setup key on your own computer with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`. Paste it into Railway Variables and keep it private. It is not a student login. Do not put it in GitHub or chat.
 3. Keep the start command **`npm start`**, Node **24.x**, healthcheck **`/healthz`**, and one service replica. Railway must install package-lock.json dependencies (npm ci includes ws). Deploy the latest commit.
 4. Open the HTTPS school website. The footer should show **Prototype 11** or newer. Choose **School sign in**, enter the setup key, and create your own teacher username and password. This creates the school owner. First-time setup closes after that account exists. Remove GROOVE_ALLOW_NEW_SCHOOL, then set GROOVE_EXPECTED_SCHOOL_ID to the displayed identity. Keep your current teacher account and data when upgrading an existing school; do not repeat first-time setup.
-5. Open **classroom** and create the other teachers/students. New accounts receive a generated temporary password, shown at creation. Copy/share that login directly; the user chooses their own password on first sign-in. Names can be first names or nicknames. Passwords/passphrases need at least 15 characters.
+5. Open **classroom** and create the other teachers/students. For a student, enter an optional password of at least 4 characters; that password works immediately with no first-sign-in change. Leave it blank to generate a temporary password the student replaces on first sign-in. Staff accounts receive temporary passwords and choose their own password of at least 8 characters. Names can be first names or nicknames. No special character, number or capital-letter mix is required.
 6. Enable scheduled volume backups in Railway's **Backups** tab and retain a private copy of the original music. Backups and owner recovery are described below.
 
 Without `GROOVE_DATA_DIR`, production keeps serving guest practice and device libraries, but school accounts are disabled with a setup explanation. It never silently creates a temporary production database. With a data directory configured, invalid HTTPS/setup-key configuration stops startup. A failed storage/mount/identity/integrity check pauses school APIs and shows School storage needs attention while individual practice remains available. The app does not create a replacement school to hide the failure. Railway provides RAILWAY_VOLUME_MOUNT_PATH automatically; do not add a guessed value manually.

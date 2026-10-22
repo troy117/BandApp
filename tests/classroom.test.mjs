@@ -151,6 +151,47 @@ test('school accounts, shared music and private progress work across sessions an
   assert.equal((await otherComputer.request('/api/library')).status, 401);
 });
 
+test('teachers choose short student passwords without a forced change, preserve results and revoke old sign-ins', async t => {
+  const env=await fixture(t),owner=env.client();
+  assert.equal((await owner.request('/api/setup','POST',{username:'owner',name:'Owner',schoolName:'Test school',password:'staff123',setupToken:env.setupToken})).status,200);
+  const addTeacher=async username=>{
+    const created=await owner.request('/api/users','POST',{username,name:username,role:'teacher'});
+    const client=env.client();await client.login(username,created.data.temporaryPassword);
+    assert.equal((await client.request('/api/password','POST',{currentPassword:created.data.temporaryPassword,password:'teacher8'})).status,200);
+    return {client,user:created.data.user};
+  };
+  const a=await addTeacher('teacher.a'),b=await addTeacher('teacher.b');
+  for(const password of ['abc','    ',null,1234,'a'.repeat(129)])assert.equal((await a.client.request('/api/users','POST',{username:'invalid',name:'Invalid',password})).status,400);
+  const created=await a.client.request('/api/users','POST',{username:'student.a',name:'Student',password:'beat'});
+  assert.equal(created.status,201);assert.equal(created.data.user.mustChangePassword,false);assert.equal('temporaryPassword' in created.data,false);assert.equal('password' in created.data,false);
+  const id=created.data.user.id,student=env.client();
+  assert.equal((await student.login('student.a','beat')).status,200);assert.equal((await student.request('/api/library')).status,200);
+  assert.equal((await student.request('/api/runs','POST',result())).status,200);
+  const second=(await a.client.request('/api/users','POST',{username:'student.two',name:'Second',password:'keys'})).data.user;
+  const room=await a.client.request('/api/band/rooms','POST',{sourceKind:'duet',sourceId:'duet-first',assignments:[{userId:id,partId:'drums'},{userId:second.id,partId:'keyboard'}]});assert.equal(room.status,201);
+  assert.equal((await b.client.request(`/api/users/${id}/reset-password`,'POST',{password:'new4'})).status,404);
+  assert.equal((await student.request(`/api/users/${second.id}/reset-password`,'POST',{password:'new4'})).status,403);
+  assert.equal((await a.client.request(`/api/users/${id}/reset-password`,'POST',{password:'bad'})).status,400);
+  assert.equal((await student.request('/api/library')).status,200);
+  const reset=await a.client.request(`/api/users/${id}/reset-password`,'POST',{password:'new4'});
+  assert.equal(reset.status,200);assert.equal(reset.data.user.mustChangePassword,false);assert.equal('password' in reset.data,false);
+  assert.equal((await student.request('/api/library')).status,401);assert.equal((await student.login('student.a','beat')).status,401);
+  assert.equal((await student.login('student.a','new4')).status,200);assert.equal((await student.request('/api/library')).status,200);
+  assert.equal((await student.request(`/api/users/${id}/progress`)).data.summary.attempts,1);
+  assert.equal((await student.request('/api/password','POST',{currentPassword:'new4',password:'play'})).status,200);
+  assert.equal((await student.request('/api/password','POST',{currentPassword:'play',password:'no'})).status,400);
+  assert.equal((await owner.request('/api/password','POST',{currentPassword:'staff123',password:'tiny',role:'student'})).status,400);
+  assert.equal((await owner.request('/api/users','POST',{username:'teacher.short',name:'Teacher',role:'teacher',password:'abcd'})).status,400);
+  const publicRoster=await a.client.request('/api/users');assert.ok(!JSON.stringify(publicRoster.data).includes('password_hash'));assert.ok(!JSON.stringify(publicRoster.data).includes('new4'));
+  const hash=env.store.user(id).password_hash;assert.match(hash,/^scrypt:/);assert.notEqual(hash,'play');
+  const audit=env.store.db.prepare('SELECT action FROM audit WHERE subject_id=?').all(id);assert.ok(audit.some(row=>row.action==='account.password_set'));
+  await env.stop();await env.start();const otherComputer=env.client();
+  assert.equal((await otherComputer.login('student.a','play')).status,200);assert.equal((await otherComputer.request(`/api/users/${id}/progress`)).data.summary.attempts,1);
+  const temporary=await a.client.request(`/api/users/${id}/reset-password`,'POST',{});assert.equal(temporary.status,200);assert.equal(temporary.data.user.mustChangePassword,true);
+  await otherComputer.login('student.a',temporary.data.temporaryPassword);
+  assert.equal((await otherComputer.request('/api/password','POST',{currentPassword:temporary.data.temporaryPassword,password:'drum'})).status,200);
+});
+
 test('practice validation rejects malformed scores and pagination retains equal-time attempts', async t => {
   const env = await fixture(t), owner = env.client();
   await owner.request('/api/setup', 'POST', { username: 'owner', name: 'Owner', schoolName: 'Test school', password: passphrase, setupToken: env.setupToken });

@@ -1,5 +1,12 @@
 # Changes
 
+## 0.11.2 — October 22, 2026 — Prototype 11.2
+
+- Teachers can choose a student password on account creation or use Set password on an existing roster entry. Teacher-chosen student passwords work immediately for practice and jam sessions without a forced first-login change. Leaving the create-password field blank retains the generated temporary-password option.
+- Student passwords accept 4–128 characters; staff passwords accept 8–128, without composition rules. Browser and server share the role-specific minimum. Existing passwords continue working.
+- Password changes preserve usernames/results and revoke existing student sessions. Roster ownership checks, salted password hashes, CSRF protection and sign-in rate limits remain. Chosen passwords are not echoed by the API or stored in plain text; the teacher can copy their submitted login details for the current visit. No schema or Railway variable changes.
+- Validation: **113 tests pass**, module syntax and standalone export pass. Tests cover teacher/owner permissions, short-password validation and sign-in, generated-password compatibility, jam assignment without a first-login change, session revocation, password changes across restart, retained results and browser-client form/credential behavior. The live browser preview check was blocked by the browser URL policy; no real account passwords were changed.
+
 ## 0.11.1 — October 22, 2026 — Prototype 11.1
 
 - Detect piano/keyboard track and instrument names plus explicit General MIDI piano programs, including program changes on another track of the same channel. Leave ambiguous guitar/bass/unidentified tracks unassigned; explicit instrument assignments win.

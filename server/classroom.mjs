@@ -10,6 +10,7 @@ import { validateAlignment } from '../dist/sync.mjs';
 import { DRUMS, GROOVES } from '../dist/engine.mjs';
 import { arrangementParts, importedArrangement } from '../dist/arrangements.mjs';
 import { BAND_SCHEMA, migrateBandStorage } from './band-results.mjs';
+import { passwordMinimum, PASSWORD_MAX_LENGTH } from '../dist/password-policy.mjs';
 
 const derivePassword = promisify(scrypt);
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -18,7 +19,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const isStaff = user => user.role === 'teacher' || user.role === 'owner';
 const cleanText = (value, limit, label) => { if (typeof value !== 'string' || !value.trim() || value.length > limit || /[\u0000-\u001f]/.test(value)) throw new SchoolError(400, `Enter a valid ${label}.`); return value.trim(); };
 const usernameValue = value => { const name = String(value || '').toLowerCase().trim(); if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(name)) throw new SchoolError(400, 'Use a username of 3–40 letters, numbers, dots, dashes or underscores.'); return name; };
-const passwordValue = value => { if (typeof value !== 'string' || value.length < 15 || value.length > 128) throw new SchoolError(400, 'Use a password or passphrase of 15–128 characters.'); return value; };
+const passwordValue = (value, role) => { const minimum = passwordMinimum(role); if (typeof value !== 'string' || value.length < minimum || value.length > PASSWORD_MAX_LENGTH || !value.trim()) throw new SchoolError(400, `Use a password of ${minimum}–${PASSWORD_MAX_LENGTH} characters.`); return value; };
 const publicUser = row => row ? { id: row.id, username: row.username, name: row.name, role: row.role, teacherId: row.teacher_id, active: Boolean(row.active), mustChangePassword: Boolean(row.must_change) } : null;
 
 export class SchoolError extends Error {
@@ -35,7 +36,7 @@ export class SchoolPasswords {
     try { return await derivePassword(password, salt, 32, { N: 131072, r: 8, p: 1, maxmem: 192 * 1024 * 1024 }); }
     finally { if (this.waiters.length) this.waiters.shift()(); else this.running--; }
   }
-  async hash(password) { const salt = randomBytes(16).toString('hex'); return `scrypt:131072:8:1:${salt}:${(await this.derive(passwordValue(password), salt)).toString('hex')}`; }
+  async hash(password, role) { const salt = randomBytes(16).toString('hex'); return `scrypt:131072:8:1:${salt}:${(await this.derive(passwordValue(password, role), salt)).toString('hex')}`; }
   async verify(password, encoded) {
     const parts = String(encoded || '').split(':');
     const valid = parts.length === 6 && parts.slice(0, 4).join(':') === 'scrypt:131072:8:1' && /^[0-9a-f]{32}$/.test(parts[4]) && /^[0-9a-f]{64}$/.test(parts[5]);
@@ -138,16 +139,26 @@ export class ClassroomStore {
     if (this.db.prepare('SELECT COUNT(*) AS n FROM users').get().n >= 1000) throw new SchoolError(409, 'This school has reached the 1,000 account limit.');
     let teacherId = role === 'student' ? actor.id : null;
     if (role === 'student' && actor.role === 'owner' && input.teacherId) { const teacher = this.user(input.teacherId); if (!teacher?.active || !isStaff(teacher)) throw new SchoolError(400, 'Choose an active teacher.'); teacherId = teacher.id; }
-    const password = `drum-${randomBytes(9).toString('base64url')}`, hash = await this.passwords.hash(password), id = randomUUID();
-    try { this.db.prepare('INSERT INTO users(id,username,name,role,teacher_id,password_hash,must_change,created_at) VALUES (?,?,?,?,?,?,1,?)').run(id, username, name, role, teacherId, hash, this.now()); }
+    const chosen = input.password !== undefined && input.password !== '';
+    if (chosen && role !== 'student') throw new SchoolError(400, 'Teacher-set passwords are for student accounts.');
+    const password = chosen ? input.password : `drum-${randomBytes(9).toString('base64url')}`, hash = await this.passwords.hash(password, role), id = randomUUID();
+    try { this.db.prepare('INSERT INTO users(id,username,name,role,teacher_id,password_hash,must_change,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id, username, name, role, teacherId, hash, chosen ? 0 : 1, this.now()); }
     catch (error) { if (String(error.code).includes('CONSTRAINT') || /UNIQUE/.test(error.message)) throw new SchoolError(409, 'That username is already in use.'); throw error; }
     this.audit(actor, 'account.create', id);
-    return { user: publicUser(this.user(id)), temporaryPassword: password };
+    return { user: publicUser(this.user(id)), ...(chosen ? {} : { temporaryPassword: password }) };
   }
-  async resetPassword(actor, userId) {
-    const user = this.manageable(actor, userId), password = `drum-${randomBytes(9).toString('base64url')}`, hash = await this.passwords.hash(password);
-    this.transaction(() => { this.db.prepare('UPDATE users SET password_hash=?,must_change=1 WHERE id=?').run(hash, user.id); this.db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id); this.audit(actor, 'account.password_reset', user.id); });
-    return { user: publicUser(this.user(user.id)), temporaryPassword: password };
+  async resetPassword(actor, userId, input = {}) {
+    this.requireStaff(actor);
+    const user = this.manageable(actor, userId), chosen = input.password !== undefined && input.password !== '';
+    if (chosen && user.role !== 'student') throw new SchoolError(400, 'Teacher-set passwords are for student accounts.');
+    const password = chosen ? input.password : `drum-${randomBytes(9).toString('base64url')}`, hash = await this.passwords.hash(password, user.role);
+    this.transaction(() => {
+      const current = this.manageable(actor, userId);
+      if (current.password_hash !== user.password_hash) throw new SchoolError(409, 'This password changed. Reload the roster and try again.');
+      this.db.prepare('UPDATE users SET password_hash=?,must_change=? WHERE id=?').run(hash, chosen ? 0 : 1, user.id);
+      this.db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id); this.audit(actor, chosen ? 'account.password_set' : 'account.password_reset', user.id);
+    });
+    return { user: publicUser(this.user(user.id)), ...(chosen ? {} : { temporaryPassword: password }) };
   }
   setActive(actor, userId, active) {
     const user = this.manageable(actor, userId);
@@ -158,7 +169,7 @@ export class ClassroomStore {
   async changePassword(actor, input) {
     const before = this.user(actor.id);
     if (!await this.passwords.verify(input.currentPassword, before.password_hash)) throw new SchoolError(400, 'The current password is incorrect.');
-    const hash = await this.passwords.hash(input.password);
+    const hash = await this.passwords.hash(input.password, before.role);
     this.transaction(() => {
       const updated = this.db.prepare('UPDATE users SET password_hash=?,must_change=0 WHERE id=? AND password_hash=?').run(hash, actor.id, before.password_hash);
       if (!updated.changes) throw new SchoolError(409, 'The password changed while this request was running. Sign in again.');
@@ -380,7 +391,7 @@ export class ClassroomApi {
       if (match) {
         const [, id, action] = match;
         if (action === 'progress' && method === 'GET') { send(200, this.store.progress(actor, id, url.searchParams.get('cursor'))); return true; }
-        if (action === 'reset-password' && method === 'POST') { this.limit(`reset:${actor.id}`, 50, 60 * 60 * 1000); send(200, await this.store.resetPassword(actor, id)); return true; }
+        if (action === 'reset-password' && method === 'POST') { this.limit(`reset:${actor.id}`, 50, 60 * 60 * 1000); send(200, await this.store.resetPassword(actor, id, await this.json(request))); return true; }
         if (action === 'active' && method === 'POST') { send(200, { user: this.store.setActive(actor, id, (await this.json(request)).active) }); return true; }
       }
       if (pathname === '/api/runs' && method === 'POST') { this.limit(`runs:${actor.id}`, 240, 60 * 60 * 1000); send(200, this.store.saveRun(actor, await this.json(request))); return true; }

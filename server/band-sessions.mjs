@@ -104,7 +104,7 @@ export class BandSessions {
       if (!Array.isArray(input.assignments) || input.assignments.length !== 2 || new Set(input.assignments.map(p => p?.userId)).size !== 2) throw bandError(400, 'Choose two different students.');
       const participants = input.assignments.map(assignment => {
         const user = this.store.user(assignment?.userId), part = arrangement.parts.find(p => p.id === assignment?.partId);
-        if (!user?.active || user.role !== 'student' || user.must_change || (actor.role !== 'owner' && user.teacher_id !== actor.id) || !part) throw bandError(400, 'Choose active students from your roster who have set their passwords, and valid song parts.');
+        if (!user?.active || user.role !== 'student' || user.must_change || (actor.role !== 'owner' && user.teacher_id !== actor.id) || !part) throw bandError(400, 'Choose active students from your roster who can sign in, and valid song parts.');
         return { userId: user.id, name: user.name, partId: part.id, instrument: part.instrument, socket: null, ready: false, state: 'waiting', progress: null };
       });
       const room = { id: randomUUID(), version: randomUUID(), teacherId: actor.id, teacherName: actor.name, teacherSocket: null, teacherReady: false, arrangement, participants, state: 'preparing', createdAt: this.clock(), takeId: null, startAt: null, countInAt: null };

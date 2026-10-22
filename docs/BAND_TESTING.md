@@ -1,12 +1,12 @@
 # First drum and keyboard classroom test
 
-Prototype 11.1 · October 22, 2026
+Prototype 11.2 · October 22, 2026
 
 ## Before the lesson
 
-Confirm the hosted footer says Prototype 11.1. Keep the existing Railway service, volume and GROOVE_DATA_DIR. This update adds tables to the existing database; it does not need a new school, a new volume or new server variables. Railway must install the locked ws dependency; keep Node 24, npm start and one replica. Enable/check backups separately as described in [CLASSROOMS.md](CLASSROOMS.md).
+Confirm the hosted footer says Prototype 11.2. Keep the existing Railway service, volume and GROOVE_DATA_DIR. This update adds tables to the existing database; it does not need a new school, a new volume or new server variables. Railway must install the locked ws dependency; keep Node 24, npm start and one replica. Enable/check backups separately as described in [CLASSROOMS.md](CLASSROOMS.md).
 
-Use three computers: the teacher's computer with a classroom speaker, a student computer connected to the TD-17, and a student computer connected to the MIDI keyboard. Start in Chrome on Windows; Chromebook behavior also needs a real test. All computers open the same HTTPS school website. Each student uses a different teacher-created account and must have chosen their own password before being assigned to a session. Ordinary browser tabs share a login; use separate computers for the classroom trial.
+Use three computers: the teacher's computer with a classroom speaker, a student computer connected to the TD-17, and a student computer connected to the MIDI keyboard. Start in Chrome on Windows; Chromebook behavior also needs a real test. All computers open the same HTTPS school website. Each student uses a different teacher-created account. Teacher-set student passwords work immediately; students given generated temporary passwords first choose their own password (4 characters minimum). Ordinary browser tabs share a login; use separate computers for the classroom trial.
 
 ## Check the keyboard by itself
 
@@ -57,3 +57,7 @@ Open Song library and find the song. Recognized piano tracks appear as Piano / K
 If piano is not offered, the publishing teacher or school owner chooses Edit instrument parts in the library. The existing files and backing settings load automatically. Assign the actual piano track(s) to Piano / Keyboard, percussion to Drums and other instruments to Ignore, then Publish school song update. This keeps the same library song and creates a revision; earlier files/results remain. Other teachers/students can practice the song but cannot change its assignments.
 
 For Fleetwood Mac-Dreams-04-28-2026, verify the identified track is the piano performance and the same arrangement as the recording. The developer has not inspected that exact MIDI in the hosted library. Imported piano is graded for each note’s pitch and start time; sustain/pedal/duration grading and piano staff notation remain future work.
+
+## Teacher-set password check
+
+Create a test student with a four-character password in Open classroom. Sign in as that student on a separate computer and verify the library and Jam session are available without a forced password change. After saving one practice run, have the teacher choose Set password for that student and enter a new password. The old login should end, the old password should fail, and the new password should open the same account and saved results. Teachers manage only their own students; the school owner can manage all students.
