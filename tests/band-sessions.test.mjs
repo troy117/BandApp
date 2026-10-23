@@ -1,3 +1,8 @@
+import { createChart, Judge } from '../dist/engine.mjs';
+import { PitchJudge } from '../dist/instruments.mjs';
+import { createPracticeChart } from '../dist/practice.mjs';
+import { stoppedJudge, makeRunReport } from '../dist/run-report.mjs';
+import { partSummary } from '../dist/arrangements.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
@@ -106,6 +111,11 @@ test('two instruments finish the same take, save separate idempotent reports and
   assert.equal(a.data.records[0].instrument,'drums');assert.equal(b.data.records[0].instrument,'keyboard');assert.equal(a.data.records[0].takeId,b.data.records[0].takeId);
   assert.equal((await env.request(env.a,'/users/'+env.b.user.id+'/progress')).status,404);
   assert.equal((await env.request(env.a,'/band/takes')).status,403);
+  const judge=new PitchJudge(arr.parts[1].chart);for(const [i,note] of judge.chart.notes.entries()){note.status='hit';note.errorMs=i%2?10:-20;note.actualPitch=note.pitch;}judge.bestStreak=judge.chart.notes.length;
+  const detail=makeRunReport(judge,{instrument:'keyboard'});
+  assert.equal((await env.request(env.b,'/band/takes/'+started.takeId+'/report','POST',{report:detail})).status,200);
+  assert.equal((await env.request(env.outsider,'/band/takes/'+started.takeId+'/report','POST',{report:detail})).status,404);
+  assert.equal((await env.request(env.b,'/users/'+env.b.user.id+'/runs/'+b.data.records[0].id)).data.report.notes.length,detail.notes.length);
   const history=await env.request(env.setup,'/band/takes');assert.equal(history.data.takes[0].results.length,2);
   assert.equal((await env.request(env.other,'/band/takes')).data.takes.length,0);
   const schoolId=env.store.setting('school_id');
@@ -249,4 +259,40 @@ test('input interruption and revoked sessions cannot silently complete practice'
   peers[0].send({type:'unready',version:started.version,reason:'Teacher sound stopped.'});
   await peers[0].wait(m=>m.type==='room'&&m.room.state==='interrupted');
   assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM runs').get().n,0);
+});
+
+test('default instruments are roster properties, respect account permissions and survive reopening storage',async t=>{
+ const env=await bandFixture(t);
+ assert.equal(env.store.user(env.a.user.id).default_instrument,null);
+ assert.equal((await env.request(env.setup,'/users/'+env.a.user.id+'/instrument','POST',{defaultInstrument:'bass'})).status,200);
+ assert.equal((await env.request(env.other,'/users/'+env.a.user.id+'/instrument','POST',{defaultInstrument:'guitar'})).status,404);
+ assert.equal((await env.request(env.b,'/users/'+env.a.user.id+'/instrument','POST',{defaultInstrument:'vocals'})).status,403);
+ assert.equal((await env.request(env.a,'/users/'+env.a.user.id+'/instrument','POST',{defaultInstrument:'keyboard'})).data.user.defaultInstrument,'keyboard');
+ assert.equal((await env.request(env.a,'/users/'+env.a.user.id+'/instrument','POST',{defaultInstrument:'admin'})).status,400);
+ assert.equal((await env.request(env.setup,'/users')).data.users.find(user=>user.id===env.a.user.id).defaultInstrument,'keyboard');
+ const created=await env.request(env.setup,'/users','POST',{name:'Guitar student',username:'guitar.student',password:'test',defaultInstrument:'guitar'});assert.equal(created.data.user.defaultInstrument,'guitar');
+ const reopened=await ClassroomStore.open(env.directory);assert.equal(reopened.makeSession(env.a.user.id).user.defaultInstrument,'keyboard');assert.equal(reopened.makeSession(created.data.user.id).user.defaultInstrument,'guitar');reopened.close();
+});
+test('stopped drum attempts retain private note reports and long completed reports persist without bloating history',async t=>{
+ const env=await bandFixture(t);
+ const save=async(judge,stopped=false,elapsed=judge.chart.duration)=>{
+  const s=judge.summary(),c=judge.chart,report=makeRunReport(judge,{stopped,elapsed});
+  const record={id:randomUUID(),sourceKind:'builtin',sourceId:'rock',title:c.title,hits:s.hits,total:s.total,extras:s.extras,bestStreak:s.bestStreak,meanMs:s.meanMs,meanAbsMs:s.meanAbsMs,bpm:80,endBpm:80,tolerance:140,focus:'all',section:'1–'+c.practice.endBar,full:!stopped,repeats:c.practice.repeats,drums:s.byDrum.map(({id,hits,total,meanMs,meanAbsMs})=>({id,hits,total,meanMs,meanAbsMs})),report};
+  const saved=await env.request(env.a,'/runs','POST',record);assert.equal(saved.status,200,JSON.stringify(saved.data));return record;
+ };
+ const chart=createPracticeChart(createChart('rock',80,4)),live=new Judge(chart);live.strike('kick',0.01);const partial=stoppedJudge(live,0.8),record=await save(partial,true,0.8);
+ const own=await env.request(env.a,'/users/'+env.a.user.id+'/runs/'+record.id);assert.equal(own.data.report.notes.length,partial.chart.notes.length);assert.equal(own.data.record.stopped,true);assert.equal(own.data.record.full,false);
+ assert.equal((await env.request(env.b,'/users/'+env.a.user.id+'/runs/'+record.id)).status,404);assert.equal((await env.request(env.setup,'/users/'+env.a.user.id+'/runs/'+record.id)).status,200);
+ const long=new Judge(createPracticeChart(createChart('rock',80,32),{enabled:true,startBar:1,endBar:32,repeats:4,focus:'all'}));long.advance(Infinity);const large=await save(long);assert.ok(JSON.stringify(large).length>32768);
+ const history=await env.request(env.a,'/users/'+env.a.user.id+'/progress');assert.equal(history.data.records.length,2);assert.equal(history.data.records[0].report,undefined);assert.equal(history.data.records[0].reportAvailable,true);
+ const reopened=await ClassroomStore.open(env.directory);assert.equal(reopened.runReport(env.a.user,env.a.user.id,record.id).report.stopped,true);reopened.close();
+ const bad={...record,id:randomUUID(),report:{...record.report,notes:record.report.notes.slice(1)}};assert.equal((await env.request(env.a,'/runs','POST',bad)).status,400);
+});
+test('keyboard section and stopped attempts save distinct reports without claiming a completed shared take',async t=>{
+ const env=await bandFixture(t),source=builtinArrangement().parts[1].chart,practice={enabled:true,startBar:2,endBar:3,repeats:4,focus:'all'},chart=createPracticeChart(source,practice),live=new PitchJudge(chart);live.strike(chart.notes[0].pitch,0.02);
+ const judge=stoppedJudge(live,0.8),report=makeRunReport(judge,{instrument:'keyboard',stopped:true,elapsed:0.8}),id=randomUUID();
+ const input={id,sourceKind:'duet',sourceId:'duet-first',revisionId:'duet-v1',partId:'keyboard',summary:partSummary(judge),practice,report};
+ assert.equal((await env.request(env.b,'/band/runs','POST',input)).status,200);assert.equal((await env.request(env.b,'/band/runs','POST',input)).data.duplicate,true);
+ const saved=await env.request(env.b,'/users/'+env.b.user.id+'/runs/'+id);assert.equal(saved.data.record.stopped,true);assert.equal(saved.data.record.section,'2–3');assert.equal(saved.data.record.repeats,4);assert.equal(saved.data.record.full,false);assert.equal(saved.data.report.notes[0][7],2);assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM band_takes').get().n,0);
+ const bad={...input,id:randomUUID(),summary:{...input.summary,total:source.notes.length}};assert.equal((await env.request(env.b,'/band/runs','POST',bad)).status,400);
 });

@@ -5,7 +5,7 @@ import { followInstrument } from './follow-along.mjs';
 export class BandRooms {
   constructor(practice) {
     this.practice = practice; this.school = practice.school; this.q = practice.q; this.room = null; this.loading = 0;
-    this.link = new BandLink(this.school, { onRoom: room => this.receive(room), onState: (state, sync) => this.connectionState(state, sync), onError: (message, status) => { if ([401, 403, 404].includes(status) || message.includes('another tab')) this.leave(); practice.message(message); }, onSaved: takeId => { if (practice.lastReport?.takeId === takeId) { this.q('b-save-state').textContent = followInstrument(this.practice.lastReport?.part.instrument) ? 'Session participation saved. No performance score.' : 'Saved to your school account and this session.'; practice.school.refreshHistory().catch(() => {}); } } });
+    this.link = new BandLink(this.school, { onRoom: room => this.receive(room), onState: (state, sync) => this.connectionState(state, sync), onError: (message, status) => { if ([401, 403, 404].includes(status) || message.includes('another tab')) this.leave(); practice.message(message); }, onSaved: takeId => { if (practice.lastReport?.takeId === takeId) { this.q('b-save-state').textContent = followInstrument(this.practice.lastReport?.part.instrument) ? 'Session participation saved. No performance score.' : 'Saved to your school account and this session.'; practice.attachTakeReport(takeId);practice.school.refreshHistory().catch(() => {}); } } });
     this.q('b-refresh').onclick = () => practice.attempt(() => this.refresh());
     this.q('b-room-song').onchange = () => this.partChoices();
     this.q('b-create').onsubmit = event => { event.preventDefault(); practice.attempt(() => this.create()); };
@@ -82,15 +82,15 @@ export class BandRooms {
   }
   receive(room) {
     if (room.id !== this.room?.id) return;
-    if (room.state === 'closed') { this.leave(); this.practice.message('The teacher closed this session.'); return; }
+    if (room.state === 'closed') { if(this.practice.session?.takeId)this.practice.stop('The teacher closed this session.',false,true);this.leave(); this.practice.message('The teacher closed this session.'); return; }
     this.room = room;
     const confirmed = room.participants.find(p => p.userId === this.school.user?.id)?.result;
     if (confirmed && this.practice.lastReport?.takeId === room.takeId) this.q('b-save-state').textContent = 'Saved to your school account and this session.';
     if (room.state === 'playing') {
       const own = room.participants.find(p => p.userId === this.school.user?.id);
       if (this.teacher || own?.state === 'playing') this.practice.startScheduled(room, this.link.clock, this.teacher);
-      else if (this.practice.session?.takeId === room.takeId) this.practice.stop('This take was interrupted.', false);
-    } else if (this.practice.session?.takeId) this.practice.stop(room.reason || 'Take ended.', false);
+      else if (this.practice.session?.takeId === room.takeId) this.practice.stop('This take was interrupted.', false, true);
+    } else if (this.practice.session?.takeId) this.practice.stop(room.reason || 'Take ended.', false, true);
     this.render();
   }
   render() {

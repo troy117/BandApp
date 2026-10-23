@@ -160,3 +160,5 @@ Version 0.8 adds the full-sheet view, direct library loading, live backing-volum
 See THIRD_PARTY_NOTICES.md for the SightKick reuse assessment and license.
 
 Prototype 12 adds guitar/bass fret highways and suggested tablature, synced vocal lyrics, and teacher sessions with up to eight students. Guitar, bass and vocals follow along without input or scoring. See [setup, lyric research and current limits](docs/GUITAR_BASS_VOCALS.md).
+
+Prototype 13 adds a collapsible instrument menu, account default instruments, detailed completed/stopped reports, journal reopening, report-to-section practice, adjustable drum lanes and full guitar/bass tablature. See [the student workflow guide](docs/STUDENT_WORKFLOW.md).

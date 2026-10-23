@@ -224,6 +224,9 @@ test('upload publication validates actual MIDI, enforces size and quota, and kee
   await owner.request(`/api/library/uploads/${update.uploadId}/midi`, 'PUT', midi);
   assert.equal((await owner.request(`/api/library/uploads/${update.uploadId}/publish`, 'POST', {})).status, 200);
   assert.equal((await owner.request('/api/library')).data.songs[0].title, 'Updated');
+  assert.equal((await owner.request(`/api/library/${first.songId}?revision=${first.uploadId}`)).data.song.title,'Original');
+  assert.deepEqual((await owner.request(`/api/library/${first.songId}/revisions/${first.uploadId}/midi`)).bytes,Buffer.from(midi));
+  assert.equal((await owner.request(`/api/library/${first.songId}?revision=${randomUUID()}`)).status,404);
   assert.equal((await owner.request('/api/library/uploads', 'POST', { ...meta, songId: first.songId, revisionId: first.uploadId })).status, 409);
   assert.equal((await owner.request('/api/library/uploads', 'POST', { ...meta, offset: 301 })).status, 400);
   env.store.storageLimit = 1;

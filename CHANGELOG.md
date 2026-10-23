@@ -1,5 +1,14 @@
 # Changes
 
+## 0.13.0 — October 22, 2026 — Prototype 13
+
+- Collapsible left instrument menu; per-account default instrument in student creation, roster editing and account preferences; student sign-in opens practice. Remove redundant standalone drum-pad panel and start the practice journal collapsed.
+- Click a journal/accuracy result to reopen a note report. New drum/keyboard attempts retain detailed notes privately across computers. Stopped attempts report only the reached section, exclude future notes and remain distinct from completed full-song attempts. Existing summaries remain available.
+- Zoom and pan the timing chart, drag/select source bars and add them to a four-pass individual loop. Note tables, CSV, replay, slower built-in retry and next-track controls remain. Drum and pitched section playback retain shared audio alignment; interrupted jam attempts do not claim shared completion.
+- Adjustable drum highway lane order, with hi-hat on the far left by default; device-local ordering covers solo and jam views without changing notation or input mappings.
+- Full wrapping guitar/bass tablature with moving play bar, row following and fullscreen transport. Rendering uses a bounded viewport canvas.
+- Validation: **128 tests pass**, syntax and standalone export pass. Browser QA verifies defaults, journal/report reopening, partial drum/keyboard reports, a scored computer-key hit, zoom/drag selection and applied practice loops, retained lane order/reset and full tablature. Private reports and defaults use existing persistent school storage; no schema or Railway setting changes. See [STUDENT_WORKFLOW.md](docs/STUDENT_WORKFLOW.md).
+
 ## 0.12.0 — October 22, 2026 — Prototype 12
 
 - Guitar and bass follow-along parts with a string/fret highway, moving-cursor tab, fullscreen and Play/Stop. Suggested standard-tuning positions preserve MIDI pitch, use separate strings for simultaneous notes and flag notes that cannot be placed. No guitar/bass input or grading is required.

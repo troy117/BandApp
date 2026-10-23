@@ -4,9 +4,10 @@ import { FOCUS_OPTIONS, createPracticeChart, savePracticeHistory } from './pract
 import { escapeHtml, formatDuration } from './song-import.mjs';
 
 export class PracticeTools {
-  constructor(onChange, onChoose) {
+  constructor(onChange, onChoose, onReport) {
     this.el = id => document.getElementById(id);
-    this.onChange = onChange; this.onChoose = onChoose;
+    this.onChange = onChange; this.onChoose = onChoose; this.onReport=onReport;
+    this.el('recent-practice').onclick=event=>{const button=event.target.closest('[data-history-run]');if(button)this.onReport?.(this.history.find(run=>run.id===button.dataset.historyRun));};
     this.key = null; this.level = 0; this.valid = true;
     let stored = {}, history = [];
     try { stored = JSON.parse(localStorage.getItem('groove-lab-practice-v1') || '{}') || {}; } catch { /* Defaults remain available. */ }
@@ -90,17 +91,20 @@ export class PracticeTools {
     this.history = Array.isArray(records) ? records.filter(item => item && typeof item.title === 'string' && Number.isFinite(item.at) && Number.isFinite(item.accuracy)).slice(0, 30) : [];
     this.renderHistory();
   }
-  record(judge, settings) {
+  record(judge, settings, detail = {}) {
     const score = judge.summary(), chart = judge.chart;
-    const record = { id: crypto.randomUUID(), at: Date.now(), grooveId: chart.grooveId || null, title: chart.title, accuracy: score.accuracy, meanMs: score.meanMs, meanAbsMs: score.meanAbsMs, extras: score.extras, bestStreak: score.bestStreak, drums: score.byDrum.map(({ id, hits, total, meanMs, meanAbsMs }) => ({ id, hits, total, meanMs, meanAbsMs })), bpm: Math.round(chart.bpm), endBpm: Math.round(chart.passes.at(-1).bpm), tolerance: settings.tolerance, focus: chart.practice.focus, full: chart.practice.full, section: `${chart.practice.startBar}–${chart.practice.endBar}`, repeats: chart.practice.repeats, hits: score.hits, total: score.total };
-    this.history = savePracticeHistory(this.history, record);
-    if (!this.accountHistory) try { localStorage.setItem('groove-lab-history-v1', JSON.stringify(this.history)); } catch { /* Keep this visit's history in memory. */ }
-    this.renderHistory();
+    const record = { ...detail, id: crypto.randomUUID(), at: Date.now(), grooveId: chart.grooveId || null, title: chart.title, accuracy: score.accuracy, meanMs: score.meanMs, meanAbsMs: score.meanAbsMs, extras: score.extras, bestStreak: score.bestStreak, drums: score.byDrum.map(({ id, hits, total, meanMs, meanAbsMs }) => ({ id, hits, total, meanMs, meanAbsMs })), bpm: Math.round(chart.bpm), endBpm: Math.round(chart.passes.at(-1).bpm), tolerance: settings.tolerance, focus: chart.practice.focus, full: chart.practice.full && !detail.stopped, section: `${chart.practice.startBar}–${chart.practice.endBar}`, repeats: chart.practice.repeats, hits: score.hits, total: score.total };
+    this.remember(record);
     return record;
+  }
+  remember(record) {
+    this.history = savePracticeHistory(this.history, record);
+    if (!this.accountHistory) try { const portable=this.history.map(run=>({...run}));while(JSON.stringify(portable).length>2500000){const oldest=portable.findLast(run=>run.report);if(!oldest)break;delete oldest.report;}localStorage.setItem('groove-lab-history-v1', JSON.stringify(portable)); } catch { /* Keep this visit's history in memory. */ }
+    this.renderHistory();
   }
   renderHistory() {
     const touched = new Set(this.history.filter(run => run.grooveId).map(run => run.grooveId)).size;
     this.el('progress-summary').textContent = `${touched} of ${Object.keys(GROOVES).length} tracks in recent runs · ${this.accountSummary?.attempts ?? this.history.length} ${this.accountHistory ? 'saved ' : ''}attempt${(this.accountSummary?.attempts ?? this.history.length) === 1 ? '' : 's'}`;
-    this.el('recent-practice').innerHTML = this.history.length ? this.history.slice(0, 5).map(run => `<article class="history-row"><div><strong>${escapeHtml(run.title)}</strong><span>${new Date(run.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${run.bpm}${run.endBpm !== run.bpm ? `→${run.endBpm}` : ''} BPM · Bars ${escapeHtml(run.section)} × ${run.repeats} · ${escapeHtml(run.partName || FOCUS_OPTIONS[run.focus] || 'All drums')} · ±${run.tolerance} ms</span></div><div><strong>${Math.round(run.accuracy)}%</strong><span>${run.meanAbsMs === null ? 'No matched hits' : `${Math.round(run.meanAbsMs)} ms avg. error`}</span></div></article>`).join('') : '<p class="history-empty">Your completed keyboard practice runs will appear here. Start with a comfortable tempo and watch your timing improve.</p>';
+    this.el('recent-practice').innerHTML = this.history.length ? this.history.slice(0, 5).map(run => `<button class="history-row" data-history-run="${escapeHtml(run.id)}" aria-label="Open report for ${escapeHtml(run.title)}"><div><strong>${escapeHtml(run.title)}</strong><span>${run.stopped?'Stopped · ':''}${new Date(run.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${run.bpm}${run.endBpm !== run.bpm ? `→${run.endBpm}` : ''} BPM · Bars ${escapeHtml(run.section)} × ${run.repeats} · ${escapeHtml(run.partName || FOCUS_OPTIONS[run.focus] || 'All drums')} · ±${run.tolerance} ms</span></div><div><strong>${Math.round(run.accuracy)}%</strong><span>${run.meanAbsMs === null ? 'No matched hits' : `${Math.round(run.meanAbsMs)} ms avg. error`}</span></div></button>`).join('') : '<p class="history-empty">Your practice attempts will appear here. Click a result to reopen its report. Start with a comfortable tempo and watch your timing improve.</p>';
   }
 }

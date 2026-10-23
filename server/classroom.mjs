@@ -1,3 +1,4 @@
+import { validateRunReport } from '../dist/run-report.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, randomUUID, createHash, timingSafeEqual, scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -12,6 +13,7 @@ import { arrangementParts, importedArrangement } from '../dist/arrangements.mjs'
 import { BAND_SCHEMA, migrateBandStorage } from './band-results.mjs';
 import { passwordMinimum, PASSWORD_MAX_LENGTH } from '../dist/password-policy.mjs';
 import { lyricText } from '../dist/lyrics.mjs';
+import { studentInstrument } from '../dist/student-preferences.mjs';
 
 const derivePassword = promisify(scrypt);
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -21,7 +23,7 @@ const isStaff = user => user.role === 'teacher' || user.role === 'owner';
 const cleanText = (value, limit, label) => { if (typeof value !== 'string' || !value.trim() || value.length > limit || /[\u0000-\u001f]/.test(value)) throw new SchoolError(400, `Enter a valid ${label}.`); return value.trim(); };
 const usernameValue = value => { const name = String(value || '').toLowerCase().trim(); if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(name)) throw new SchoolError(400, 'Use a username of 3–40 letters, numbers, dots, dashes or underscores.'); return name; };
 const passwordValue = (value, role) => { const minimum = passwordMinimum(role); if (typeof value !== 'string' || value.length < minimum || value.length > PASSWORD_MAX_LENGTH || !value.trim()) throw new SchoolError(400, `Use a password of ${minimum}–${PASSWORD_MAX_LENGTH} characters.`); return value; };
-const publicUser = row => row ? { id: row.id, username: row.username, name: row.name, role: row.role, teacherId: row.teacher_id, active: Boolean(row.active), mustChangePassword: Boolean(row.must_change) } : null;
+const publicUser = row => row ? { id: row.id, username: row.username, name: row.name, role: row.role, teacherId: row.teacher_id, active: Boolean(row.active), mustChangePassword: Boolean(row.must_change), defaultInstrument: row.default_instrument || 'drums' } : null;
 
 export class SchoolError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -83,7 +85,14 @@ export class ClassroomStore {
   setting(key, fallback = '') { return this.db.prepare('SELECT value FROM settings WHERE key=?').get(key)?.value ?? fallback; }
   transaction(work) { this.db.exec('BEGIN IMMEDIATE'); try { const result = work(); this.db.exec('COMMIT'); return result; } catch (error) { this.db.exec('ROLLBACK'); throw error; } }
   audit(actor, action, subject = null) { this.db.prepare('INSERT INTO audit(actor_id,action,subject_id,created_at) VALUES (?,?,?,?)').run(actor?.id ?? null, action, subject, this.now()); }
-  user(id) { return this.db.prepare('SELECT * FROM users WHERE id=?').get(id); }
+  user(id) { return this.db.prepare("SELECT users.*, (SELECT value FROM settings WHERE key='instrument:' || users.id) AS default_instrument FROM users WHERE id=?").get(id); }
+  setInstrument(actor, userId, value) {
+    const user = actor.id === userId ? this.user(userId) : (this.requireStaff(actor), this.manageable(actor, userId));
+    if (!user) throw new SchoolError(404, 'Account not found.');
+    let instrument; try { instrument = studentInstrument(value); } catch (error) { throw new SchoolError(400, error.message); }
+    this.db.prepare('INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)').run('instrument:' + userId, instrument);
+    return publicUser(this.user(userId));
+  }
   hasOwner() { return Boolean(this.db.prepare("SELECT id FROM users WHERE role='owner'").get()); }
   session(token) {
     if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
@@ -129,13 +138,14 @@ export class ClassroomStore {
   roster(actor) {
     this.requireStaff(actor);
     const rows = actor.role === 'owner' ? this.db.prepare("SELECT * FROM users WHERE role!='owner' ORDER BY role,name").all() : this.db.prepare("SELECT * FROM users WHERE role='student' AND teacher_id=? ORDER BY name").all(actor.id);
-    return rows.map(row => ({ ...publicUser(row), ...this.progressSummary(row.id), teacherName: this.user(row.teacher_id)?.name ?? '' }));
+    return rows.map(row => ({ ...publicUser(this.user(row.id)), ...this.progressSummary(row.id), teacherName: this.user(row.teacher_id)?.name ?? '' }));
   }
   async createUser(actor, input) {
     this.requireStaff(actor);
     const role = input.role || 'student';
     if (!['teacher', 'student'].includes(role) || (role === 'teacher' && actor.role !== 'owner')) throw new SchoolError(403, 'Only the school owner can add teachers.');
     const username = usernameValue(input.username), name = cleanText(input.name, 60, 'display name');
+    let instrument; try { instrument = studentInstrument(input.defaultInstrument); } catch (error) { throw new SchoolError(400, error.message); }
     if (this.db.prepare('SELECT id FROM users WHERE username=?').get(username)) throw new SchoolError(409, 'That username is already in use.');
     if (this.db.prepare('SELECT COUNT(*) AS n FROM users').get().n >= 1000) throw new SchoolError(409, 'This school has reached the 1,000 account limit.');
     let teacherId = role === 'student' ? actor.id : null;
@@ -145,6 +155,7 @@ export class ClassroomStore {
     const password = chosen ? input.password : `drum-${randomBytes(9).toString('base64url')}`, hash = await this.passwords.hash(password, role), id = randomUUID();
     try { this.db.prepare('INSERT INTO users(id,username,name,role,teacher_id,password_hash,must_change,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id, username, name, role, teacherId, hash, chosen ? 0 : 1, this.now()); }
     catch (error) { if (String(error.code).includes('CONSTRAINT') || /UNIQUE/.test(error.message)) throw new SchoolError(409, 'That username is already in use.'); throw error; }
+    this.setInstrument(actor, id, instrument);
     this.audit(actor, 'account.create', id);
     return { user: publicUser(this.user(id)), ...(chosen ? {} : { temporaryPassword: password }) };
   }
@@ -191,14 +202,30 @@ export class ClassroomStore {
     const rows = this.db.prepare('SELECT id,record,created_at FROM runs WHERE user_id=? AND (created_at<? OR (created_at=? AND id<?)) ORDER BY created_at DESC,id DESC LIMIT 51').all(userId, before.at, before.at, before.id);
     return { user: publicUser(user), summary: this.progressSummary(userId), records: rows.slice(0, 50).map(row => JSON.parse(row.record)), nextCursor: rows.length > 50 ? Buffer.from(JSON.stringify({ at: rows[49].created_at, id: rows[49].id })).toString('base64url') : null };
   }
+  checkedReport(record, value) {
+    let report; try { report=validateRunReport(value); } catch(error) { throw new SchoolError(400,error.message); }
+    const hits=report.notes.filter(n=>n[4]==='hit'), wrong=report.notes.filter(n=>n[4]==='wrong').length;
+    if(report.notes.length!==record.total || hits.length!==record.hits || wrong!==(record.wrong||0) || report.extras.length!==record.extras || report.tolerance!==record.tolerance || report.instrument!==(record.instrument||'drums'))throw new SchoolError(400,'Note detail does not match the practice result.');
+    return report;
+  }
+  writeReport(runId, report) { this.db.prepare('INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)').run('report:'+runId,JSON.stringify(report)); }
+  runReport(actor, userId, runId) {
+    const user=this.user(userId);
+    if(!user || actor.id!==userId && actor.role!=='owner' && !(actor.role==='teacher' && user.role==='student' && user.teacher_id===actor.id))throw new SchoolError(404,'Practice report not found.');
+    const row=this.db.prepare('SELECT record FROM runs WHERE id=? AND user_id=?').get(runId,userId);
+    if(!row)throw new SchoolError(404,'Practice report not found.');
+    const value=this.setting('report:'+runId);return {record:JSON.parse(row.record),report:value?JSON.parse(value):null};
+  }
   saveRun(actor, input) {
     const record = validateSchoolRun(input);
     if (record.sourceKind === 'builtin') { if (!Object.hasOwn(GROOVES, record.sourceId)) throw new SchoolError(400, 'Unknown practice track.'); record.title = GROOVES[record.sourceId].name; record.grooveId = record.sourceId; }
     else if (record.sourceKind === 'school') { const revision = this.db.prepare("SELECT * FROM revisions WHERE id=? AND song_id=? AND state='published'").get(record.revisionId, record.sourceId); if (!revision) throw new SchoolError(400, 'Unknown school song version.'); record.title = JSON.parse(revision.metadata).title; record.grooveId = null; }
+    const report=input.report ? this.checkedReport(record,input.report) : null;
+    if(report){record.stopped=report.stopped;record.full=record.full&&!report.stopped;record.reportAvailable=true;}
     record.at = this.now();
     const existing = this.db.prepare('SELECT user_id FROM runs WHERE id=?').get(record.id);
     if (existing && existing.user_id !== actor.id) throw new SchoolError(409, 'That practice result identifier is already in use.');
-    if (!existing) this.db.prepare('INSERT INTO runs(id,user_id,created_at,record) VALUES (?,?,?,?)').run(record.id, actor.id, record.at, JSON.stringify(record));
+    if (!existing) this.transaction(()=>{this.db.prepare('INSERT INTO runs(id,user_id,created_at,record) VALUES (?,?,?,?)').run(record.id, actor.id, record.at, JSON.stringify(record));if(report)this.writeReport(record.id,report);});
     return { saved: true, duplicate: Boolean(existing) };
   }
   metadata(input) {
@@ -291,10 +318,12 @@ export class ClassroomStore {
     for (const row of rows) await this.discard({ id: row.teacher_id }, row.id);
   }
   songRow(id) { return this.db.prepare("SELECT s.*,r.metadata,r.id AS revision FROM songs s JOIN revisions r ON r.id=s.revision_id WHERE s.id=? AND r.state='published'").get(id); }
-  getSong(actor, id) {
+  getSong(actor, id, revisionId) {
     const row = this.songRow(id);
     if (!row || (row.archived && !this.canManageSong(actor, row))) throw new SchoolError(404, 'Song not found.');
-    return { ...JSON.parse(row.metadata), id: row.id, revisionId: row.revision, ownerId: row.teacher_id, ownerName: this.user(row.teacher_id)?.name ?? 'Teacher', canManage: this.canManageSong(actor, row), archived: Boolean(row.archived), savedAt: row.updated_at };
+    const revision=revisionId ? this.db.prepare("SELECT id,metadata FROM revisions WHERE id=? AND song_id=? AND state='published'").get(revisionId,id) : {id:row.revision,metadata:row.metadata};
+    if(!revision)throw new SchoolError(404,'Song version not found.');
+    return { ...JSON.parse(revision.metadata), id: row.id, revisionId: revision.id, ownerId: row.teacher_id, ownerName: this.user(row.teacher_id)?.name ?? 'Teacher', canManage: this.canManageSong(actor, row), archived: Boolean(row.archived), savedAt: row.updated_at };
   }
   listSongs(actor, archived = false) {
     if (archived) this.requireStaff(actor);
@@ -308,8 +337,7 @@ export class ClassroomStore {
     this.db.prepare('UPDATE songs SET archived=?,updated_at=? WHERE id=?').run(archived ? 1 : 0, this.now(), id); this.audit(actor, archived ? 'song.archive' : 'song.restore', id);
   }
   async sendFile(actor, songId, revisionId, kind, request, response) {
-    const meta = this.getSong(actor, songId);
-    if (meta.revisionId !== revisionId) throw new SchoolError(409, 'The song changed. Reload it from the library.');
+    const meta = this.getSong(actor, songId, revisionId);
     const file = this.musicPath(revisionId, kind);
     let info; try { info = await stat(file); } catch (error) { if (error.code === 'ENOENT') throw new SchoolError(404, 'Recording not found.'); throw error; }
     response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': info.size, 'Content-Disposition': `attachment; filename="${songId}.${kind === 'midi' ? 'mid' : 'audio'}"` });
@@ -354,10 +382,10 @@ export class ClassroomApi {
     const expected = this.options.publicOrigin || (this.options.localSetup ? `http://${request.headers.host}` : '');
     if (!expected || request.headers.origin !== expected || request.headers['sec-fetch-site'] === 'cross-site') throw new SchoolError(403, 'Open Groove Lab at its school website and try again.');
   }
-  async json(request) {
+  async json(request, maximum = 32768) {
     if (!String(request.headers['content-type'] || '').startsWith('application/json')) throw new SchoolError(415, 'Send JSON for this request.');
     const chunks = []; let size = 0;
-    for await (const chunk of request) { size += chunk.length; if (size > 32768) throw new SchoolError(413, 'This request is too large.'); chunks.push(chunk); }
+    for await (const chunk of request) { size += chunk.length; if (size > maximum) throw new SchoolError(413, 'This request is too large.'); chunks.push(chunk); }
     try { const value = JSON.parse(Buffer.concat(chunks).toString('utf8')); if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(); return value; } catch { throw new SchoolError(400, 'Invalid JSON request.'); }
   }
   async handle(request, response, url) {
@@ -394,14 +422,17 @@ export class ClassroomApi {
       }
       if (pathname === '/api/users' && method === 'GET') { send(200, { users: this.store.roster(actor) }); return true; }
       if (pathname === '/api/users' && method === 'POST') { this.limit(`create:${actor.id}`, 100, 60 * 60 * 1000); send(201, await this.store.createUser(actor, await this.json(request))); return true; }
-      let match = pathname.match(/^\/api\/users\/([0-9a-f-]+)\/(reset-password|active|progress)$/);
+      const reportRoute=pathname.match(/^\/api\/users\/([0-9a-f-]+)\/runs\/([0-9a-f-]+)$/);
+      if(reportRoute && method==='GET'){send(200,this.store.runReport(actor,reportRoute[1],reportRoute[2]));return true;}
+      let match = pathname.match(/^\/api\/users\/([0-9a-f-]+)\/(reset-password|active|progress|instrument)$/);
       if (match) {
         const [, id, action] = match;
+        if (action === 'instrument' && method === 'POST') { send(200, { user: this.store.setInstrument(actor, id, (await this.json(request)).defaultInstrument) }); return true; }
         if (action === 'progress' && method === 'GET') { send(200, this.store.progress(actor, id, url.searchParams.get('cursor'))); return true; }
         if (action === 'reset-password' && method === 'POST') { this.limit(`reset:${actor.id}`, 50, 60 * 60 * 1000); send(200, await this.store.resetPassword(actor, id, await this.json(request))); return true; }
         if (action === 'active' && method === 'POST') { send(200, { user: this.store.setActive(actor, id, (await this.json(request)).active) }); return true; }
       }
-      if (pathname === '/api/runs' && method === 'POST') { this.limit(`runs:${actor.id}`, 240, 60 * 60 * 1000); send(200, this.store.saveRun(actor, await this.json(request))); return true; }
+      if (pathname === '/api/runs' && method === 'POST') { this.limit(`runs:${actor.id}`, 240, 60 * 60 * 1000); send(200, this.store.saveRun(actor, await this.json(request, 8*1024*1024))); return true; }
       if (pathname === '/api/library' && method === 'GET') {
         const songs = this.store.listSongs(actor, url.searchParams.get('archived') === 'true');
         const resolved = []; for (const song of songs) resolved.push(this.band ? await this.band.librarySong(actor, song) : song);
@@ -418,7 +449,7 @@ export class ClassroomApi {
       match = pathname.match(/^\/api\/library\/([0-9a-f-]+)(?:\/(archive|revisions\/([0-9a-f-]+)\/(midi|audio)))?$/);
       if (match) {
         const [, id, action, revision, kind] = match;
-        if (!action && method === 'GET') { const song = this.store.getSong(actor, id); send(200, { song: this.band ? await this.band.librarySong(actor, song) : song }); return true; }
+        if (!action && method === 'GET') { const song = this.store.getSong(actor, id, url.searchParams.get('revision')); send(200, { song: this.band ? await this.band.librarySong(actor, song) : song }); return true; }
         if (action === 'archive' && method === 'POST') { this.store.archiveSong(actor, id, (await this.json(request)).archived); send(200, { updated: true }); return true; }
         if (revision && ['GET', 'HEAD'].includes(method)) { await this.store.sendFile(actor, id, revision, kind, request, response); return true; }
       }

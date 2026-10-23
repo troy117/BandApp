@@ -13,17 +13,17 @@ export function createPracticeChart(source, options = {}) {
   const endBeat = source.beats.find(beat => beat.bar === endBar + 1);
   if (!startBeat) throw new Error('That section has no beat grid. Choose an earlier bar.');
   const from = startBeat.time, to = endBeat?.time ?? source.duration;
-  const selected = focusIds(focus);
-  const sourceNotes = source.notes.filter(note => note.time >= from - 1e-8 && note.time < to - 1e-8 && selected.includes(note.drum));
-  if (!sourceNotes.length) throw new Error(`No ${focus === 'all' ? 'drum' : FOCUS_OPTIONS[focus].replace(' only', '').toLowerCase()} hits in this section. Choose another focus or a wider section.`);
+  const selected = focusIds(focus), pitched=source.notes.some(note=>note.pitch!==undefined);
+  const sourceNotes = source.notes.filter(note => note.time >= from - 1e-8 && note.time < to - 1e-8 && (pitched || selected.includes(note.drum)));
+  if (!sourceNotes.length) throw new Error(pitched ? 'No keyboard notes in this section. Choose a wider section.' : `No ${focus === 'all' ? 'drum' : FOCUS_OPTIONS[focus].replace(' only', '').toLowerCase()} hits in this section. Choose another focus or a wider section.`);
   if (sourceNotes.length * repeats > 50000) throw new Error('Choose fewer repeats or a shorter section (50,000 hits maximum).');
   const barCount = endBar - startBar + 1;
   const increment = source.kind === 'groove' && options.enabled && repeats > 1 && options.stepUp ? 5 : 0;
   const initialBpm = source.tempos?.findLast(tempo => tempo.time <= from)?.bpm ?? source.bpm;
   const initialMeter = source.signatures?.findLast(meter => meter.time <= from) ?? source;
   const chart = { ...source, notes: [], beats: [], tempos: [], signatures: [], measures: source.measures ? [] : undefined, bars: barCount * repeats, passes: [], focusDrums: selected, practice: { startBar, endBar, repeats, focus, increment, full: startBar === 1 && endBar === source.bars }, bpm: initialBpm, numerator: initialMeter.numerator, denominator: initialMeter.denominator };
-  const fromQuarter = source.measures?.find(measure => measure.bar === startBar)?.startQuarter;
-  const toQuarter = source.measures?.find(measure => measure.bar === endBar)?.endQuarter;
+  const fromQuarter = source.measures?.find(measure => measure.bar === startBar)?.startQuarter ?? startBeat.quarter ?? (startBar-1)*4;
+  const toQuarter = source.measures?.find(measure => measure.bar === endBar)?.endQuarter ?? endBeat?.quarter ?? endBar*4;
   const quarterLength = toQuarter - fromQuarter;
   let cursor = 0;
   for (let pass = 0; pass < repeats; pass++) {
@@ -34,7 +34,7 @@ export function createPracticeChart(source, options = {}) {
     for (const note of sourceNotes) chart.notes.push({ ...note, ...(Number.isFinite(note.quarter) ? { quarter: pass * quarterLength + note.quarter - fromQuarter } : {}), id: `${pass}:${note.id}`, sourceBar: note.bar, pass: pass + 1, bar: pass * barCount + note.bar - startBar + 1, time: cursor + (note.time - from) * scale, status: 'pending', errorMs: null, actualTime: null });
     for (const beat of source.beats.filter(beat => beat.time >= from - 1e-8 && beat.time < to - 1e-8)) chart.beats.push({ ...beat, ...(Number.isFinite(beat.quarter) ? { quarter: pass * quarterLength + beat.quarter - fromQuarter } : {}), sourceBar: beat.bar, pass: pass + 1, bar: pass * barCount + beat.bar - startBar + 1, time: cursor + (beat.time - from) * scale });
     for (const measure of source.measures || []) if (measure.bar >= startBar && measure.bar <= endBar) chart.measures.push({ ...measure, sourceBar: measure.bar, pass: pass + 1, bar: pass * barCount + measure.bar - startBar + 1, startQuarter: pass * quarterLength + measure.startQuarter - fromQuarter, endQuarter: pass * quarterLength + measure.endQuarter - fromQuarter, time: cursor + (measure.time - from) * scale, endTime: cursor + (measure.endTime - from) * scale });
-    const tempos = source.kind === 'groove' ? [{ time: from, bpm }] : [{ time: from, bpm: initialBpm }, ...source.tempos.filter(item => item.time > from && item.time < to)];
+    const tempos = source.kind === 'groove' ? [{ time: from, bpm }] : [{ time: from, bpm: initialBpm }, ...(source.tempos || []).filter(item => item.time > from && item.time < to)];
     const meters = [{ ...initialMeter, time: from }, ...(source.signatures || []).filter(item => item.time > from && item.time < to)];
     for (const tempo of tempos) chart.tempos.push({ time: cursor + (tempo.time - from) * scale, ...(Number.isFinite(tempo.quarter) ? { quarter: pass * quarterLength + tempo.quarter - fromQuarter } : {}), bpm: tempo.bpm });
     for (const meter of meters) chart.signatures.push({ time: cursor + (meter.time - from) * scale, numerator: meter.numerator, denominator: meter.denominator });

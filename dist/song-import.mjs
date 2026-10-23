@@ -306,11 +306,11 @@ export class SongImporter {
       }
     } finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('show-archived').disabled = false; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
   }
-  async loadSchoolSong(id) {
+  async loadSchoolSong(id, revisionId) {
     const token = ++this.libraryToken; this.libraryBusy = true;
     this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = true; }); this.el('library-status').textContent = 'Downloading the school song…';
     try {
-      const meta = (await this.school.request(`/library/${id}`)).song;
+      const meta = (await this.school.request(`/library/${id}${revisionId?`?revision=${encodeURIComponent(revisionId)}`:''}`)).song;
       if (token !== this.libraryToken) return;
       if (meta.parts?.length && (!meta.parts.some(part => part.instrument === 'drums') || this.bandActive?.() && meta.parts.some(part => part.instrument !== 'drums'))) {
         this.el('library-dialog').close();

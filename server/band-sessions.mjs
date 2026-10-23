@@ -1,3 +1,5 @@
+import { createPracticeChart } from '../dist/practice.mjs';
+import { validateRunReport } from '../dist/run-report.mjs';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { WebSocketServer } from 'ws';
@@ -80,17 +82,36 @@ export class BandSessions {
     }
     let match = path.match(/^arrangements\/(duet|school)\/([a-z0-9-]+)$/);
     if (match && method === 'GET') { send(200, { arrangement: await this.arrangement(actor, match[1], match[2], url.searchParams.get('revision')) }); return true; }
+    const reportRoute=path.match(/^takes\/([0-9a-f-]+)\/report$/);
+    if(reportRoute && method==='POST') {
+      this.api.limit('band-report:'+actor.id,240,3600000);
+      const row=this.store.db.prepare("SELECT record FROM band_results WHERE take_id=? AND user_id=? AND state='completed'").get(reportRoute[1],actor.id);
+      if(!row)throw bandError(404,'Completed take not found.');
+      const record=JSON.parse(row.record);if(!record.id)throw bandError(400,'This part has no scored note report.');
+      const input=await this.api.json(request,8*1024*1024),report=this.store.checkedReport(record,input.report);
+      if(report.stopped)throw bandError(400,'A completed shared take needs a complete report.');
+      this.store.writeReport(record.id,report);send(200,{saved:true});return true;
+    }
     if (path === 'runs' && method === 'POST') {
       this.api.limit('band-runs:' + actor.id, 240, 3600000);
-      const input = await this.api.json(request), arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId);
+      const input = await this.api.json(request,8*1024*1024), arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId);
       const part = arrangement.parts.find(part => part.id === input.partId);
       if (!part || !/^[0-9a-f-]{36}$/.test(input.id || '')) throw bandError(400, 'Choose a valid part/result.');
       if(followInstrument(part.instrument))throw bandError(400,'Follow-along parts do not produce performance scores.');
-      let summary; try { summary = validatePartResult(input.summary, part.chart.notes.length); } catch (error) { throw bandError(400, error.message); }
+      let summary,report=null,chart=part.chart;
+      try {
+        if(input.practice)chart=createPracticeChart(part.chart,input.practice);
+        if(input.report)report=validateRunReport(input.report);
+        const total=report?.stopped?report.notes.length:chart.notes.length;
+        if(report && (report.duration!==chart.duration || report.notes.length>chart.notes.length))throw new Error('This report does not match the selected practice section.');
+        summary=validatePartResult(input.summary,total);
+      } catch(error){throw bandError(400,error.message);}
       const existing = this.store.db.prepare('SELECT user_id FROM runs WHERE id=?').get(input.id);
       if (existing && existing.user_id !== actor.id) throw bandError(409, 'Result identifier is already in use.');
-      const record = bandRecord(arrangement, part, summary, { id: input.id, at: this.store.now() });
-      if (!existing) this.store.db.prepare('INSERT INTO runs(id,user_id,created_at,record) VALUES (?,?,?,?)').run(record.id, actor.id, record.at, JSON.stringify(record));
+      const record = bandRecord(arrangement, {...part,chart}, summary, { id: input.id, at: this.store.now() });
+      if(chart.practice){record.section=chart.practice.startBar+'–'+chart.practice.endBar;record.repeats=chart.practice.repeats;record.full=chart.practice.full;}
+      if(report){report=this.store.checkedReport(record,report);record.stopped=report.stopped;record.full=record.full&&!report.stopped;record.reportAvailable=true;}
+      if (!existing) this.store.transaction(()=>{this.store.db.prepare('INSERT INTO runs(id,user_id,created_at,record) VALUES (?,?,?,?)').run(record.id, actor.id, record.at, JSON.stringify(record));if(report)this.store.writeReport(record.id,report);});
       send(200, { saved: true, duplicate: Boolean(existing) }); return true;
     }
     if (path === 'rooms' && method === 'GET') {
