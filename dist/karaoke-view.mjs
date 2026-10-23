@@ -14,8 +14,12 @@ function karaokeBarPosition(chart, time) {
   return index + fraction;
 }
 
-export function karaokeFrame(chart, time, playing = true) {
+export function karaokeFrame(chart, time, playing = true, paused = false) {
   const cues = chart.lyrics || [], { current, next } = currentLyric(cues, time);
+  if (!playing && paused) {
+    const cue = current || next || cues.at(-1), index = cues.indexOf(cue);
+    return { phase: 'ready', label: 'PAUSED · TAKE YOUR TIME', line: cue?.text || 'No lyrics', next: cues[index + 1]?.text || '', progress: 0 };
+  }
   if (!playing) return { phase: 'ready', label: 'READY TO SING', line: cues[0]?.text || 'No lyrics', next: cues[1]?.text || '', progress: 0 };
   if (current) return { phase: 'singing', label: 'SING', line: current.text, next: next?.text || '', progress: clampKaraoke((time - current.time) / (current.end - current.time)) };
   if (!next) return { phase: 'ended', label: 'VOCALS COMPLETE', line: 'End of vocals', next: '', progress: 0 };
@@ -36,8 +40,8 @@ export function karaokeWordFills(text, progress) {
 
 export class KaraokeLyrics {
   constructor(q) { this.q = q; this.text = null; this.words = []; }
-  draw(chart, time, playing) {
-    const frame = karaokeFrame(chart, time, playing), line = this.q('b-vocal-line');
+  draw(chart, time, playing, paused = false) {
+    const frame = karaokeFrame(chart, time, playing, paused), line = this.q('b-vocal-line');
     this.q('b-lyrics-screen').dataset.phase = frame.phase;
     this.q('b-vocal-state').textContent = frame.label;
     if (this.text !== frame.line) {

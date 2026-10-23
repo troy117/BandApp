@@ -30,7 +30,7 @@ Choose the timestamp clock:
 - Backing recording time: lyric times follow the recording's saved audio offset, independently of MIDI speed. Imported timed-text files default to this clock. For example, a lyric at recording time 12 seconds with backing offset +0.5 appears at song time 12.5 seconds.
 - Lyric adjustment: an additional positive adjustment displays lines later; a negative value displays them earlier. This changes lyric display, not the audio or instrumental notes.
 
-Review the current/next lyric line with playback before publishing. VTT/SRT explicit end times preserve silent gaps. LRC lines normally remain active until the next cue; the final line has a bounded tail. The vocal screen has fullscreen, a current-line progress indicator and upcoming text. It does not request microphone access or score singing.
+Review the current/next lyric line with playback before publishing. VTT/SRT explicit end times preserve silent gaps. LRC lines normally remain active until the next cue; the final line has a bounded tail. The vocal screen has fullscreen, a current-line progress indicator and upcoming text. Prototype 15 adds optional browser-local microphone pitch guidance; students explicitly enable it. No audio is recorded/uploaded and no singing grade is saved. See [phone singing practice](SINGING_PRACTICE.md).
 
 ## Why generated tab is a suggestion
 

@@ -30,6 +30,8 @@ test('ready lyrics stay white, long instrumental gaps withhold text, and restart
   assert.equal(karaokeFrame(chart, 63).progress, .75);
   assert.equal(karaokeFrame(chart, 60).progress, 0);
   assert.equal(karaokeFrame({ bpm: 80, lyrics: [] }, 0).phase, 'ended');
+  const paused = karaokeFrame(chart, 63, false, true);
+  assert.equal(paused.line, 'Sing this line'); assert.equal(paused.label, 'PAUSED · TAKE YOUR TIME'); assert.equal(paused.progress, 0);
 });
 
 test('the yellow sweep advances in reading order across wrapped words and respects line boundaries', () => {

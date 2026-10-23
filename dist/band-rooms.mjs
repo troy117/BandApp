@@ -213,6 +213,7 @@ export class BandRooms {
     if (!this.room?.takeId || !this.link.send({ type: 'finish', takeId: this.room.takeId, summary })) this.q('b-save-state').textContent = 'Connection lost: this take could not be confirmed as completed. Your local CSV is available.';
   }
   leave() {
+    this.practice.singing?.microphone.stop();
     this.loading++; this.prepareToken = (this.prepareToken || 0) + 1; this.prepared = false; this.songLoading = false; this.loadedRoomKey = null; this.configVersion = null; this.practice.stop('Left the session.'); this.link.leave(); this.room = null; this.practice.startedTake = null; this.q('b-click').checked = true; this.render();
     if (this.practice.audio.master) this.practice.audio.master.gain.value = 0.48;
   }

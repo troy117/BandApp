@@ -1,5 +1,12 @@
 # Changes
 
+## 0.15.0 — October 22, 2026 — Phone singing practice
+
+- A focused phone singing screen combines large karaoke lyrics, Target / You note names, a pitch meter, and large Play/Pause/Continue controls. Retry a lyric line, seek or skip to the next entrance with a lead-in. Phone playback opens the focus view; sound settings and the staff/reference tones are collapsible. Teacher-led jam playback retains teacher control.
+- Optional microphone pitch feedback runs entirely in the browser. Students explicitly enable/disable it; audio is never recorded, uploaded or saved as a grade. Feedback distinguishes high/low/on-pitch, allows a comfortable or exact octave, and stays neutral for rests, uncertain input and overlapping target notes. Includes adjustable input-delay correction, permission recovery and cleanup on song/account/view changes, page hiding, device/audio interruptions and song completion.
+- The original Full band warm-up includes a vocal melody to try the feature. Existing school music, lyric timings, song revisions, accounts and storage are retained. No schema or Railway variable changes.
+- Validation: 148 automated tests pass, including generated vocal fundamentals/harmonics/noise at 44.1/48 kHz, permission cancellation/denial/retry, microphone cleanup, pause/continue and backing-offset seeks. Browser QA checks responsive layouts and generated microphone audio. Physical iPhone/Android microphone accuracy and latency still need student testing. See [the singing practice guide](docs/SINGING_PRACTICE.md).
+
 ## 0.14.1 — October 22, 2026 — Karaoke display trial
 
 - Vocal lyrics start white and progressively fill yellow in reading order, including wrapped lines. The next line stays white. The sweep uses the saved line start/end and text-length weighting; exact word/syllable timestamps are not yet stored or inferred from the vocal melody.

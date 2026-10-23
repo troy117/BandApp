@@ -20,6 +20,7 @@ import { backingSchedule } from './midi.mjs';
 import { followInstrument, FollowCursor } from './follow-along.mjs';
 import { drawFretted } from './follow-view.mjs';
 import { KaraokeLyrics } from './karaoke-view.mjs';
+import { SingingPractice } from './singing-practice.mjs';
 
 export class BandPractice {
   constructor({ school, beforeEnter, getDrumBindings, getDrumOrder, onReport, onAttempt, openDrumControls }) {
@@ -47,6 +48,7 @@ export class BandPractice {
     this.frettedScore=new FrettedFullScore(this.q('b-full-scroll'),this.q('b-full-page'),this.q('b-full-canvas'));
     const q = this.q;
     this.karaoke = new KaraokeLyrics(q);
+    this.singing = new SingingPractice(this);
     q('b-publish').hidden = !school.staff;
     q('b-octave').value = this.octave; q('b-offset').value = this.offset; q('b-channel').value = this.channel; q('b-sound').checked = preferences.sound !== false;
     q('b-song').onchange = () => this.attempt(() => this.loadChoice(q('b-song').value));
@@ -74,7 +76,7 @@ export class BandPractice {
     document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement !== q('b-stage') && this.nativeFull) { this.nativeFull = false; this.finishCollapse(); } });
     document.addEventListener('keydown', event => this.keyDown(event), true); document.addEventListener('keyup', event => this.keyUp(event), true);
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.active) { this.stop('Tab hidden. Prepare a fresh take when you return.',true,true); this.rooms.unready('Tab hidden.'); this.clearHeld(); } });
-    window.addEventListener('blur', () => { this.clearHeld(); if (this.active && this.session && !this.session.teacher) this.stop('Window lost focus. Prepare a fresh take when you return.',true,true); });
+    window.addEventListener('blur', () => { this.clearHeld(); if (this.active && this.session && !this.session.teacher && this.part.instrument !== 'vocals') this.stop('Window lost focus. Prepare a fresh take when you return.',true,true); });
     q('b-csv').onclick = () => { if (this.lastReport) this.download('groove-lab-' + this.lastReport.part.instrument + '-timing.csv', partCsv(this.lastReport.judge), 'text/csv'); };
     q('b-retry-save').onclick = () => this.saveResult();
     q('b-open-report').onclick=()=>{if(this.lastReport?.detail)this.onReport?.(this.lastReport.runRecord,this.lastReport.detail);};
@@ -96,19 +98,20 @@ export class BandPractice {
     catch { this.message('Device storage is unavailable. Controls last for this visit.'); }
   }
   setMode(mode) {
-    if (this.mode !== mode) { this.importer.timing.pause(); this.stop('Practice area changed.'); this.rooms.unready('Practice area changed.'); this.beforeEnter(); this.clearHeld(); this.collapse(); }
+    if (this.mode !== mode) { this.singing.microphone.stop(); this.importer.timing.pause(); this.stop('Practice area changed.'); this.rooms.unready('Practice area changed.'); this.beforeEnter(); this.clearHeld(); this.collapse(); }
     this.mode = mode; document.body.classList.toggle('band-active', this.active); this.q('band-workspace').hidden = !this.active;
-    document.querySelector('main h1').textContent = mode === 'drums' ? 'Drum practice' : mode === 'keyboard' ? 'Keyboard practice' : mode === 'jam' ? 'Jam session' : mode[0].toUpperCase()+mode.slice(1)+' · follow along';
+    document.querySelector('main h1').textContent = mode === 'drums' ? 'Drum practice' : mode === 'keyboard' ? 'Keyboard practice' : mode === 'jam' ? 'Jam session' : mode === 'vocals' ? 'Singing practice' : mode[0].toUpperCase()+mode.slice(1)+' · follow along';
     for (const button of document.querySelectorAll('[data-band-mode]')) button.setAttribute('aria-pressed', String(button.dataset.bandMode === mode));
     this.q('b-room-panel').hidden = mode !== 'jam';
     this.q('b-title').textContent = mode === 'jam' ? 'Play together. Follow your part.' : followInstrument(mode) ? 'Follow the song. Play your part.' : 'A melody, one note at a time.';
-    this.q('b-description').textContent = mode === 'jam' ? 'One teacher starts the count-in. Each student follows their own part.' : followInstrument(mode) ? 'Follow the shared music and timing. Guitar, bass and vocals do not require input or produce a performance score.' : 'Use a MIDI keyboard or your computer keys. Middle C is C4 (MIDI 60).';
+    this.q('b-description').textContent = mode === 'jam' ? 'One teacher starts the count-in. Each student follows their own part.' : mode === 'vocals' ? 'Sing with the lyrics. Turn on your microphone for optional live pitch guidance.' : followInstrument(mode) ? 'Follow the shared music and timing. Guitar and bass do not require input or produce a performance score.' : 'Use a MIDI keyboard or your computer keys. Middle C is C4 (MIDI 60).';
     this.q('open-drumkit').hidden = this.active; this.q('open-settings').hidden = this.active;
     if (mode === 'jam') this.attempt(() => this.rooms.refresh());
     if (mode !== 'jam' && this.rooms.room) this.rooms.leave();
     if (followInstrument(mode)) { if(!this.arrangement.parts.some(part=>part.instrument===mode))this.useArrangement(builtinArrangement('band-first'),mode);else this.selectPart(this.arrangement.parts.find(part=>part.instrument===mode).id); }
     if(mode==='keyboard' && followInstrument(this.part.instrument)) { const part=this.arrangement.parts.find(part=>part.instrument==='keyboard');if(part)this.selectPart(part.id);else this.useArrangement(builtinArrangement(),'keyboard'); }
     this.renderKeys();
+    document.body.classList.toggle('singing-mode', this.active && this.part.instrument === 'vocals');
   }
   identity() {
     this.stop('School account changed.'); this.rooms.leave(); this.lastReport = null; this.pendingResult = null; this.loadToken++; this.importer.reset();
@@ -155,6 +158,7 @@ export class BandPractice {
   selectPart(id) { if (this.rooms.room && this.session) return; this.stop(); this.part = this.arrangement.parts.find(part => part.id === id) || this.arrangement.parts[0]; this.renderPart(); }
   renderPart() {
     const q = this.q, keys = this.part.instrument === 'keyboard', follow = followInstrument(this.part.instrument), strings = ['guitar','bass'].includes(this.part.instrument);
+    this.singing?.reset();
     q('b-report').hidden = true;
     q('b-vocal-melody-panel').hidden = this.part.instrument !== 'vocals' || !this.part.chart.notes.length;
     q('b-vocal-guide-enabled').checked = false;
@@ -163,7 +167,7 @@ export class BandPractice {
     q('b-part').innerHTML = this.arrangement.parts.map(part => '<option value="' + part.id + '">' + escapeHtml(part.name) + '</option>').join(''); q('b-part').value = this.part.id;
     q('b-song-info').textContent = this.arrangement.title + ' · ' + Math.round(this.part.chart.bpm) + ' BPM · ' + this.part.chart.bars + (this.part.chart.bars === 1 ? ' bar' : ' bars') + ' · ' + (this.part.chart.lyrics?.length || this.part.chart.notes.length) + (this.part.instrument==='vocals'?' lyric cues':' notes') + ' · ' + (follow ? 'Follow-along · no score' : keys ? 'Pitch + onset timing' : 'Drum + onset timing');
     q('b-input-controls').hidden=follow;q('b-stats').hidden=follow;q('b-csv').hidden=follow;q('b-open-report').hidden=follow;q('b-follow-help').hidden=!follow;
-    q('b-follow-help').textContent=strings?'Suggested frets · standard '+(this.part.instrument==='guitar'?'six-string E A D G B E':'four-string E A D G')+' tuning · frets 0–24. MIDI does not retain original fingering. '+(this.part.chart.unmapped?this.part.chart.unmapped+' notes cannot be placed and are marked with ?; check the tuning or MIDI with your teacher.':'Fret 0 means an open string. Check fingering with your teacher.'):this.part.chart.notes.length ? 'Follow the lyric line and the lead-vocal melody below. Note names show concert pitch and octave. No microphone or vocal score is used.' : 'Follow the highlighted lyric line. To add a melody guide, your teacher can assign the lead-vocal MIDI tracks to Vocals in Edit instrument parts.';
+    q('b-follow-help').textContent=strings?'Suggested frets · standard '+(this.part.instrument==='guitar'?'six-string E A D G B E':'four-string E A D G')+' tuning · frets 0–24. MIDI does not retain original fingering. '+(this.part.chart.unmapped?this.part.chart.unmapped+' notes cannot be placed and are marked with ?; check the tuning or MIDI with your teacher.':'Fret 0 means an open string. Check fingering with your teacher.'):this.part.chart.notes.length ? 'Follow the lyric line and the lead-vocal melody below. Enable your microphone for live pitch guidance, or sing with the lyrics. Sheet music and reference tones are below.' : 'Follow the highlighted lyric line. To add a melody guide, your teacher can assign the lead-vocal MIDI tracks to Vocals in Edit instrument parts.';
     if(follow)q('b-feedback').textContent='Ready to follow your part. Press Play or wait for your teacher’s shared start.';
     q('b-input-controls').open = false;
     q('b-full-title').textContent = this.arrangement.title + ' · ' + this.part.name;
@@ -270,6 +274,7 @@ export class BandPractice {
     if (this.backing) backingSchedule(0, this.backing.offset, this.backing.buffer.duration);
   }
   async play(listen = false) {
+    if (this.part.instrument === 'vocals' && !this.rooms.room) return this.singing.toggle();
     if (this.session) { this.stop('Stopped.',true,true); return; }
     if (this.rooms.room) { this.message('Use Ready. Your teacher controls session playback.'); return; }
     if (this.school.user?.mustChangePassword) { this.school.openPassword(); return; }
@@ -291,14 +296,25 @@ export class BandPractice {
   begin(startAt, options = {}) {
     const chart = this.playChart();
     this.session = { ...options, judge: followInstrument(this.part.instrument) ? new FollowCursor(chart) : this.part.instrument === 'keyboard' ? new PitchJudge(chart) : new Judge(chart), startAt, count: 0, beat: 0, guide: 0, accountId: this.school.user?.id || null, lastProgress: 0, part: this.part, arrangement: this.arrangement };
+    const from = options.from || 0;
+    if (from > 0) {
+      this.session.beat = chart.beats.findIndex(beat => beat.time >= from); if (this.session.beat < 0) this.session.beat = chart.beats.length;
+      this.session.guide = chart.notes.findIndex(note => note.time >= from); if (this.session.guide < 0) this.session.guide = chart.notes.length;
+    }
+    if (options.skipCountIn) this.session.count = chart.countInBeats;
     if (this.backing && chart.passes && (!this.rooms.room || options.teacher)) { for(const segment of backingSegments(chart,this.backing))this.audio.playBacking(this.backing.buffer,startAt+segment.when,segment.offset,this.backing.volume,segment.duration); }
-    else if (this.backing && (!this.rooms.room || options.teacher)) { const timing = backingSchedule(startAt, this.backing.offset, this.backing.buffer.duration); this.audio.playBacking(this.backing.buffer, timing.when, timing.offset, this.backing.volume, Math.min(this.backing.buffer.duration - timing.offset, Math.max(0.01, chart.duration - Math.max(0, this.backing.offset)))); }
+    else if (this.backing && (!this.rooms.room || options.teacher)) {
+      const position = Math.max(from, this.backing.offset), offset = Math.max(0, from - this.backing.offset);
+      const duration = Math.min(this.backing.buffer.duration - offset, chart.duration - position);
+      if (duration > 0) this.audio.playBacking(this.backing.buffer, startAt + position, offset, this.backing.volume, duration);
+    }
     this.q('b-report').hidden = true; this.lockControls(); this.q('b-feedback').textContent = options.teacher ? 'The shared count-in is scheduled.' : followInstrument(this.part.instrument) ? 'Follow your part after the count-in. This part is not scored.' : options.listen ? 'Listen first. This run is not scored.' : 'Count in, then meet each note in its hit box.';
     if (!options.teacher) { this.q('b-input-controls').open = false; if (!this.expanded) this.q('b-stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   }
   stop(reason = '', announce = true, partial = false) {
     const played=this.session?this.audio.audibleTime()-this.session.startAt:-1;
     this.token++; const session = this.session; this.session = null; this.clearHeld(); this.audio.silence();
+    this.singing?.stopped();
     if (session?.takeId && announce) {
       if (session.teacher) this.rooms?.unready(reason);
       else this.rooms?.link.send({ type: 'interrupt', takeId: session.takeId, reason });
@@ -322,7 +338,7 @@ export class BandPractice {
     const session = this.session; if (!session) return;
     const chart = session.judge.chart, time = this.audio.audibleTime() - session.startAt, horizon = this.audio.context.currentTime + 0.12;
     while (session.count < chart.countInBeats) {
-      const at = session.startAt + (session.count - chart.countInBeats) * chart.countInBeatSeconds;
+      const at = session.startAt + (session.from || 0) + (session.count - chart.countInBeats) * chart.countInBeatSeconds;
       if (at > horizon) break;
       if ((!session.takeId || session.teacher) && at >= this.audio.context.currentTime - 0.03) this.audio.click(at, session.count === 0); session.count++;
     }
@@ -337,7 +353,7 @@ export class BandPractice {
       session.guide++;
     }
     if (!session.listen && !session.teacher) { session.judge.advance(time - this.offset / 1000); this.stats(session.judge); }
-    this.q('b-play-status').textContent = time < 0 ? 'Count-in · ' + Math.max(1, Math.min(chart.countInBeats, chart.countInBeats + 1 + Math.floor(time / chart.countInBeatSeconds))) : 'Bar ' + (chart.beats.findLast(beat => beat.time <= time)?.sourceBar || chart.beats.findLast(beat => beat.time <= time)?.bar || 1) + ' / ' + (chart.sourceBars || chart.bars);
+    this.q('b-play-status').textContent = time < (session.from || 0) ? 'Count-in · ' + Math.max(1, Math.min(chart.countInBeats, chart.countInBeats + 1 + Math.floor((time - (session.from || 0)) / chart.countInBeatSeconds))) : 'Bar ' + (chart.beats.findLast(beat => beat.time <= time)?.sourceBar || chart.beats.findLast(beat => beat.time <= time)?.bar || 1) + ' / ' + (chart.sourceBars || chart.bars);
     if (session.takeId && !session.teacher && time >= 0 && performance.now() - session.lastProgress > 200) { session.lastProgress = performance.now(); this.rooms.progress(partSummary(session.judge), Math.min(chart.duration, time)); }
     if (time > chart.duration + 0.35) this.finish();
   }
@@ -345,6 +361,7 @@ export class BandPractice {
     const session = this.session; if (!session) return;
     if (session.teacher) { this.stop('', false); return; }
     if(session.judge.followAlong) {
+      if (session.part.instrument === 'vocals') this.singing.microphone.stop();
       this.lastReport={...session};this.stop('',false);this.q('b-feedback').textContent='Finished following '+session.part.name+'. No performance score was recorded.';
       this.q('b-report').hidden=false;this.q('b-report-summary').textContent=session.arrangement.title+' · '+session.part.name+' · Follow-along completed (unscored)';this.q('b-report-notes').textContent='';this.q('b-retry-save').hidden=true;this.collapse();
       this.q('b-save-state').textContent=session.takeId?'Confirming session participation…':'Follow-along complete. No performance score was recorded.';
@@ -408,9 +425,12 @@ export class BandPractice {
     requestAnimationFrame(() => this.frame());
   }
   draw() {
-    const chart = this.session?.judge.chart || this.playChart(), time = this.session ? this.audio.audibleTime() - this.session.startAt : -0.5;
+    const chart = this.session?.judge.chart || this.playChart(), time = this.session ? this.audio.audibleTime() - this.session.startAt : this.part.instrument === 'vocals' ? this.singing.position : -0.5;
     if(this.part.instrument==='vocals') {
-      this.karaoke.draw(chart, time, !!this.session);
+      const counting = this.session && time < (this.session.from || 0);
+      this.karaoke.draw(chart, counting ? this.session.from || 0 : time, !!this.session && !counting, this.singing.paused || !!counting);
+      if (counting) this.q('b-vocal-state').textContent = 'COUNT-IN · ' + Math.max(1, chart.countInBeats + 1 + Math.floor((time - (this.session.from || 0)) / chart.countInBeatSeconds));
+      this.singing.draw(chart, time, !!this.session);
       if (chart.notes.length) {
         const target = vocalTarget(chart.notes, time), label = 'Target note · ' + target.label;
         if (this.q('b-vocal-target').textContent !== label) this.q('b-vocal-target').textContent = label;

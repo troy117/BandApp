@@ -23,7 +23,9 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
-Prototype 14.1 adds a karaoke display trial: white lyrics fill yellow through each saved line's duration, with the next line underneath. After long instrumental gaps, the next two lines appear two musical bars before the entrance with a countdown. The color sweep approximates word positions within the line; precise syllable timing is not stored yet.
+Prototype 15 adds phone singing practice: a focused karaoke screen, optional microphone pitch feedback, Target / You notes, a simple high/low/on-pitch meter, and large pause/continue, retry-line and skip controls. Students can sing in a comfortable octave or match the written octave. Audio stays on the device and is never recorded, uploaded or graded. Headphones help isolate the student's voice; physical phone testing remains necessary. See [the singing practice guide](docs/SINGING_PRACTICE.md).
+
+Lyrics remain white and fill yellow through each saved line's duration, with the next line underneath. After long instrumental gaps, the next two lines appear two musical bars before the entrance with a countdown. The color sweep approximates word positions within the line; precise syllable timing is not stored yet.
 
 Prototype 14 makes End session visible inside teacher rooms and beside existing sessions. Keep the same students connected while changing the song, assigned parts or starting bar. Apply song / start bar stops the current take; everyone presses Ready for a fresh count-in. Drums use the same highway in solo and jam practice, with separate open/closed hi-hat boxes when the MIDI identifies them. Plain lyric text can be timed line by line against the backing recording before publishing a vocal part. Assign a lead-vocal MIDI track to also show a treble-staff melody guide, target note names and optional reference tones. See [the session and lyric guide](docs/SESSION_CONTROLS.md).
 

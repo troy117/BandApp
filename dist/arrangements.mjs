@@ -25,9 +25,9 @@ export function builtinArrangement(id = 'duet-first') {
       for(let b=0;b<4;b++)bass.push({id:`bass-${bar}-${b}`,pitch:chords[bar%4][0]-12,time:(bar*4+b)*beat,quarter:bar*4+b,duration:0.7*beat,bar:bar+1,beat:b+1,status:'pending'});
     }
     for(const [instrument,notes] of [['guitar',guitar],['bass',bass]])parts.push({id:instrument,instrument,name:BAND_INSTRUMENTS[instrument],chart:frettedChart({...drums,kind:instrument,notes},instrument)});
-    parts.push({id:'vocals',instrument:'vocals',name:'Vocals',chart:{...drums,kind:'vocals',notes:[],lyrics:['Find the beat','Keep it steady','Listen to each other','Play together'].map((text,i)=>({text,time:i*8*beat,end:(i+1)*8*beat}))}});
+    parts.push({id:'vocals',instrument:'vocals',name:'Vocals',chart:{...drums,kind:'vocals',notes:notes.map(note=>({...note,id:'vocal-'+note.id})),lyrics:['Find the beat','Keep it steady','Listen to each other','Play together'].map((text,i)=>({text,time:i*8*beat,end:(i+1)*8*beat}))}});
   }
-  return { id: song.id, revisionId: 'duet-v1', title: song.title, sourceKind: 'duet', duration: drums.duration, bpm: song.bpm, parts, backing: null };
+  return { id: song.id, revisionId: song.ensemble ? 'duet-v2' : 'duet-v1', title: song.title, sourceKind: 'duet', duration: drums.duration, bpm: song.bpm, parts, backing: null };
 }
 export function arrangementParts(input, legacySelected) {
   if (input === undefined) return [{ id: 'drums', instrument: 'drums', name: 'Drums', selected: [...legacySelected] }];

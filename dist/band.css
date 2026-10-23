@@ -22,3 +22,68 @@ body .instrument-nav{position:fixed;left:0;top:0;bottom:0;z-index:35;width:var(-
 #b-vocal-melody-panel{width:100%;max-width:1000px;background:#132326;border:1px solid #3e575b;border-radius:10px;padding:12px}#b-vocal-melody-panel .band-row{justify-content:center;gap:24px}#b-vocal-target{font-size:21px;color:#83dfce;margin:4px 0}#b-vocal-melody{display:block;width:100%;height:200px}#b-vocal-melody-panel .band-help{font-size:11px;margin:8px 0 0}
 
 .band-lyrics #b-vocal-line{color:#fff;text-wrap:balance;max-width:1100px}.karaoke-word{display:inline-block;color:#fff;background:linear-gradient(to right,#f5deb0 var(--lyric-fill,0%),#fff var(--lyric-fill,0%));background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}.band-lyrics #b-vocal-next{color:#fff;opacity:.82;max-width:950px;line-height:1.5;min-height:1.5em}.band-lyrics #b-vocal-state{font-size:13px;font-weight:700;letter-spacing:.15em;margin:0;min-height:1.5em}.band-lyrics[data-phase="preview"] #b-vocal-state,.band-lyrics[data-phase="singing"] #b-vocal-state{color:#f5deb0}.band-lyrics[data-phase="instrumental"] #b-vocal-line,.band-lyrics[data-phase="ended"] #b-vocal-line{font-size:clamp(28px,3vw,42px)}.band-lyrics #b-vocal-progress{height:4px;opacity:.65}
+
+/* Singing keeps the next action close to the lyrics, including in phone portrait. */
+.singing-mode .band-heading,.singing-mode .band-transport,.singing-mode #b-follow-help,.singing-mode #b-song-info,.singing-mode #b-key-controls{display:none}
+.singing-mode #b-practice{max-width:1020px;margin:18px auto;padding:18px}
+.singing-mode #b-song-choices>label:nth-child(2){display:none}
+.singing-mode #b-song-choices>label:first-child{min-width:180px}
+.singing-stage{overflow:visible;padding:0 20px 16px;background:radial-gradient(ellipse at 50% 15%,#23363755,transparent 60%),#0e181b}
+.singing-stage>p{margin:12px 0 0;height:auto;font-size:11px;color:#aec3c3}
+.singing-stage .band-lyrics{padding:20px 0 0;gap:0;justify-content:flex-start;min-height:0}
+.singing-heading{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;margin-bottom:20px}
+.singing-heading h3{font-size:clamp(21px,3vw,30px);font-weight:600;margin:0;overflow-wrap:anywhere;letter-spacing:-.5px}
+.singing-heading .eyebrow{font-size:10px;color:#aac1bf;margin:0 0 7px;letter-spacing:.14em}
+.singing-heading .score-icon-button{flex-shrink:0;min-height:44px;min-width:44px}
+.singing-mic-row{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px;width:100%}
+.singing-mic-row .button{min-height:48px;padding:12px 20px;font-size:14px;border-color:#66827e}
+#b-vocal-mic-badge{font-size:10px;font-weight:700;letter-spacing:.08em;color:#a2b8b9;white-space:nowrap}
+#b-vocal-mic-badge[data-on=true]{color:#83ebba}
+.band-lyrics .singing-mic-status{font-size:12px;line-height:1.6;margin:10px 0 0;max-width:600px;min-height:2em;color:#b8caca}
+.singing-words{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;width:100%;min-height:270px;padding:26px 0}
+.singing-words #b-vocal-line{font-size:clamp(28px,4vw,48px);line-height:1.35;letter-spacing:-.4px}
+.singing-words #b-vocal-next{font-size:clamp(16px,2vw,21px);margin:0;opacity:.7}
+.singing-pitch{width:100%;max-width:720px;background:#17272b;border:1px solid #385357;border-radius:14px;padding:16px 20px;color:#d2e0de}
+.singing-note-pair{display:grid;grid-template-columns:60px minmax(0,1fr) 60px;gap:12px;align-items:center;min-height:56px}
+.singing-note-pair>div{display:grid;gap:5px}.singing-note-pair>div>span{font-size:11px;color:#adc4c4}.singing-note-pair>div>strong{font-size:24px;font-weight:550}
+#b-pitch-feedback{font-size:clamp(16px,2.5vw,23px);font-weight:600;line-height:1.3}
+.singing-pitch[data-state=on-pitch]{border-color:#6dd7ab;background:#19382f}.singing-pitch[data-state=on-pitch] #b-pitch-feedback{color:#a6f5cb}
+.singing-pitch[data-state=low] #b-pitch-feedback,.singing-pitch[data-state=high] #b-pitch-feedback{color:#f5deb0}
+.singing-meter{position:relative;height:12px;background:linear-gradient(90deg,#90734033 0 38%,#63d9a955 38% 62%,#90734033 62%);border-radius:8px;margin:19px 0 8px}
+.singing-center{position:absolute;left:50%;top:-3px;height:18px;width:2px;background:#83bdb1}
+#b-pitch-dot{position:absolute;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;border:2px solid #102825;background:#f5deb0;box-shadow:0 0 0 2px #f5deb044}
+.singing-pitch[data-state=on-pitch] #b-pitch-dot{background:#9af2bf;box-shadow:0 0 0 2px #9af2bf44}
+.singing-meter-labels{display:flex;justify-content:space-between;font-size:10px;color:#bdd0cd}
+.singing-pitch #b-pitch-hint{font-size:12px;line-height:1.5;margin:14px 0 0;min-height:1.5em;color:#b6cdca}
+.singing-player{width:100%;max-width:720px;padding:20px 0 10px;position:sticky;bottom:0;z-index:4;background:#0e181bf5;backdrop-filter:blur(14px);border-top:1px solid #385357;margin-top:22px}
+.singing-seek-label{display:flex;justify-content:space-between;gap:10px;color:#b8cbca;font-size:11px}
+#b-singing-seek{display:block;width:100%;height:36px;accent-color:#e8c17b;touch-action:pan-y;margin:0}
+.singing-player-buttons{display:grid;grid-template-columns:1fr 1.2fr;gap:12px}
+.singing-player-buttons .button{min-height:54px;font-size:15px;padding:12px}
+.singing-player .text-button{min-height:44px;font-size:12px;padding:10px;margin-top:4px}
+.singing-details{width:100%;max-width:720px;border-top:1px solid #334b50;padding:16px 0;text-align:left;font-size:13px}
+.singing-details>summary{min-height:28px;cursor:pointer;color:#c0d0ce;font-weight:600}.singing-details[open]>summary{margin-bottom:16px}
+.singing-setting{display:grid;gap:10px;margin:20px 0 12px;color:#bdd0cc;font-size:13px}.singing-setting input[type=range]{width:100%;accent-color:#e8c17b;height:32px}
+.singing-setting select{width:100%;font-size:16px;min-height:48px}.singing-details .band-check{min-height:44px;white-space:normal}.singing-details .band-check input{width:20px;height:20px}
+#b-vocal-melody-panel.singing-details{max-width:720px;border-width:1px 0 0;border-radius:0;background:transparent;padding:16px 0}#b-vocal-melody-panel.singing-details .band-row{gap:16px;justify-content:space-between}
+.singing-stage.band-expanded{overflow:auto;display:block;padding:12px max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom));scroll-padding-bottom:180px}
+.singing-stage.band-expanded .band-lyrics{overflow:visible;max-width:1000px;margin:auto;min-height:0}.singing-stage.band-expanded .singing-player{bottom:calc(-12px + env(safe-area-inset-bottom))}
+.singing-stage .button,.singing-stage .text-button{touch-action:manipulation}
+.singing-stage #b-full-play,.singing-stage.band-expanded #b-singing-expand{display:none}.singing-stage #b-full-title{font-size:12px;flex:1;min-width:0}
+@media(max-width:600px){
+  body.singing-mode.has-instrument-menu>.wrap{width:calc(100% - 24px);margin-left:12px;margin-right:12px}
+  body.singing-mode .instrument-nav{position:relative;inset:auto;width:100%;height:auto;padding:6px 12px;margin:0;flex-direction:row;flex-wrap:wrap;gap:6px;border-width:0 0 1px}
+  .singing-mode .instrument-nav #instrument-menu-toggle{width:auto;min-height:40px;padding:8px 12px;justify-content:flex-start}.singing-mode .instrument-nav #instrument-menu-toggle .instrument-label{display:inline;font-size:12px}
+  .singing-mode .instrument-choices{display:flex;flex-wrap:wrap;gap:4px;flex:1}.singing-mode .instrument-choices button{width:auto;flex:1;padding:6px;font-size:11px;justify-content:center;min-height:44px}.singing-mode .instrument-icon{width:18px;flex-basis:18px}
+  .singing-mode.instrument-menu-collapsed .instrument-choices{display:none}
+  .singing-mode .topbar{height:auto;min-height:70px;padding:12px 0;gap:8px;flex-direction:row;align-items:center}.singing-mode .brand{font-size:20px}.singing-mode .brand-mark{display:none}.singing-mode .brand small{font-size:7px;letter-spacing:1px}.singing-mode .top-actions{gap:6px}.singing-mode .top-actions .button{font-size:11px;min-height:44px;padding:8px}
+  .singing-mode #b-practice{padding:10px;border-radius:12px;margin:12px 0}.singing-mode #b-song-choices{margin:0 0 8px;gap:8px}.singing-mode #b-song-choices label{min-width:140px;font-size:11px}.singing-mode #b-song-choices select{font-size:16px;width:100%;min-height:48px}.singing-mode #b-catalog-refresh{font-size:10px;min-height:48px;padding:8px;max-width:90px;white-space:normal}
+  .singing-mode #b-feedback{font-size:12px;line-height:1.6}.singing-mode #b-open-import{font-size:11px;margin-bottom:8px}.singing-stage{padding:0 12px 8px;border-radius:10px}.singing-stage .band-lyrics{padding-top:14px}.singing-heading{margin-bottom:16px}.singing-heading h3{font-size:22px}.singing-heading .eyebrow{font-size:8px}
+  .singing-mic-row{gap:8px}.singing-mic-row .button{font-size:13px;padding:12px 16px}.singing-words{min-height:240px;padding:22px 0;gap:15px}.singing-words #b-vocal-line{font-size:29px;line-height:1.4}.singing-words #b-vocal-state{font-size:10px}.singing-words #b-vocal-next{font-size:16px;line-height:1.45}
+  .singing-pitch{padding:14px 12px}.singing-note-pair{grid-template-columns:44px minmax(0,1fr) 44px;gap:8px}.singing-note-pair>div>strong{font-size:21px}#b-pitch-feedback{font-size:17px}.singing-pitch #b-pitch-hint{font-size:11px}
+  .singing-player{padding:12px 0 max(8px,env(safe-area-inset-bottom));margin-top:16px}.singing-player-buttons{gap:8px}.singing-player-buttons .button{font-size:13px;min-height:54px;padding:8px}.singing-details{font-size:12px}
+  .singing-stage.band-expanded .singing-heading{margin-bottom:12px}.singing-stage.band-expanded .singing-heading .eyebrow{display:none}.singing-stage.band-expanded .singing-words{min-height:190px;padding:20px 0}.singing-stage.band-expanded .singing-mic-status{margin-bottom:0}.singing-stage.band-expanded #b-play-status{margin-top:6px}
+}
+@media(prefers-reduced-motion:reduce){.singing-stage .button{transition:none}}
+
+.singing-player .singing-play-error{color:#ffd2bc;font-size:13px;line-height:1.6;margin:0 0 12px}
