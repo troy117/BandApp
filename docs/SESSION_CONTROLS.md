@@ -28,6 +28,8 @@ Timing uses the exact retained recording. It does not infer words from audio or 
 
 ## Lead-vocal melody guide
 
+Prototype 14.1 shows white lyrics with a yellow sweep through the saved line duration, followed by the next white lyric line. During long instrumental breaks, the next line moves into the main display two musical bars before its entrance, with the following line below and a countdown. The sweep estimates word positions from text length; the song files currently contain line timestamps rather than precise word/syllable timestamps. The song's saved timing and melody notes are unchanged.
+
 Assign the actual lead-vocal MIDI tracks to Vocals in Edit instrument parts, retaining the timed text. The Vocals screen shows the lyrics plus a scrolling treble staff, literal note names/octaves, the current target and shaded hold lengths. Play melody guide supplies an optional local synthesized reference tone. It does not request a microphone, assess the singer or add scores. Text-only vocal parts continue to work when no melody tracks are assigned.
 
 The Songsterr Dreams vocal sheet labels the lead-vocal track as Flute; Ocean Avenue uses Clarinet, Still Into You uses Soprano Sax and Master of Puppets uses Baritone Sax. Select every channel of the named lead-vocal track and leave backing vocals separate. Existing note-on/release times and tempo scaling supply the guide. Publisher note spelling, expressive singing, ties and syllable placement are not recreated from MIDI. Use the visible score's lyric anchors and a listening check to refine the separately retained lyric cues; assigning melody tracks does not change those timings or the backing alignment.

@@ -19,7 +19,7 @@ import { escapeHtml } from './song-import.mjs';
 import { backingSchedule } from './midi.mjs';
 import { followInstrument, FollowCursor } from './follow-along.mjs';
 import { drawFretted } from './follow-view.mjs';
-import { currentLyric } from './lyrics.mjs';
+import { KaraokeLyrics } from './karaoke-view.mjs';
 
 export class BandPractice {
   constructor({ school, beforeEnter, getDrumBindings, getDrumOrder, onReport, onAttempt, openDrumControls }) {
@@ -46,6 +46,7 @@ export class BandPractice {
     this.fullScore = new FullScoreView(this.q('b-full-scroll'), this.q('b-full-page'), this.q('b-full-canvas'));
     this.frettedScore=new FrettedFullScore(this.q('b-full-scroll'),this.q('b-full-page'),this.q('b-full-canvas'));
     const q = this.q;
+    this.karaoke = new KaraokeLyrics(q);
     q('b-publish').hidden = !school.staff;
     q('b-octave').value = this.octave; q('b-offset').value = this.offset; q('b-channel').value = this.channel; q('b-sound').checked = preferences.sound !== false;
     q('b-song').onchange = () => this.attempt(() => this.loadChoice(q('b-song').value));
@@ -409,10 +410,7 @@ export class BandPractice {
   draw() {
     const chart = this.session?.judge.chart || this.playChart(), time = this.session ? this.audio.audibleTime() - this.session.startAt : -0.5;
     if(this.part.instrument==='vocals') {
-      const {current,next}=currentLyric(chart.lyrics||[],time),line=current?.text||(time<0?'Get ready to sing':'Instrumental · listen for your next line');
-      if(this.q('b-vocal-line').textContent!==line)this.q('b-vocal-line').textContent=line;
-      const upcoming=next?'Up next: '+next.text:'End of lyrics';if(this.q('b-vocal-next').textContent!==upcoming)this.q('b-vocal-next').textContent=upcoming;
-      this.q('b-vocal-progress').value=current?Math.max(0,Math.min(1,(time-current.time)/(current.end-current.time))):0;
+      this.karaoke.draw(chart, time, !!this.session);
       if (chart.notes.length) {
         const target = vocalTarget(chart.notes, time), label = 'Target note · ' + target.label;
         if (this.q('b-vocal-target').textContent !== label) this.q('b-vocal-target').textContent = label;

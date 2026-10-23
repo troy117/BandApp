@@ -1,5 +1,12 @@
 # Changes
 
+## 0.14.1 — October 22, 2026 — Karaoke display trial
+
+- Vocal lyrics start white and progressively fill yellow in reading order, including wrapped lines. The next line stays white. The sweep uses the saved line start/end and text-length weighting; exact word/syllable timestamps are not yet stored or inferred from the vocal melody.
+- Long instrumental gaps show a countdown. The upcoming line and following line appear two musical bars before the entrance, using the chart's measure/beat grid across tempo and meter changes. The staff/target guide and existing song timing remain in place.
+- No microphone capture or vocal grading is added. This is a display iteration for teacher feedback; school song metadata, recordings and assignments do not need to be republished.
+- Validation: 140 tests, browser syntax and standalone export pass. New timing tests cover a two-bar preview across tempo/meter changes, instrumental gaps, restarts and wrapped-word progression; local browser playback verifies white opening text and the yellow sweep with the retained vocal staff.
+
 ## 0.14.0 — October 22, 2026 — Prototype 14
 
 - Prominent End session controls inside teacher rooms and beside existing invitations. Teachers can change songs, reassign the same students' parts and start from a chosen source bar without creating a new room. Applying a change interrupts an active take, retains the connected seats and requires fresh readiness/count-in. Ended rooms cannot be restarted.
