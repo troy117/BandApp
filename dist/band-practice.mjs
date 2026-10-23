@@ -123,11 +123,11 @@ export class BandPractice {
     this.useArrangement(builtinArrangement()); this.attempt(() => this.refreshCatalog()); if (this.mode === 'jam') this.attempt(() => this.rooms.refresh());
   }
   async refreshCatalog() {
-    const current = this.q('b-song').value;
     this.catalog = DUETS.map(song => { const arr = builtinArrangement(song.id); return { ...arr, parts: arr.parts.map(({ id, instrument, name }) => ({ id, instrument, name })) }; });
     if (this.school.user && !this.school.user.mustChangePassword) {
       const { songs } = await this.school.request('/band/catalog'); this.catalog = songs;
     }
+    const current = this.arrangement.sourceKind + ':' + this.arrangement.id;
     this.renderCatalog(); if (this.catalog.some(song => song.sourceKind + ':' + song.id === current)) this.q('b-song').value = current;
     this.rooms.catalogChoices();
   }

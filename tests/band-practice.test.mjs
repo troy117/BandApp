@@ -9,6 +9,14 @@ function bandDocument(t, document) {
   const previous=globalThis.document;globalThis.document=document;
   t.after(()=>{if(previous===undefined)delete globalThis.document;else globalThis.document=previous;});
 }
+
+test('a delayed school catalog refresh keeps the song chosen while it was loading', async () => {
+  let resolve; const select = { value: 'duet:duet-first' };
+  const practice = Object.assign(Object.create(BandPractice.prototype), { arrangement: builtinArrangement(), school: { user: { id: 'student' }, request: () => new Promise(done => { resolve = done; }) }, q: () => select, rooms: { catalogChoices() {} }, renderCatalog() { select.value = 'duet:duet-first'; } });
+  const pending = practice.refreshCatalog(); practice.arrangement = builtinArrangement('band-first'); select.value = 'duet:band-first';
+  resolve({ songs: [{ sourceKind: 'duet', id: 'duet-first' }, { sourceKind: 'duet', id: 'band-first' }] }); await pending;
+  assert.equal(select.value, 'duet:band-first');
+});
 test('shared playback maps the scheduled server clock once and rejects an unready or late start',t=>{
   bandDocument(t,{hidden:false});const clock=new SessionClock(),now=performance.now();
   for(let i=0;i<3;i++)clock.add(now+i*10,now+i*10+2,now+i*10+1001);
