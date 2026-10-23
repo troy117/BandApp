@@ -11,6 +11,7 @@ import { DRUMS, GROOVES } from '../dist/engine.mjs';
 import { arrangementParts, importedArrangement } from '../dist/arrangements.mjs';
 import { BAND_SCHEMA, migrateBandStorage } from './band-results.mjs';
 import { passwordMinimum, PASSWORD_MAX_LENGTH } from '../dist/password-policy.mjs';
+import { lyricText } from '../dist/lyrics.mjs';
 
 const derivePassword = promisify(scrypt);
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -205,13 +206,19 @@ export class ClassroomStore {
     if (!/\.midi?$/i.test(fileName)) throw new SchoolError(400, 'Choose a standard MIDI file.');
     if (!Number.isInteger(input.midiBytes) || input.midiBytes < 14 || input.midiBytes > 10 * 1024 * 1024 || !Number.isInteger(input.audioBytes) || input.audioBytes < 0 || input.audioBytes > 100 * 1024 * 1024) throw new SchoolError(400, 'MIDI files must be at most 10 MB and recordings at most 100 MB.');
     const audioName = input.audioBytes ? cleanText(input.audioName, 180, 'recording filename') : '';
-    if (!Array.isArray(input.selected) || !input.selected.length || input.selected.length > 512 || !input.selected.every(id => typeof id === 'string' && /^\d{1,3}:\d{1,2}$/.test(id))) throw new SchoolError(400, 'Choose the drum parts to publish.');
+    if (!Array.isArray(input.selected) || !input.selected.length && !(Array.isArray(input.parts) && input.parts.length && input.parts.every(part=>part?.instrument==='vocals')) || input.selected.length > 512 || !input.selected.every(id => typeof id === 'string' && /^\d{1,3}:\d{1,2}$/.test(id))) throw new SchoolError(400, 'Choose the instrument parts to publish.');
     if (!input.mapping || typeof input.mapping !== 'object' || Array.isArray(input.mapping) || Object.keys(input.mapping).length > 128 || !Object.entries(input.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && Number(pitch) <= 127 && (drum === 'ignore' || DRUMS.some(item => item.id === drum)))) throw new SchoolError(400, 'Invalid drum assignments.');
     let alignment; try { alignment = validateAlignment(input.offset, input.timeScale); } catch (error) { throw new SchoolError(400, error.message); }
     if (!Number.isFinite(input.volume) || input.volume < 0 || input.volume > 1) throw new SchoolError(400, 'Invalid recording volume.');
     let parts;
     try { parts = arrangementParts(input.parts, input.selected); } catch (error) { throw new SchoolError(400, error.message); }
-    return { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...(input.parts ? { arrangementVersion: 1, parts } : {}) };
+    const lyrics = {};
+    try {
+      if(input.lyricsText !== undefined)lyrics.lyricsText=lyricText(input.lyricsText);
+      if(input.lyricsClock !== undefined) { if(!['midi','recording'].includes(input.lyricsClock))throw new Error('Choose MIDI or recording for the lyric clock.');lyrics.lyricsClock=input.lyricsClock; }
+      if(input.lyricsOffset !== undefined) {if(!Number.isFinite(input.lyricsOffset)||Math.abs(input.lyricsOffset)>300)throw new Error('Choose a lyric adjustment within 300 seconds.');lyrics.lyricsOffset=input.lyricsOffset;}
+    } catch(error){throw new SchoolError(400,error.message);}
+    return { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...lyrics, ...(input.parts ? { arrangementVersion: 1, parts } : {}) };
   }
   canManageSong(actor, song) { return isStaff(actor) && (actor.role === 'owner' || song.teacher_id === actor.id); }
   beginUpload(actor, input) {
@@ -262,7 +269,7 @@ export class ClassroomStore {
     const arrangement = importedArrangement(song, meta), chart = (arrangement.parts.find(part => part.instrument === 'drums') || arrangement.parts[0]).chart;
     meta.parts = arrangement.parts.map(({ id, instrument, name, selected }) => ({ id, instrument, name, selected }));
     meta.arrangementVersion = 1;
-    Object.assign(meta, { fingerprint: song.fingerprint, notes: chart.notes.length, duration: chart.duration, bpm: chart.bpm, bytes: row.midi_expected + row.audio_expected });
+    Object.assign(meta, { fingerprint: song.fingerprint, notes: chart.notes.length || chart.lyrics?.length || 0, duration: chart.duration, bpm: chart.bpm, bytes: row.midi_expected + row.audio_expected });
     this.transaction(() => {
       const current = this.db.prepare('SELECT * FROM songs WHERE id=?').get(row.song_id);
       if (!current || !this.canManageSong(actor, current) || current.revision_id !== row.base_revision) throw new SchoolError(409, 'The song changed during upload. Reload it and try again.');

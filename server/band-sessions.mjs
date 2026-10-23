@@ -4,6 +4,7 @@ import { WebSocketServer } from 'ws';
 import { builtinArrangement, DUETS, importedArrangement, arrangementParts } from '../dist/arrangements.mjs';
 import { parseMidiSong } from '../dist/midi.mjs';
 import { bandRecord, validatePartResult } from './band-results.mjs';
+import { followInstrument } from '../dist/follow-along.mjs';
 
 const bandError = (status, message) => Object.assign(new Error(message), { status });
 const staffMember = actor => ['teacher', 'owner'].includes(actor.role);
@@ -84,6 +85,7 @@ export class BandSessions {
       const input = await this.api.json(request), arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId);
       const part = arrangement.parts.find(part => part.id === input.partId);
       if (!part || !/^[0-9a-f-]{36}$/.test(input.id || '')) throw bandError(400, 'Choose a valid part/result.');
+      if(followInstrument(part.instrument))throw bandError(400,'Follow-along parts do not produce performance scores.');
       let summary; try { summary = validatePartResult(input.summary, part.chart.notes.length); } catch (error) { throw bandError(400, error.message); }
       const existing = this.store.db.prepare('SELECT user_id FROM runs WHERE id=?').get(input.id);
       if (existing && existing.user_id !== actor.id) throw bandError(409, 'Result identifier is already in use.');
@@ -101,7 +103,7 @@ export class BandSessions {
       this.sweep();
       if (this.rooms.size >= 60 || [...this.rooms.values()].filter(room => room.teacherId === actor.id && room.state !== 'closed').length >= 3) throw bandError(409, 'Close an existing session before creating another.');
       const arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId);
-      if (!Array.isArray(input.assignments) || input.assignments.length !== 2 || new Set(input.assignments.map(p => p?.userId)).size !== 2) throw bandError(400, 'Choose two different students.');
+      if (!Array.isArray(input.assignments) || input.assignments.length < 1 || input.assignments.length > 8 || new Set(input.assignments.map(p => p?.userId)).size !== input.assignments.length) throw bandError(400, 'Choose one to eight different students.');
       const participants = input.assignments.map(assignment => {
         const user = this.store.user(assignment?.userId), part = arrangement.parts.find(p => p.id === assignment?.partId);
         if (!user?.active || user.role !== 'student' || user.must_change || (actor.role !== 'owner' && user.teacher_id !== actor.id) || !part) throw bandError(400, 'Choose active students from your roster who can sign in, and valid song parts.');
@@ -118,7 +120,7 @@ export class BandSessions {
       this.teacher(actor, room); const input = await this.api.json(request);
       if (input.version !== room.version) throw bandError(409, 'The session changed. Refresh its state.');
       if (match[2] === 'start') {
-        if (room.state !== 'preparing' || !room.teacherSocket || !room.teacherReady || room.participants.some(p => !p.socket || !p.ready || !this.eligible(room, p.userId))) throw bandError(409, 'Both students and the teacher must be connected and Ready.');
+        if (room.state !== 'preparing' || !room.teacherSocket || !room.teacherReady || room.participants.some(p => !p.socket || !p.ready || !this.eligible(room, p.userId))) throw bandError(409, 'All students and the teacher must be connected and Ready.');
         room.takeId = randomUUID(); room.state = 'playing'; room.version = randomUUID(); room.reason = '';
         const chart = room.arrangement.parts[0].chart;
         room.countInAt = this.clock() + 2200; room.startAt = room.countInAt + chart.countInBeats * chart.countInBeatSeconds * 1000;
@@ -255,6 +257,22 @@ export class BandSessions {
     if (!runningRoom(room) || p.state !== 'playing') throw bandError(409, 'Wait for the next take.');
     if (message.type === 'interrupt') { this.interruptParticipant(room, p, String(message.reason || 'Practice interrupted.').slice(0, 120)); this.broadcast(room); return; }
     const part = room.arrangement.parts.find(part => part.id === p.partId);
+    if(followInstrument(part.instrument)) {
+      if(!message.summary || message.summary.mode !== 'follow' || ['accuracy','hits','misses','wrong'].some(key=>key in message.summary))throw bandError(400,'This part follows along without a performance score.');
+      if(message.type === 'progress') {
+        if(!Number.isFinite(message.position)||message.position<0||message.position>room.arrangement.duration+1)throw bandError(400,'Invalid follow-along position.');
+        if(this.clock()-(p.lastProgress||0)<100)return;
+        p.lastProgress=this.clock();p.progress={mode:'follow',position:message.position};this.broadcast(room);return;
+      }
+      if(message.type === 'finish') {
+        if(this.clock()<room.startAt+room.arrangement.duration*1000-100)throw bandError(409,'The song has not finished.');
+        const record={mode:'follow',partId:part.id,instrument:part.instrument,partName:part.name,at:this.store.now(),takeId:room.takeId};
+        const updated=this.store.db.prepare("UPDATE band_results SET state='completed',record=? WHERE take_id=? AND user_id=? AND state='playing'").run(JSON.stringify(record),room.takeId,p.userId);
+        if(updated.changes!==1)throw bandError(409,'This take was interrupted. Prepare a fresh take.');
+        p.state='completed';p.result=record;this.finishRoom(room);this.send(socket,{type:'saved',takeId:room.takeId});this.broadcast(room);return;
+      }
+      throw bandError(400,'Unknown follow-along message.');
+    }
     if (message.type === 'progress') {
       if (this.clock() - (p.lastProgress || 0) < 100) return;
       const value = message.summary;

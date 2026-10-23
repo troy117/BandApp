@@ -1,5 +1,14 @@
 # Changes
 
+## 0.12.0 — October 22, 2026 — Prototype 12
+
+- Guitar and bass follow-along parts with a string/fret highway, moving-cursor tab, fullscreen and Play/Stop. Suggested standard-tuning positions preserve MIDI pitch, use separate strings for simultaneous notes and flag notes that cannot be placed. No guitar/bass input or grading is required.
+- Vocals show current/next lyric lines and line progress. Read embedded MIDI lyric events with limited karaoke text fallback, or import/edit LRC, basic WebVTT or SRT. MIDI/recording timestamp clocks and a separate lyric adjustment retain shared audio alignment. Words are supplied by the teacher; no microphone, vocal grading or automatic commercial-lyric fetching.
+- School arrangements and the library support drums, keyboard, guitar, bass and vocals. Edit instrument parts retains existing MIDI, backing, timing, drum mapping and song identity while publishing a new revision. An original five-part Full band warm-up is included.
+- Teacher sessions allow 1–8 distinct students with per-student part assignments. Guitar/bass/vocals follow the shared start and save unscored participation; drum/keyboard scoring remains separate. No schema, volume or Railway variable changes.
+- Validation: **120 tests pass**, module syntax and standalone export pass. Tests cover five-student transport/completion/persistence, score separation, lyrics and tempo/backing clocks, lyric-only publication, track detection, fret/chord/range handling and drawing geometry. Browser QA with isolated synthetic accounts and original MIDI verifies tab playback, displayed lyrics, five assigned seats and retained instrument/lyric settings. Real instruments, the named Dreams file and multi-computer audible synchronization still need the classroom trial. See [the usage and research guide](docs/GUITAR_BASS_VOCALS.md).
+
+
 ## 0.11.2 — October 22, 2026 — Prototype 11.2
 
 - Teachers can choose a student password on account creation or use Set password on an existing roster entry. Teacher-chosen student passwords work immediately for practice and jam sessions without a forced first-login change. Leaving the create-password field blank retains the generated temporary-password option.

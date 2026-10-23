@@ -52,9 +52,9 @@ export class SongImporter {
       const button = event.target.closest('button[data-song]');
       if (!button || this.libraryBusy) return;
       if (button.dataset.action === 'load') this.libraryScope === 'school' ? this.loadSchoolSong(button.dataset.song) : this.loadSavedSong(button.dataset.song);
-      else if (button.dataset.action === 'keyboard' || button.dataset.action === 'parts') {
+      else if (button.dataset.action === 'keyboard' || button.dataset.action === 'follow' || button.dataset.action === 'parts') {
         this.el('library-dialog').close();
-        window.dispatchEvent(new CustomEvent(button.dataset.action === 'parts' ? 'band-edit-school' : 'band-load-school', { detail: { id: button.dataset.song } }));
+        window.dispatchEvent(new CustomEvent(button.dataset.action === 'parts' ? 'band-edit-school' : 'band-load-school', { detail: { id: button.dataset.song, instrument: button.dataset.instrument } }));
       }
       else if (button.dataset.action === 'publish') this.publishDeviceSong(button.dataset.song);
       else if (button.dataset.action === 'archive') this.archiveSong(button.dataset.song, !this.showArchived);
@@ -274,7 +274,7 @@ export class SongImporter {
     try {
       const songs = shared ? (await this.school.request(`/library${this.showArchived ? '?archived=true' : ''}`)).songs : await this.library.list(this.showArchived);
       if (token !== this.libraryToken) return;
-      this.el('library-list').innerHTML = songs.length ? songs.map(song => `<article class="library-song"><div><h3>${escapeHtml(song.title)}</h3><p>${song.notes} hits · ${formatDuration(song.duration)} · ${(song.bytes / 1024 / 1024).toFixed(1)} MB</p><small>${escapeHtml(song.audioName || 'MIDI only · no backing audio')}${shared ? ` · Published by ${escapeHtml(song.ownerName)}` : ''}${song.parts?.some(part => part.instrument === 'keyboard') ? ' · Piano / Keyboard' : ''}</small></div><div class="library-song-actions">${this.showArchived ? '' : `<button class="button secondary" data-action="load" data-song="${escapeHtml(song.id)}" aria-label="Load ${escapeHtml(song.title)}">${shared && !this.school.staff ? 'Practice' : 'Load song'} →</button>`}${shared && !this.showArchived && song.parts?.some(part => part.instrument === 'keyboard') ? `<button class="button secondary" data-action="keyboard" data-song="${escapeHtml(song.id)}">Practice keyboard</button>` : ''}${shared && !this.showArchived && song.canManage ? `<button class="text-button" data-action="parts" data-song="${escapeHtml(song.id)}">Edit instrument parts</button>` : ''}${!shared || song.canManage ? `<button class="text-button" data-action="archive" data-song="${escapeHtml(song.id)}" aria-label="${this.showArchived ? 'Restore' : 'Archive'} ${escapeHtml(song.title)}">${this.showArchived ? 'Restore' : 'Archive'}</button>` : ''}${!shared && !this.showArchived && this.school?.staff ? `<button class="text-button" data-action="publish" data-song="${escapeHtml(song.id)}">Publish to school</button>` : ''}</div></article>`).join('') : `<p class="library-empty">${this.showArchived ? 'No archived songs.' : shared ? this.school.staff ? 'Publish a song from Import song, or open This device to publish an existing saved song.' : 'Your teachers have not published any songs yet. The built-in tracks are ready to practice.' : 'Import a MIDI file, add audio if you have it, then choose Save on this device.'}</p>`;
+      this.el('library-list').innerHTML = songs.length ? songs.map(song => `<article class="library-song"><div><h3>${escapeHtml(song.title)}</h3><p>${song.notes} hits · ${formatDuration(song.duration)} · ${(song.bytes / 1024 / 1024).toFixed(1)} MB</p><small>${escapeHtml(song.audioName || 'MIDI only · no backing audio')}${shared ? ` · Published by ${escapeHtml(song.ownerName)}` : ''}${song.parts?.some(part => part.instrument === 'keyboard') ? ' · Piano / Keyboard' : ''}</small></div><div class="library-song-actions">${this.showArchived ? '' : `<button class="button secondary" data-action="load" data-song="${escapeHtml(song.id)}" aria-label="Load ${escapeHtml(song.title)}">${shared && !this.school.staff ? 'Practice' : 'Load song'} →</button>`}${shared && !this.showArchived && song.parts?.some(part => part.instrument === 'keyboard') ? `<button class="button secondary" data-action="keyboard" data-song="${escapeHtml(song.id)}">Practice keyboard</button>` : ''}${shared && !this.showArchived ? (song.parts||[]).filter(part=>['guitar','bass','vocals'].includes(part.instrument)).map(part=>`<button class="button secondary" data-action="follow" data-instrument="${part.instrument}" data-song="${escapeHtml(song.id)}">${part.instrument==='vocals'?'Lyrics':'Practice '+part.instrument}</button>`).join('') : ''}${shared && !this.showArchived && song.canManage ? `<button class="text-button" data-action="parts" data-song="${escapeHtml(song.id)}">Edit instrument parts</button>` : ''}${!shared || song.canManage ? `<button class="text-button" data-action="archive" data-song="${escapeHtml(song.id)}" aria-label="${this.showArchived ? 'Restore' : 'Archive'} ${escapeHtml(song.title)}">${this.showArchived ? 'Restore' : 'Archive'}</button>` : ''}${!shared && !this.showArchived && this.school?.staff ? `<button class="text-button" data-action="publish" data-song="${escapeHtml(song.id)}">Publish to school</button>` : ''}</div></article>`).join('') : `<p class="library-empty">${this.showArchived ? 'No archived songs.' : shared ? this.school.staff ? 'Publish a song from Import song, or open This device to publish an existing saved song.' : 'Your teachers have not published any songs yet. The built-in tracks are ready to practice.' : 'Import a MIDI file, add audio if you have it, then choose Save on this device.'}</p>`;
     } catch (error) { if (token === this.libraryToken) { this.el('library-list').textContent = ''; this.el('library-status').textContent = error.message; } }
     finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('show-archived').disabled = false; } }
   }
@@ -288,7 +288,7 @@ export class SongImporter {
       const savedSong = await this.library.get(id);
       if (token !== this.libraryToken) return;
       if (!savedSong) throw new Error('That song is no longer available. Reimport its files.');
-      const draft = this.makeDraft(parseMidiSong(savedSong.midiBytes, savedSong.fileName));
+      const draft = this.makeDraft(parseMidiSong(savedSong.midiBytes, savedSong.fileName)); draft.arrangementParts=savedSong.parts;draft.lyricSettings={lyricsText:savedSong.lyricsText,lyricsClock:savedSong.lyricsClock,lyricsOffset:savedSong.lyricsOffset};
       Object.assign(draft, { midiBytes: savedSong.midiBytes, audioBytes: savedSong.audioBytes, audioName: savedSong.audioName, selected: savedSong.selected, mapping: savedSong.mapping, offset: savedSong.offset, timeScale: savedSong.timeScale ?? 1, volume: savedSong.volume, libraryId: id });
       const linked = this.school?.staff && savedSong.schoolLinks?.[`${this.school.schoolId}:${this.school.user.id}`];
       if (linked) draft.schoolSource = { ...linked, canManage: true };
@@ -312,7 +312,7 @@ export class SongImporter {
     try {
       const meta = (await this.school.request(`/library/${id}`)).song;
       if (token !== this.libraryToken) return;
-      if (meta.parts?.length && (!meta.parts.some(part => part.instrument === 'drums') || this.bandActive?.() && meta.parts.some(part => part.instrument === 'keyboard'))) {
+      if (meta.parts?.length && (!meta.parts.some(part => part.instrument === 'drums') || this.bandActive?.() && meta.parts.some(part => part.instrument !== 'drums'))) {
         this.el('library-dialog').close();
         window.dispatchEvent(new CustomEvent('band-load-school', { detail: { id } }));
         return;
@@ -322,7 +322,7 @@ export class SongImporter {
       const audioBytes = meta.audioName ? await this.school.download(`/library/${id}/revisions/${meta.revisionId}/audio`) : null;
       if (token !== this.libraryToken) return;
       const draft = this.makeDraft(parseMidiSong(midiBytes, meta.fileName)); draft.song.title = meta.title;
-      draft.arrangementParts = meta.parts || null;
+      draft.arrangementParts = meta.parts || null; draft.lyricSettings = { lyricsText:meta.lyricsText, lyricsClock:meta.lyricsClock, lyricsOffset:meta.lyricsOffset };
       Object.assign(draft, { midiBytes, audioBytes, audioName: meta.audioName, selected: meta.selected, mapping: meta.mapping, offset: meta.offset, timeScale: meta.timeScale, volume: meta.volume, schoolTitle: meta.title, schoolSource: { schoolId: this.school.schoolId, songId: id, revisionId: meta.revisionId, canManage: meta.canManage } });
       if (audioBytes) draft.buffer = await this.audio.decodeBacking(audioBytes.slice(0));
       if (token !== this.libraryToken) return;
@@ -340,7 +340,7 @@ export class SongImporter {
     try {
       const saved = await this.library.get(id); if (!saved) throw new Error('That device song is unavailable.');
       if (token !== this.libraryToken) return;
-      const draft = this.makeDraft(parseMidiSong(saved.midiBytes, saved.fileName));
+      const draft = this.makeDraft(parseMidiSong(saved.midiBytes, saved.fileName)); draft.arrangementParts=saved.parts;draft.lyricSettings={lyricsText:saved.lyricsText,lyricsClock:saved.lyricsClock,lyricsOffset:saved.lyricsOffset};
       Object.assign(draft, { midiBytes: saved.midiBytes, audioBytes: saved.audioBytes, audioName: saved.audioName, selected: saved.selected, mapping: saved.mapping, offset: saved.offset, timeScale: saved.timeScale ?? 1, volume: saved.volume });
       const key = `${this.school.schoolId}:${this.school.user.id}`, linked = saved.schoolLinks?.[key]; if (linked) draft.schoolSource = { ...linked, canManage: true };
       const song = await this.school.saveSong(draft, message => { if (token === this.libraryToken) this.el('library-status').textContent = message; });

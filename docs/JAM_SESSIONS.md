@@ -1,6 +1,10 @@
-# Teacher led drum and keyboard sessions
+# Teacher led band sessions
 
-Updated October 21, 2026 for Prototype 11.
+Updated October 22, 2026 for Prototype 12.
+
+Prototype 12 expands the completed drum/keyboard pilot below to 1–8 students. Guitar, bass and vocals follow the shared transport without input or performance scores. Guitar/bass have string-and-fret highways and suggested tablature; vocals use embedded or teacher-supplied timed lyrics. An original five-part warm-up is included. Existing school songs can gain these parts through Edit instrument parts without replacing their identity/backing. Completed follow-along participation is retained in grouped takes separately from scored drum/keyboard practice runs. Read [GUITAR_BASS_VOCALS.md](GUITAR_BASS_VOCALS.md) for setup, supported formats, research and the next milestones. The physical classroom trial remains outstanding.
+
+The following milestones record the original Prototype 11 pilot; its two-student limit has been superseded.
 
 ## Milestone status
 

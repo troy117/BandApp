@@ -1,10 +1,10 @@
 # First drum and keyboard classroom test
 
-Prototype 11.2 · October 22, 2026
+Prototype 12 · October 22, 2026
 
 ## Before the lesson
 
-Confirm the hosted footer says Prototype 11.2. Keep the existing Railway service, volume and GROOVE_DATA_DIR. This update adds tables to the existing database; it does not need a new school, a new volume or new server variables. Railway must install the locked ws dependency; keep Node 24, npm start and one replica. Enable/check backups separately as described in [CLASSROOMS.md](CLASSROOMS.md).
+Confirm the hosted footer says Prototype 12. Keep the existing Railway service, volume and GROOVE_DATA_DIR. This update adds tables to the existing database; it does not need a new school, a new volume or new server variables. Railway must install the locked ws dependency; keep Node 24, npm start and one replica. Enable/check backups separately as described in [CLASSROOMS.md](CLASSROOMS.md).
 
 Use three computers: the teacher's computer with a classroom speaker, a student computer connected to the TD-17, and a student computer connected to the MIDI keyboard. Start in Chrome on Windows; Chromebook behavior also needs a real test. All computers open the same HTTPS school website. Each student uses a different teacher-created account. Teacher-set student passwords work immediately; students given generated temporary passwords first choose their own password (4 characters minimum). Ordinary browser tabs share a login; use separate computers for the classroom trial.
 
@@ -61,3 +61,7 @@ For Fleetwood Mac-Dreams-04-28-2026, verify the identified track is the piano pe
 ## Teacher-set password check
 
 Create a test student with a four-character password in Open classroom. Sign in as that student on a separate computer and verify the library and Jam session are available without a forced password change. After saving one practice run, have the teacher choose Set password for that student and enter a new password. The old login should end, the old password should fail, and the new password should open the same account and saved results. Teachers manage only their own students; the school owner can manage all students.
+
+## Full band trial
+
+Follow [GUITAR_BASS_VOCALS.md](GUITAR_BASS_VOCALS.md) to prepare guitar/bass and lyrics. In Jam session add student seats and assign the parts. Test the original Full band warm-up first. Confirm guitar/bass/vocals require no input and show no performance scores; Recent shared takes should record their participation while drums/keyboard keep numeric results. Test tab/highway, fullscreen and current/next vocal lines on each student computer.

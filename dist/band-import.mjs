@@ -3,6 +3,8 @@ import { DEFAULT_MIDI_MAPPING } from './midi-input.mjs';
 import { arrangementParts, importedArrangement } from './arrangements.mjs';
 import { validateAlignment } from './sync.mjs';
 import { escapeHtml } from './song-import.mjs';
+import { BAND_INSTRUMENTS } from './follow-along.mjs';
+import { lyricText, midiLyricCues, formatLyricCues, parseLyricText } from './lyrics.mjs';
 
 export class BandImport {
   constructor(practice) {
@@ -17,18 +19,23 @@ export class BandImport {
     q('b-publish').onclick = () => this.attempt(() => this.publish());
     q('b-setup-save').onclick = () => this.attempt(() => this.downloadSetup());
     q('b-setup-file').onchange = () => this.attempt(() => this.loadSetup());
+    q('b-lyrics-file').onchange=()=>this.attempt(async()=>{const file=q('b-lyrics-file').files[0];if(!file)return;if(file.size>128000)throw new Error('Choose a small timed-lyrics file.');const token=this.token,text=lyricText(await file.text());parseLyricText(text);if(token!==this.token)return;q('b-lyrics-text').value=text;q('b-lyrics-clock').value='recording';q('b-import-state').textContent='Lyrics loaded. Choose MIDI time or backing recording time to match their timestamps.';});
   }
   async attempt(action) { try { await action(); } catch (error) { this.q('b-import-state').textContent = error.message; } }
-  reset() { this.token++; this.draft = null; this.q('b-import-panel').hidden = true; this.q('b-import-tracks').textContent = ''; for (const id of ['b-midi-file', 'b-audio-file', 'b-setup-file', 'b-import-title']) this.q(id).value = ''; this.q('b-import-state').textContent = ''; this.q('b-publish').textContent = 'Publish new school song'; }
+  reset() { this.token++; this.draft = null; this.q('b-import-panel').hidden = true; this.q('b-import-tracks').textContent = ''; for (const id of ['b-midi-file', 'b-audio-file', 'b-setup-file', 'b-import-title','b-lyrics-text','b-lyrics-file']) this.q(id).value = ''; this.q('b-import-state').textContent = ''; this.q('b-lyric-detected').textContent='';this.q('b-lyrics-editor').open=false;this.q('b-publish').textContent = 'Publish new school song'; }
   renderDraft(metadata = {}) {
     const q = this.q, song = this.draft.song;
     const assigned = metadata.parts ? new Map(metadata.parts.flatMap(part => part.selected.map(id => [id, part.instrument]))) : null;
     q('b-import-title').value = metadata.title || song.title;
     q('b-import-offset').value = metadata.offset ?? 0; q('b-import-speed').value = 100 / (metadata.timeScale ?? 1); q('b-import-volume').value = (metadata.volume ?? 0.65) * 100;
     q('b-publish').textContent = this.draft.schoolSource ? 'Publish school song update' : 'Publish new school song';
+    const embedded=midiLyricCues(song);q('b-lyrics-text').value=metadata.lyricsText??formatLyricCues(embedded);q('b-lyrics-clock').value=metadata.lyricsClock||'midi';q('b-lyrics-offset').value=metadata.lyricsOffset||0;
+    q('b-lyric-detected').textContent=embedded.length?embedded.length+' embedded MIDI lyric lines found. Check their words and timing before publishing.':'No embedded lyric text found. Melody notes do not include words; load or enter timed lyrics below.';
+    q('b-lyrics-file').value='';
     q('b-import-tracks').innerHTML = song.parts.map(part => {
-      const instrument = assigned ? assigned.get(part.id) : part.drumCandidate ? 'drums' : part.keyboardCandidate ? 'keyboard' : '';
-      return '<div class="band-track"><div>' + escapeHtml(part.name) + '<small>Track ' + part.track + ' · MIDI channel ' + part.channel + ' · ' + part.notes.length + ' notes' + (part.keyboardCandidate ? ' · Suggested piano / keyboard' : '') + '</small></div><label>Assign to<select data-band-track="' + escapeHtml(part.id) + '"><option value="">Ignore</option><option value="drums"' + (instrument === 'drums' ? ' selected' : '') + '>Drums</option><option value="keyboard"' + (instrument === 'keyboard' ? ' selected' : '') + '>Piano / Keyboard</option></select></label></div>';
+      const suggestion=part.drumCandidate?'drums':part.bassCandidate?'bass':part.guitarCandidate?'guitar':part.keyboardCandidate?'keyboard':part.vocalCandidate&&embedded.length?'vocals':'';
+      const instrument=assigned?.get(part.id)??(assigned && ['drums','keyboard'].includes(suggestion)?'':suggestion);
+      return '<div class="band-track"><div>' + escapeHtml(part.name) + '<small>Track ' + part.track + ' · MIDI channel ' + part.channel + ' · ' + part.notes.length + ' notes</small></div><label>Assign to<select data-band-track="' + escapeHtml(part.id) + '"><option value="">Ignore</option>'+Object.entries(BAND_INSTRUMENTS).map(([id,name])=>'<option value="'+id+'"'+(instrument===id?' selected':'')+'>'+name+'</option>').join('')+'</select></label></div>';
     }).join('');
   }
   async editSchoolSong(id) {
@@ -48,7 +55,7 @@ export class BandImport {
     if (token !== this.token) return;
     this.draft = { song: parseMidiSong(bytes, meta.fileName), bytes, fileName: meta.fileName, audioBytes, buffer, audioName: meta.audioName, mapping: meta.mapping, schoolSource: { songId: id, revisionId: meta.revisionId } };
     this.renderDraft(meta);
-    this.q('b-import-state').textContent = 'Existing backing and alignment retained' + (meta.audioName ? ' · ' + meta.audioName : '') + '. Check the Piano / Keyboard and Drums tracks, then publish the update.';
+    this.q('b-import-state').textContent = 'Existing backing and alignment retained' + (meta.audioName ? ' · ' + meta.audioName : '') + '. Check the instrument assignments and lyrics, then publish the update.';
   }
   async readMidi() {
     const file = this.q('b-midi-file').files[0]; if (!file) return;
@@ -57,7 +64,7 @@ export class BandImport {
     const bytes = await file.arrayBuffer(); if (token !== this.token) return;
     const song = parseMidiSong(bytes, file.name); this.draft = { song, bytes, fileName: file.name, audioBytes: null, buffer: null, audioName: '' };
     this.renderDraft();
-    this.q('b-import-state').textContent = 'Piano and drum tracks are suggested when the MIDI identifies them. Check each assignment; other tracks stay ignored. Keyboard parts keep their original pitches.';
+    this.q('b-import-state').textContent = 'Instrument tracks are suggested when the MIDI identifies them. Check every assignment and any lyrics before publishing. Pitched parts keep their original notes.';
   }
   async readAudio() {
     if (!this.draft) throw new Error('Choose MIDI first.');
@@ -70,7 +77,7 @@ export class BandImport {
     const bytes = await file.arrayBuffer(), buffer = await this.practice.audio.decodeBacking(bytes.slice(0));
     if (token !== this.token || audioToken !== this.audioToken || draft !== this.draft) return;
     Object.assign(draft, { audioBytes: bytes, buffer, audioName: file.name });
-    this.q('b-import-state').textContent = 'Backing recording decoded. Offset and speed apply to both instrument parts.';
+    this.q('b-import-state').textContent = 'Backing recording decoded. Offset and speed apply to every instrument part.';
     } catch (error) { if (token === this.token && audioToken === this.audioToken) draft.audioFailed = true; throw error; }
     finally { if (audioToken === this.audioToken) draft.pendingAudio = false; }
   }
@@ -78,13 +85,14 @@ export class BandImport {
     if (!this.draft) throw new Error('Choose a MIDI file first.');
     if (this.draft.pendingAudio || this.draft.audioFailed) throw new Error(this.draft.pendingAudio ? 'Wait for the backing recording to finish loading.' : 'Choose a supported backing recording, or remove the failed recording.');
     const q = this.q, chosen = [...q('b-import-tracks').querySelectorAll('[data-band-track]')];
-    const parts = ['drums', 'keyboard'].map(instrument => ({ id: instrument, name: instrument === 'drums' ? 'Drums' : 'Piano / Keyboard', instrument, selected: chosen.filter(select => select.value === instrument).map(select => select.dataset.bandTrack) })).filter(part => part.selected.length);
+    const lyricsText=lyricText(q('b-lyrics-text').value||''),lyricsClock=q('b-lyrics-clock').value||'midi',lyricsOffset=Number(q('b-lyrics-offset').value||0);
+    const parts = Object.keys(BAND_INSTRUMENTS).map(instrument => ({ id: instrument, name: BAND_INSTRUMENTS[instrument], instrument, selected: chosen.filter(select => select.value === instrument).map(select => select.dataset.bandTrack) })).filter(part => part.selected.length || part.instrument==='vocals'&&lyricsText.trim());
     arrangementParts(parts);
     const title = q('b-import-title').value.trim();
     if (!title || title.length > 120 || /[\u0000-\u001f]/.test(title)) throw new Error('Enter a song title of 1–120 characters.');
     const alignment = validateAlignment(Number(q('b-import-offset').value), 100 / Number(q('b-import-speed').value)), volume = Number(q('b-import-volume').value) / 100;
     if (!Number.isFinite(volume) || volume < 0 || volume > 1) throw new Error('Choose a backing volume.');
-    return { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, volume, arrangementVersion: 1 };
+    return { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset };
   }
   async apply() {
     const meta = this.metadata(), arrangement = importedArrangement(this.draft.song, meta);
@@ -98,7 +106,7 @@ export class BandImport {
     importedArrangement(draft.song, meta); this.q('b-publish').disabled = true;
     let upload;
     try {
-      this.q('b-import-state').textContent = 'Publishing the MIDI, backing and both part settings…';
+      this.q('b-import-state').textContent = 'Publishing the MIDI, backing and instrument settings…';
       upload = await school.request('/library/uploads', { method: 'POST', data: { ...meta, ...draft.schoolSource } });
       const id = upload.uploadId;
       if (!id) throw new Error('The upload did not return a song revision.');
@@ -110,7 +118,7 @@ export class BandImport {
       this.q('b-publish').textContent = 'Publish school song update';
       await this.practice.refreshCatalog();
       await this.practice.loadChoice('school:' + published.song.id);
-      this.q('b-import-state').textContent = 'Published to the school library. Both parts and backing settings travel together.';
+      this.q('b-import-state').textContent = 'Published to the school library. All parts, lyrics and backing settings travel together.';
     } finally { this.q('b-publish').disabled = false; }
   }
   downloadSetup() {
@@ -133,6 +141,7 @@ export class BandImport {
       this.draft.mapping = { ...setup.mapping };
     }
     this.q('b-import-title').value = setup.title; this.q('b-import-offset').value = setup.offset; this.q('b-import-speed').value = 100 / setup.timeScale; this.q('b-import-volume').value = setup.volume * 100;
+    this.q('b-lyrics-text').value=setup.lyricsText??'';this.q('b-lyrics-clock').value=setup.lyricsClock||'midi';this.q('b-lyrics-offset').value=setup.lyricsOffset||0;
     this.q('b-import-state').textContent = 'Arrangement settings restored. Add the matching backing recording, then use or publish.';
   }
 }

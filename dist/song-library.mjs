@@ -52,7 +52,7 @@ export class SongLibrary {
     await this.transact(['songs', 'files'], 'readwrite', tx => {
       const previous = tx.objectStore('songs').get(id);
       previous.onsuccess = () => tx.objectStore('songs').put({ ...meta, schoolLinks: previous.result?.schoolLinks || {} });
-      tx.objectStore('files').put({ id, midiBytes: draft.midiBytes, audioBytes: draft.audioBytes || null, selected: [...draft.selected], mapping: { ...draft.mapping }, offset: draft.offset, timeScale: draft.timeScale ?? 1, volume: draft.volume });
+      tx.objectStore('files').put({ id, midiBytes: draft.midiBytes, audioBytes: draft.audioBytes || null, selected: [...draft.selected], mapping: { ...draft.mapping }, offset: draft.offset, timeScale: draft.timeScale ?? 1, volume: draft.volume, ...(draft.arrangementParts?{parts:draft.arrangementParts}:{}), ...draft.lyricSettings });
     });
     return id;
   }

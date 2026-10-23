@@ -13,6 +13,7 @@ import { BandSessions } from '../server/band-sessions.mjs';
 import { builtinArrangement } from '../dist/arrangements.mjs';
 import { duetMidi } from './duet-fixture.mjs';
 import { createDemoWav } from '../dist/demo-data.mjs';
+import { ensembleMidi } from './ensemble-fixture.mjs';
 
 async function bandFixture(t) {
   const directory=await mkdtemp(path.join(tmpdir(),'groove-band-')),store=await ClassroomStore.open(directory),api=new ClassroomApi(store,{secureCookies:false}),server=createAppServer({school:api}),peers=[];
@@ -45,7 +46,7 @@ async function bandFixture(t) {
     await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});store.close();
     assert.equal(path.dirname(directory),path.resolve(tmpdir()));assert.ok(path.basename(directory).startsWith('groove-band-'));await rm(directory,{recursive:true});
   });
-  return {directory,store,api,server,setup,a,b,other,outsider,request,wire,advance:value=>{now=value;},now:()=>now};
+  return {directory,store,api,server,setup,a,b,other,outsider,request,wire,add,advance:value=>{now=value;},now:()=>now};
 }
 const createRoom=env=>env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'duet-first',assignments:[{userId:env.a.user.id,partId:'drums'},{userId:env.b.user.id,partId:'keyboard'}]});
 async function readyRoom(env,room) {
@@ -172,6 +173,46 @@ test('existing drum-library MIDI exposes its piano without replacing the song, t
   assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM songs').get().n,1);assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM runs').get().n,2);
   assert.equal(env.store.setting('school_id'),schoolId);assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM users').get().n,users);
   const stale=await env.request(env.setup,'/library/uploads','POST',{...metadata,songId:song.id,revisionId:song.revisionId,parts:loaded.parts});assert.equal(stale.status,409);
+});
+
+test('five students share a take while guitar, bass and vocal participation never creates performance scores',async t=>{
+ const env=await bandFixture(t),people=[env.a,env.b,env.add('guitar'),env.add('bass'),env.add('singer')],partIds=['drums','keyboard','guitar','bass','vocals'];
+ const assignments=people.map((p,i)=>({userId:p.user.id,partId:partIds[i]}));
+ assert.equal((await env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'band-first',assignments:[assignments[0],assignments[0]]})).status,400);
+ assert.equal((await env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'band-first',assignments:Array(9).fill(assignments[0])})).status,400);
+ const created=await env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'band-first',assignments});assert.equal(created.status,201);const room=created.data.room;
+ const peers=await Promise.all([env.wire(env.setup),...people.map(p=>env.wire(p))]);
+ for(const [i,peer] of peers.entries()){peer.send({type:'join',roomId:room.id,clientId:'full-band-'+i});await peer.wait(m=>m.type==='room'&&m.room.id===room.id);}
+ for(const peer of peers)peer.send({type:'ready',version:room.version,revisionId:room.arrangement.revisionId,audio:true,input:'Classroom test',sync:{samples:5,rttMs:10,uncertaintyMs:5}});
+ const ready=(await peers[0].wait(m=>m.type==='room'&&m.room.teacherReady&&m.room.participants.every(p=>p.ready))).room;
+ const started=(await env.request(env.setup,'/band/rooms/'+room.id+'/start','POST',{version:ready.version})).data.room;
+ peers[3].send({type:'finish',takeId:started.takeId,summary:{mode:'follow'}});assert.match((await peers[3].wait(m=>m.type==='error')).message,/not finished/);
+ peers[3].send({type:'progress',takeId:started.takeId,position:1,summary:{mode:'follow',hits:100}});assert.match((await peers[3].wait(m=>m.type==='error')).message,/without a performance score/);
+ env.advance(started.startAt+1000);peers[3].send({type:'progress',takeId:started.takeId,position:1,summary:{mode:'follow'}});
+ const live=(await peers[0].wait(m=>m.type==='room'&&m.room.participants[2].progress)).room.participants[2].progress;assert.equal(live.mode,'follow');assert.equal(live.accuracy,undefined);
+ peers[1].send({type:'progress',takeId:started.takeId,position:1,summary:{mode:'follow'}});assert.match((await peers[1].wait(m=>m.type==='error')).message,/Invalid progress/);
+ const arrangement=builtinArrangement('band-first');env.advance(started.startAt+arrangement.duration*1000+400);
+ for(const [i,peer] of peers.slice(1).entries()){
+  const total=arrangement.parts[i].chart.notes.length,summary=i>=2?{mode:'follow'}:{total,hits:total,misses:0,wrong:0,extras:0,bestStreak:total,meanMs:0,meanAbsMs:0};
+  peer.send({type:'finish',takeId:started.takeId,summary});await peer.wait(m=>m.type==='saved');
+ }
+ const finished=(await peers[0].wait(m=>m.type==='room'&&m.room.state==='completed')).room;assert.equal(finished.participants.length,5);
+ for(const p of finished.participants.slice(2)){assert.equal(p.result.mode,'follow');assert.equal(p.result.accuracy,undefined);}
+ assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM runs').get().n,2);assert.equal(env.store.db.prepare("SELECT COUNT(*) AS n FROM band_results WHERE state='completed'").get().n,5);
+ assert.equal((await env.request(people[2],'/band/runs','POST',{id:randomUUID(),sourceKind:'duet',sourceId:'band-first',partId:'guitar'})).status,400);
+ const takes=(await env.request(env.setup,'/band/takes')).data.takes;assert.equal(takes[0].results.filter(p=>p.record.mode==='follow').length,3);
+ const reopened=await ClassroomStore.open(env.directory);assert.equal(reopened.db.prepare('SELECT COUNT(*) AS n FROM band_results').get().n,5);reopened.close();
+});
+
+test('school publications retain editable timed lyrics with all band parts and support a lyrics-only assignment',async t=>{
+ const env=await bandFixture(t),midi=ensembleMidi(),meta={title:'Original full band',fileName:'band.mid',midiBytes:midi.length,audioBytes:0,audioName:'',selected:['1:9'],mapping:{},offset:0.125,timeScale:1.25,volume:0.4,lyricsText:'WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nOur original line',lyricsClock:'recording',lyricsOffset:0.25};
+ const upload=async metadata=>{const begun=await env.request(env.setup,'/library/uploads','POST',metadata);assert.equal(begun.status,201);const id=begun.data.uploadId;await env.request(env.setup,'/library/uploads/'+id+'/midi','PUT',midi);return env.request(env.setup,'/library/uploads/'+id+'/publish','POST',{});};
+ const published=await upload(meta);assert.equal(published.status,200);const song=published.data.song;assert.equal(song.parts.length,5);assert.equal(song.lyricsText,meta.lyricsText);
+ const arrangement=(await env.request(env.a,'/band/arrangements/school/'+song.id)).data.arrangement;assert.equal(arrangement.parts[4].chart.lyrics[0].time,1.375);assert.equal(arrangement.parts[4].chart.lyrics[0].end,2.375);
+ const loaded=(await env.request(env.a,'/library/'+song.id)).data.song;assert.equal(loaded.lyricsClock,'recording');assert.equal(loaded.lyricsOffset,0.25);
+ const vocals=await upload({...meta,title:'Original lyrics only',selected:[],parts:[{id:'vocals',instrument:'vocals',name:'Singer',selected:[]}]});assert.equal(vocals.status,200);assert.equal(vocals.data.song.parts.length,1);
+ const missing=await upload({...meta,lyricsText:'',parts:[{id:'vocals',instrument:'vocals',name:'Singer',selected:[]}]});assert.equal(missing.status,400);
+ assert.equal((await env.request(env.setup,'/library/uploads','POST',{...meta,lyricsText:'x'.repeat(10001)})).status,400);
 });
 
 test('schema migration preserves existing school identities, users, songs and recovery before adding band tables',async t=>{
