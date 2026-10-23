@@ -3,7 +3,7 @@ import { DRUMS } from './engine.mjs';
 export const FOCUS_OPTIONS = { all: 'All drums', kick: 'Kick only', snare: 'Snare only', cymbals: 'Cymbals only', toms: 'Toms only' };
 const focusIds = focus => focus === 'all' ? DRUMS.map(drum => drum.id) : focus === 'cymbals' ? ['hihat', 'crash', 'ride'] : focus === 'toms' ? ['tom1', 'tom2', 'tom3'] : [focus];
 
-export function createPracticeChart(source, options = {}) {
+export function createPracticeChart(source, options = {}, { allowEmpty = false } = {}) {
   const startBar = options.enabled ? Number(options.startBar) : 1;
   const endBar = options.enabled ? Number(options.endBar) : source.bars;
   const repeats = options.enabled ? Number(options.repeats) : 1;
@@ -15,7 +15,7 @@ export function createPracticeChart(source, options = {}) {
   const from = startBeat.time, to = endBeat?.time ?? source.duration;
   const selected = focusIds(focus), pitched=source.notes.some(note=>note.pitch!==undefined);
   const sourceNotes = source.notes.filter(note => note.time >= from - 1e-8 && note.time < to - 1e-8 && (pitched || selected.includes(note.drum)));
-  if (!sourceNotes.length) throw new Error(pitched ? 'No keyboard notes in this section. Choose a wider section.' : `No ${focus === 'all' ? 'drum' : FOCUS_OPTIONS[focus].replace(' only', '').toLowerCase()} hits in this section. Choose another focus or a wider section.`);
+  if (!sourceNotes.length && !allowEmpty) throw new Error(pitched ? 'No keyboard notes in this section. Choose a wider section.' : `No ${focus === 'all' ? 'drum' : FOCUS_OPTIONS[focus].replace(' only', '').toLowerCase()} hits in this section. Choose another focus or a wider section.`);
   if (sourceNotes.length * repeats > 50000) throw new Error('Choose fewer repeats or a shorter section (50,000 hits maximum).');
   const barCount = endBar - startBar + 1;
   const increment = source.kind === 'groove' && options.enabled && repeats > 1 && options.stepUp ? 5 : 0;

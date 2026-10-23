@@ -1,5 +1,14 @@
 # Changes
 
+## 0.14.0 — October 22, 2026 — Prototype 14
+
+- Prominent End session controls inside teacher rooms and beside existing invitations. Teachers can change songs, reassign the same students' parts and start from a chosen source bar without creating a new room. Applying a change interrupts an active take, retains the connected seats and requires fresh readiness/count-in. Ended rooms cannot be restarted.
+- Shared section timelines keep tempo changes, original bar numbers, backing recording slices and lyric cues aligned. Saved section results count only that section and do not qualify as complete-song runs. Completed and interrupted earlier takes remain intact.
+- Solo and jam drums now share the same perspective highway renderer. Closed and open hi-hats use separate labelled boxes; open notes are hollow. MIDI open notes 46/26 (or explicit open articulation) identify the display lane. Pad mappings and the common hi-hat timing judge retain their existing meaning.
+- Plain lyric text can be loaded and timed against the retained recording. Mark line starts, end lines before instrumental gaps, undo marks and apply a timed vocal part before publishing. No external lyric lookup is built into the app. Supplied school lyrics and recordings are not included in the repository.
+- Selected lead-vocal MIDI tracks now supply a scrolling treble-staff melody guide, current pitch/octave, held-note tails and an optional local guide tone alongside lyrics. Vocal participation remains unscored. Text-only vocal parts remain supported; the guide does not infer word-to-note alignment or transpose the singer silently.
+- Validation: 137 automated tests, module syntax and standalone export pass. Browser checks cover room reuse/song changes/start bars/end, separate hi-hat targets and line-timing preparation using synthetic accounts and original music. Physical instrument and multi-computer audible timing validation remain classroom checks. No schema or hosting-variable changes.
+
 ## 0.13.0 — October 22, 2026 — Prototype 13
 
 - Collapsible left instrument menu; per-account default instrument in student creation, roster editing and account preferences; student sign-in opens practice. Remove redundant standalone drum-pad panel and start the practice journal collapsed.

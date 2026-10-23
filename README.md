@@ -1,6 +1,6 @@
 # Groove Lab
 
-Browser drum and MIDI-keyboard practice for Sierra Charter School, with teacher-led two-student sessions. No build step; the Node server uses the pinned ws package for shared sessions.
+Browser band practice for Sierra Charter School, with teacher-led sessions for up to eight students. No build step; the Node server uses the pinned ws package for shared sessions.
 
 Source repository: [troy117/BandApp](https://github.com/troy117/BandApp). Prepared for Railway hosting. Guest imports stay on the device; teacher publishing explicitly uploads songs and sync settings to the shared school library. Optional teacher/student accounts store practice results on the server. See [school accounts and Railway setup](docs/CLASSROOMS.md).
 
@@ -20,6 +20,10 @@ npm run dev
 ```
 
 Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open the standalone HTML file in Chrome, or serve the `dist` directory from an HTTPS host. No Electron or Linux subsystem is needed. The modular `dist/index.html` needs an HTTP server; the generated standalone copy also works directly from a file.
+
+## Session controls and lyric timing
+
+Prototype 14 makes End session visible inside teacher rooms and beside existing sessions. Keep the same students connected while changing the song, assigned parts or starting bar. Apply song / start bar stops the current take; everyone presses Ready for a fresh count-in. Drums use the same highway in solo and jam practice, with separate open/closed hi-hat boxes when the MIDI identifies them. Plain lyric text can be timed line by line against the backing recording before publishing a vocal part. Assign a lead-vocal MIDI track to also show a treble-staff melody guide, target note names and optional reference tones. See [the session and lyric guide](docs/SESSION_CONTROLS.md).
 
 ## Keyboard and shared sessions
 

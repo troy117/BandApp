@@ -1,3 +1,4 @@
+import { LyricTiming, plainLyricLines } from './lyric-timing.mjs';
 import { parseMidiSong } from './midi.mjs';
 import { DEFAULT_MIDI_MAPPING } from './midi-input.mjs';
 import { arrangementParts, importedArrangement } from './arrangements.mjs';
@@ -10,20 +11,34 @@ export class BandImport {
   constructor(practice) {
     this.practice = practice; this.q = practice.q; this.token = 0; this.draft = null;
     const q = this.q;
+    this.timing = new LyricTiming(this);
     q('b-open-import').onclick = () => { if (practice.rooms.room) { practice.message('Leave the session before preparing a different arrangement.'); return; } practice.stop(); q('b-import-panel').hidden = false; q('b-import-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-    q('b-import-close').onclick = () => { q('b-import-panel').hidden = true; };
+    q('b-import-close').onclick = () => { this.timing.pause(); q('b-import-panel').hidden = true; };
     q('b-midi-file').onchange = () => this.attempt(() => this.readMidi());
     q('b-audio-file').onchange = () => this.attempt(() => this.readAudio());
-    q('b-clear-audio').onclick = () => { this.audioToken = (this.audioToken || 0) + 1; q('b-audio-file').value = ''; if (this.draft) Object.assign(this.draft, { audioBytes: null, buffer: null, audioName: '', pendingAudio: false, audioFailed: false }); q('b-import-state').textContent = 'Backing removed.'; };
+    q('b-clear-audio').onclick = () => { this.timing.reset(); this.audioToken = (this.audioToken || 0) + 1; q('b-audio-file').value = ''; if (this.draft) Object.assign(this.draft, { audioBytes: null, buffer: null, audioName: '', pendingAudio: false, audioFailed: false }); q('b-import-state').textContent = 'Backing removed.'; };
     q('b-import-apply').onclick = () => this.attempt(() => this.apply());
     q('b-publish').onclick = () => this.attempt(() => this.publish());
     q('b-setup-save').onclick = () => this.attempt(() => this.downloadSetup());
     q('b-setup-file').onchange = () => this.attempt(() => this.loadSetup());
-    q('b-lyrics-file').onchange=()=>this.attempt(async()=>{const file=q('b-lyrics-file').files[0];if(!file)return;if(file.size>128000)throw new Error('Choose a small timed-lyrics file.');const token=this.token,text=lyricText(await file.text());parseLyricText(text);if(token!==this.token)return;q('b-lyrics-text').value=text;q('b-lyrics-clock').value='recording';q('b-import-state').textContent='Lyrics loaded. Choose MIDI time or backing recording time to match their timestamps.';});
+    q('b-lyrics-file').onchange = () => this.attempt(async () => {
+      const file = q('b-lyrics-file').files[0]; if (!file) return;
+      if (file.size > 128000) throw new Error('Choose a lyric file smaller than 10 KB.');
+      const token = this.token, text = lyricText(await file.text()); if (token !== this.token) return;
+      this.timing.reset();
+      if (file.name.toLowerCase().endsWith('.txt') && !/\[\d+:|-->|^WEBVTT/m.test(text)) {
+        plainLyricLines(text); q('b-lyric-plain').value = text; q('b-lyric-timing').open = true; q('b-lyrics-editor').open = true;
+        q('b-import-state').textContent = 'Plain lyrics loaded. Start line timing with the matching recording, then apply and publish the vocal part.';
+      } else {
+        parseLyricText(text); q('b-lyrics-text').value = text; q('b-lyrics-clock').value = 'recording';
+        q('b-import-state').textContent = 'Timed lyrics loaded. Check the timestamp clock before publishing.';
+      }
+    });
   }
   async attempt(action) { try { await action(); } catch (error) { this.q('b-import-state').textContent = error.message; } }
-  reset() { this.token++; this.draft = null; this.q('b-import-panel').hidden = true; this.q('b-import-tracks').textContent = ''; for (const id of ['b-midi-file', 'b-audio-file', 'b-setup-file', 'b-import-title','b-lyrics-text','b-lyrics-file']) this.q(id).value = ''; this.q('b-import-state').textContent = ''; this.q('b-lyric-detected').textContent='';this.q('b-lyrics-editor').open=false;this.q('b-publish').textContent = 'Publish new school song'; }
+  reset() { this.timing.reset(); this.token++; this.draft = null; this.q('b-import-panel').hidden = true; this.q('b-import-tracks').textContent = ''; for (const id of ['b-midi-file', 'b-audio-file', 'b-setup-file', 'b-import-title','b-lyrics-text','b-lyrics-file','b-lyric-plain']) this.q(id).value = ''; this.q('b-import-state').textContent = ''; this.q('b-lyric-detected').textContent='';this.q('b-lyrics-editor').open=false;this.q('b-publish').textContent = 'Publish new school song'; }
   renderDraft(metadata = {}) {
+    this.timing.reset(); this.q('b-lyric-plain').value = '';
     const q = this.q, song = this.draft.song;
     const assigned = metadata.parts ? new Map(metadata.parts.flatMap(part => part.selected.map(id => [id, part.instrument]))) : null;
     q('b-import-title').value = metadata.title || song.title;
@@ -68,6 +83,7 @@ export class BandImport {
   }
   async readAudio() {
     if (!this.draft) throw new Error('Choose MIDI first.');
+    this.timing.reset();
     const file = this.q('b-audio-file').files[0]; if (!file) { this.draft.audioBytes = null; this.draft.buffer = null; this.draft.audioName = ''; return; }
     if (file.size > 100 * 1024 * 1024) throw new Error('Choose audio smaller than 100 MB.');
     const token = this.token, draft = this.draft, audioToken = this.audioToken = (this.audioToken || 0) + 1;
@@ -95,11 +111,13 @@ export class BandImport {
     return { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset };
   }
   async apply() {
+    this.timing.pause();
     const meta = this.metadata(), arrangement = importedArrangement(this.draft.song, meta);
     if (this.draft.buffer) arrangement.backing = { buffer: this.draft.buffer, offset: meta.offset, volume: meta.volume, name: meta.audioName };
     this.practice.stop(); this.practice.useArrangement(arrangement); this.q('b-import-state').textContent = 'Ready for local practice. Publish to school for other computers and saved account results.';
   }
   async publish() {
+    this.timing.pause();
     const school = this.practice.school;
     if (!school.staff) throw new Error('Sign in as a teacher to publish an arrangement.');
     const meta = this.metadata(), draft = this.draft, token = this.token;

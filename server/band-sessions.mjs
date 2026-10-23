@@ -7,11 +7,12 @@ import { builtinArrangement, DUETS, importedArrangement, arrangementParts } from
 import { parseMidiSong } from '../dist/midi.mjs';
 import { bandRecord, validatePartResult } from './band-results.mjs';
 import { followInstrument } from '../dist/follow-along.mjs';
+import { arrangementFromBar } from '../dist/session-transport.mjs';
 
 const bandError = (status, message) => Object.assign(new Error(message), { status });
 const staffMember = actor => ['teacher', 'owner'].includes(actor.role);
 const runningRoom = room => room.state === 'playing';
-const descriptor = arrangement => ({ id: arrangement.id, revisionId: arrangement.revisionId, sourceKind: arrangement.sourceKind, title: arrangement.title, duration: arrangement.duration, bpm: arrangement.bpm, parts: arrangement.parts.map(part => ({ id: part.id, name: part.name, instrument: part.instrument, total: part.chart.notes.length })) });
+const descriptor = arrangement => ({ id: arrangement.id, revisionId: arrangement.revisionId, sourceKind: arrangement.sourceKind, title: arrangement.title, duration: arrangement.duration, bpm: arrangement.bpm, bars: arrangement.sourceBars || arrangement.parts[0].chart.bars, startBar: arrangement.startBar || 1, parts: arrangement.parts.map(part => ({ id: part.id, name: part.name, instrument: part.instrument, total: part.chart.notes.length })) });
 
 export class BandSessions {
   constructor(api, { clock = () => performance.now() } = {}) {
@@ -133,13 +134,31 @@ export class BandSessions {
       const room = { id: randomUUID(), version: randomUUID(), teacherId: actor.id, teacherName: actor.name, teacherSocket: null, teacherReady: false, arrangement, participants, state: 'preparing', createdAt: this.clock(), takeId: null, startAt: null, countInAt: null };
       this.rooms.set(room.id, room); send(201, { room: this.snapshot(room, actor) }); return true;
     }
-    match = path.match(/^rooms\/([0-9a-f-]+)(?:\/(start|stop|close))?$/);
+    match = path.match(/^rooms\/([0-9a-f-]+)(?:\/(start|stop|close|update))?$/);
     if (match) {
       const room = this.room(actor, match[1]);
       if (!match[2] && method === 'GET') { send(200, { room: this.snapshot(room, actor) }); return true; }
       if (method !== 'POST') throw bandError(405, 'Use a session control.');
       this.teacher(actor, room); const input = await this.api.json(request);
       if (input.version !== room.version) throw bandError(409, 'The session changed. Refresh its state.');
+      if (room.state === 'closed') throw bandError(409, 'This session has ended. Create a new session.');
+      if (match[2] === 'update') {
+        const source = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId);
+        if (input.version !== room.version || room.state === 'closed') throw bandError(409, 'The session changed. Refresh its state.');
+        if (!Array.isArray(input.assignments) || input.assignments.length !== room.participants.length || new Set(input.assignments.map(p => p?.userId)).size !== room.participants.length) throw bandError(400, 'Assign a part to every student in this session.');
+        const assigned = room.participants.map(person => {
+          const assignment = input.assignments.find(p => p?.userId === person.userId), part = source.parts.find(p => p.id === assignment?.partId);
+          if (!part || !this.eligible(room, person.userId)) throw bandError(400, 'Choose a valid part for every student in this session.');
+          return part;
+        });
+        let arrangement;
+        try { arrangement = arrangementFromBar(source, input.startBar); } catch (error) { throw bandError(400, error.message); }
+        if (runningRoom(room)) this.interrupt(room, 'Teacher changed the song or start bar.');
+        room.arrangement = arrangement; room.version = randomUUID(); room.state = 'preparing'; room.teacherReady = false; room.takeId = null; room.startAt = null; room.countInAt = null;
+        room.reason = 'Song ready from bar ' + (arrangement.startBar || 1) + '. Check sound and press Ready again.';
+        room.participants.forEach((person, i) => Object.assign(person, { partId: assigned[i].id, instrument: assigned[i].instrument, ready: false, state: person.socket ? 'connected' : 'waiting', progress: null, result: null, message: '', lastProgress: 0 }));
+        this.broadcast(room); send(200, { room: this.snapshot(room, actor) }); return true;
+      }
       if (match[2] === 'start') {
         if (room.state !== 'preparing' || !room.teacherSocket || !room.teacherReady || room.participants.some(p => !p.socket || !p.ready || !this.eligible(room, p.userId))) throw bandError(409, 'All students and the teacher must be connected and Ready.');
         room.takeId = randomUUID(); room.state = 'playing'; room.version = randomUUID(); room.reason = '';
@@ -154,7 +173,8 @@ export class BandSessions {
       } else if (match[2] === 'stop') {
         if (runningRoom(room)) this.interrupt(room, 'Teacher stopped the take.');
         room.state = 'preparing'; room.version = randomUUID(); room.startAt = null; room.countInAt = null; room.teacherReady = false;
-        for (const p of room.participants) { p.ready = false; p.state = p.socket ? 'connected' : 'waiting'; }
+        room.reason = 'Stopped. Choose a song or start bar, or press Ready for another take.';
+        for (const p of room.participants) { p.ready = false; p.state = p.socket ? 'connected' : 'waiting'; p.progress = null; p.result = null; p.message = ''; p.lastProgress = 0; }
       } else if (match[2] === 'close') { this.interrupt(room, 'Teacher closed the session.'); room.state = 'closed'; room.version = randomUUID(); }
       this.broadcast(room); send(200, { room: this.snapshot(room, actor) }); return true;
     }
@@ -308,7 +328,7 @@ export class BandSessions {
       this.store.transaction(() => {
         const updated = this.store.db.prepare("UPDATE band_results SET state='completed',record=? WHERE take_id=? AND user_id=? AND state='playing'").run(JSON.stringify(record), room.takeId, p.userId);
         if (updated.changes !== 1) throw bandError(409, 'This take was interrupted. Prepare a fresh take.');
-        this.store.db.prepare('INSERT INTO runs(id,user_id,created_at,record) VALUES (?,?,?,?)').run(record.id, p.userId, record.at, JSON.stringify(record));
+        if (summary.total > 0) this.store.db.prepare('INSERT INTO runs(id,user_id,created_at,record) VALUES (?,?,?,?)').run(record.id, p.userId, record.at, JSON.stringify(record));
       });
       p.state = 'completed'; p.result = summary; this.finishRoom(room); this.send(socket, { type: 'saved', takeId: room.takeId }); this.broadcast(room); return;
     }

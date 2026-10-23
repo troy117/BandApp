@@ -1,3 +1,5 @@
+import { vocalTarget, drawVocalStaff } from './vocal-guide.mjs';
+import { drawDrumHighway } from './drum-highway.mjs';
 import { FrettedFullScore } from './fretted-score.mjs';
 import { makeRunReport, stoppedJudge } from './run-report.mjs';
 import { createPracticeChart, backingSegments } from './practice.mjs';
@@ -59,6 +61,7 @@ export class BandPractice {
       q('b-offset').value = this.offset; this.persist(); this.renderKeys();
     };
     q('b-sound').onchange = () => { this.clearHeld(); this.persist(); };
+    q('b-vocal-guide-enabled').onchange = () => { if (!q('b-vocal-guide-enabled').checked) this.piano.clear(); };
     q('b-play').onclick = () => this.attempt(() => this.play());
     q('b-full-play').onclick = () => this.attempt(() => this.play());
     q('b-listen').onclick = () => this.attempt(() => this.play(true));
@@ -92,7 +95,7 @@ export class BandPractice {
     catch { this.message('Device storage is unavailable. Controls last for this visit.'); }
   }
   setMode(mode) {
-    if (this.mode !== mode) { this.stop('Practice area changed.'); this.rooms.unready('Practice area changed.'); this.beforeEnter(); this.clearHeld(); this.collapse(); }
+    if (this.mode !== mode) { this.importer.timing.pause(); this.stop('Practice area changed.'); this.rooms.unready('Practice area changed.'); this.beforeEnter(); this.clearHeld(); this.collapse(); }
     this.mode = mode; document.body.classList.toggle('band-active', this.active); this.q('band-workspace').hidden = !this.active;
     document.querySelector('main h1').textContent = mode === 'drums' ? 'Drum practice' : mode === 'keyboard' ? 'Keyboard practice' : mode === 'jam' ? 'Jam session' : mode[0].toUpperCase()+mode.slice(1)+' · follow along';
     for (const button of document.querySelectorAll('[data-band-mode]')) button.setAttribute('aria-pressed', String(button.dataset.bandMode === mode));
@@ -152,12 +155,14 @@ export class BandPractice {
   renderPart() {
     const q = this.q, keys = this.part.instrument === 'keyboard', follow = followInstrument(this.part.instrument), strings = ['guitar','bass'].includes(this.part.instrument);
     q('b-report').hidden = true;
+    q('b-vocal-melody-panel').hidden = this.part.instrument !== 'vocals' || !this.part.chart.notes.length;
+    q('b-vocal-guide-enabled').checked = false;
     this.loopOptions={enabled:false,startBar:1,endBar:Math.min(4,this.part.chart.bars),repeats:4,focus:'all'};this.loopChart=null;
     q('b-loop-enabled').checked=false;q('b-loop-from').value=1;q('b-loop-to').value=this.loopOptions.endBar;q('b-loop-from').max=q('b-loop-to').max=this.part.chart.bars;q('b-loop-state').textContent='Whole song';
     q('b-part').innerHTML = this.arrangement.parts.map(part => '<option value="' + part.id + '">' + escapeHtml(part.name) + '</option>').join(''); q('b-part').value = this.part.id;
     q('b-song-info').textContent = this.arrangement.title + ' · ' + Math.round(this.part.chart.bpm) + ' BPM · ' + this.part.chart.bars + (this.part.chart.bars === 1 ? ' bar' : ' bars') + ' · ' + (this.part.chart.lyrics?.length || this.part.chart.notes.length) + (this.part.instrument==='vocals'?' lyric cues':' notes') + ' · ' + (follow ? 'Follow-along · no score' : keys ? 'Pitch + onset timing' : 'Drum + onset timing');
     q('b-input-controls').hidden=follow;q('b-stats').hidden=follow;q('b-csv').hidden=follow;q('b-open-report').hidden=follow;q('b-follow-help').hidden=!follow;
-    q('b-follow-help').textContent=strings?'Suggested frets · standard '+(this.part.instrument==='guitar'?'six-string E A D G B E':'four-string E A D G')+' tuning · frets 0–24. MIDI does not retain original fingering. '+(this.part.chart.unmapped?this.part.chart.unmapped+' notes cannot be placed and are marked with ?; check the tuning or MIDI with your teacher.':'Fret 0 means an open string. Check fingering with your teacher.'):'Follow the highlighted lyric line. Timing follows the teacher; no microphone or vocal score is used.';
+    q('b-follow-help').textContent=strings?'Suggested frets · standard '+(this.part.instrument==='guitar'?'six-string E A D G B E':'four-string E A D G')+' tuning · frets 0–24. MIDI does not retain original fingering. '+(this.part.chart.unmapped?this.part.chart.unmapped+' notes cannot be placed and are marked with ?; check the tuning or MIDI with your teacher.':'Fret 0 means an open string. Check fingering with your teacher.'):this.part.chart.notes.length ? 'Follow the lyric line and the lead-vocal melody below. Note names show concert pitch and octave. No microphone or vocal score is used.' : 'Follow the highlighted lyric line. To add a melody guide, your teacher can assign the lead-vocal MIDI tracks to Vocals in Edit instrument parts.';
     if(follow)q('b-feedback').textContent='Ready to follow your part. Press Play or wait for your teacher’s shared start.';
     q('b-input-controls').open = false;
     q('b-full-title').textContent = this.arrangement.title + ' · ' + this.part.name;
@@ -233,7 +238,7 @@ export class BandPractice {
       const play = () => { if (token !== this.token || !this.active || !this.held.has(id)) return; if (keys) this.piano.on(id, value, velocity); else this.audio.play(value, undefined, velocity); };
       if (this.audio.context?.state === 'running') play(); else this.audio.ready().then(play).catch(error => this.message(error.message));
     }
-    if (!keys) setTimeout(() => this.release(id), 100);
+    if (!keys) { (this.drumFlashes ||= new Map()).set(value, performance.now()); setTimeout(() => this.release(id), 100); }
     const session = this.session;
     if (!session || session.listen || session.teacher) return;
     const stamp = Number.isFinite(timestamp) && Math.abs(timestamp - performance.now()) < 60000 ? timestamp : performance.now();
@@ -275,7 +280,7 @@ export class BandPractice {
   startScheduled(room, clock, teacher) {
     if (this.startedTake === room.takeId) return;
     const countIn = clock.localAt(room.countInAt);
-    if (!this.rooms.prepared || this.arrangement.revisionId !== room.arrangement.revisionId || !clock.status.ready || this.audio.context?.state !== 'running' || performance.now() > countIn - 100 || document.hidden) {
+    if (!this.rooms.prepared || this.arrangement.revisionId !== room.arrangement.revisionId || this.arrangement.id !== room.arrangement.id || (this.arrangement.startBar || 1) !== (room.arrangement.startBar || 1) || !clock.status.ready || this.audio.context?.state !== 'running' || performance.now() > countIn - 100 || document.hidden) {
       this.rooms.unready('Audio or timing was not ready for this start.'); this.message('Missed preparation. Wait for a fresh take.'); return;
     }
     this.stop('', false); this.startedTake = room.takeId;
@@ -285,7 +290,7 @@ export class BandPractice {
   begin(startAt, options = {}) {
     const chart = this.playChart();
     this.session = { ...options, judge: followInstrument(this.part.instrument) ? new FollowCursor(chart) : this.part.instrument === 'keyboard' ? new PitchJudge(chart) : new Judge(chart), startAt, count: 0, beat: 0, guide: 0, accountId: this.school.user?.id || null, lastProgress: 0, part: this.part, arrangement: this.arrangement };
-    if (this.backing && chart.passes && !this.rooms.room) { for(const segment of backingSegments(chart,this.backing))this.audio.playBacking(this.backing.buffer,startAt+segment.when,segment.offset,this.backing.volume,segment.duration); }
+    if (this.backing && chart.passes && (!this.rooms.room || options.teacher)) { for(const segment of backingSegments(chart,this.backing))this.audio.playBacking(this.backing.buffer,startAt+segment.when,segment.offset,this.backing.volume,segment.duration); }
     else if (this.backing && (!this.rooms.room || options.teacher)) { const timing = backingSchedule(startAt, this.backing.offset, this.backing.buffer.duration); this.audio.playBacking(this.backing.buffer, timing.when, timing.offset, this.backing.volume, Math.min(this.backing.buffer.duration - timing.offset, Math.max(0.01, chart.duration - Math.max(0, this.backing.offset)))); }
     this.q('b-report').hidden = true; this.lockControls(); this.q('b-feedback').textContent = options.teacher ? 'The shared count-in is scheduled.' : followInstrument(this.part.instrument) ? 'Follow your part after the count-in. This part is not scored.' : options.listen ? 'Listen first. This run is not scored.' : 'Count in, then meet each note in its hit box.';
     if (!options.teacher) { this.q('b-input-controls').open = false; if (!this.expanded) this.q('b-stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
@@ -324,14 +329,14 @@ export class BandPractice {
     const guides = session.teacher ? this.teacherGuide || (this.teacherGuide = this.arrangement.parts.flatMap(part => part.chart.notes.map(note => ({ ...note, instrument: part.instrument }))).sort((a,b) => a.time - b.time)) : chart.notes;
     while (session.guide < guides.length) {
       const note = guides[session.guide], at = session.startAt + note.time; if (at > horizon) break;
-      if ((session.listen || (session.teacher && !this.backing)) && at >= this.audio.context.currentTime - 0.03) {
-        if (note.pitch !== undefined) { const id = 'guide:' + session.guide; this.piano.on(id, note.pitch, 0.45, at); this.piano.off(id, at + Math.max(0.08, Math.min(1.5, note.duration || 0.25))); }
+      if ((session.listen || (session.teacher && !this.backing) || (!session.teacher && this.part.instrument === 'vocals' && this.q('b-vocal-guide-enabled').checked)) && at >= this.audio.context.currentTime - 0.03) {
+        if (note.pitch !== undefined) { const id = 'guide:' + session.guide; this.piano.on(id, note.pitch, 0.45, at); this.piano.off(id, at + Math.max(0.08, Math.min(this.part.instrument === 'vocals' || note.instrument === 'vocals' ? 30 : 1.5, note.duration || 0.25))); }
         else if(note.drum) this.audio.play(note.drum, at, 0.55);
       }
       session.guide++;
     }
     if (!session.listen && !session.teacher) { session.judge.advance(time - this.offset / 1000); this.stats(session.judge); }
-    this.q('b-play-status').textContent = time < 0 ? 'Count-in · ' + Math.max(1, Math.min(chart.countInBeats, chart.countInBeats + 1 + Math.floor(time / chart.countInBeatSeconds))) : 'Bar ' + (chart.measures?.findLast(measure => measure.time <= time)?.bar || Math.min(chart.bars, Math.floor(time / (60 / chart.bpm) / 4) + 1)) + ' / ' + chart.bars;
+    this.q('b-play-status').textContent = time < 0 ? 'Count-in · ' + Math.max(1, Math.min(chart.countInBeats, chart.countInBeats + 1 + Math.floor(time / chart.countInBeatSeconds))) : 'Bar ' + (chart.beats.findLast(beat => beat.time <= time)?.sourceBar || chart.beats.findLast(beat => beat.time <= time)?.bar || 1) + ' / ' + (chart.sourceBars || chart.bars);
     if (session.takeId && !session.teacher && time >= 0 && performance.now() - session.lastProgress > 200) { session.lastProgress = performance.now(); this.rooms.progress(partSummary(session.judge), Math.min(chart.duration, time)); }
     if (time > chart.duration + 0.35) this.finish();
   }
@@ -352,10 +357,11 @@ export class BandPractice {
     const reached=judge.chart.notes.length>0;
     const summary=partSummary(judge),chart=judge.chart,info=chart.practice;
     if(!reached)summary.accuracy=0;
-    const report=makeRunReport(judge,{instrument:session.part.instrument,elapsed,stopped,offset:this.offset});report.planned=original.chart.notes.length;report.sourceBars=session.part.chart.bars;
+    const report=makeRunReport(judge,{instrument:session.part.instrument,elapsed,stopped,offset:this.offset});report.planned=original.chart.notes.length;report.sourceBars=session.part.chart.sourceBars || session.part.chart.bars;
     const record={id:crypto.randomUUID(),at:Date.now(),...summary,sourceKind:session.arrangement.sourceKind,sourceId:session.arrangement.id,revisionId:session.arrangement.revisionId,partId:session.part.id,partName:session.part.name,instrument:session.part.instrument,title:session.arrangement.title,bpm:chart.bpm,endBpm:chart.tempos?.at(-1)?.bpm||chart.bpm,tolerance:140,section:info?info.startBar+'–'+info.endBar:'1–'+chart.bars,repeats:info?.repeats||1,full:!stopped&&(info?.full??true),focus:session.part.instrument,stopped,report};
     this.lastReport={...session,judge,runRecord:record,detail:report};this.collapse();this.stats(judge);this.report(this.lastReport,summary);if(reached)this.onAttempt?.(record,report);
     if(!document.hidden)this.onReport?.(record,report);
+    if(!reached && session.takeId && !stopped)this.rooms.finish(summary);
     if(!reached)this.q('b-save-state').textContent='No expected notes reached. This preview does not add a saved attempt.';
     else if(session.takeId && !stopped){this.q('b-save-state').textContent='Confirming this session result…';this.rooms.finish(summary);}
     else if(session.accountId && this.school.user?.id===session.accountId && ['duet','school'].includes(session.arrangement.sourceKind)){
@@ -363,7 +369,7 @@ export class BandPractice {
     }else this.q('b-save-state').textContent='Attempt kept in this browser. Publish personal arrangements to school to save account reports.';
   }
   async attachTakeReport(takeId) {
-    const last=this.lastReport;if(!last?.detail||last.takeId!==takeId||last.detail.stopped)return;
+    const last=this.lastReport;if(!last?.detail||!last.detail.notes.length||last.takeId!==takeId||last.detail.stopped)return;
     try{await this.school.request('/band/takes/'+takeId+'/report',{method:'POST',data:{report:last.detail}});await this.school.refreshHistory();}
     catch(error){this.q('b-save-state').textContent='Session result saved; note detail could not save: '+error.message;}
   }
@@ -406,7 +412,16 @@ export class BandPractice {
       const {current,next}=currentLyric(chart.lyrics||[],time),line=current?.text||(time<0?'Get ready to sing':'Instrumental · listen for your next line');
       if(this.q('b-vocal-line').textContent!==line)this.q('b-vocal-line').textContent=line;
       const upcoming=next?'Up next: '+next.text:'End of lyrics';if(this.q('b-vocal-next').textContent!==upcoming)this.q('b-vocal-next').textContent=upcoming;
-      this.q('b-vocal-progress').value=current?Math.max(0,Math.min(1,(time-current.time)/(current.end-current.time))):0;return;
+      this.q('b-vocal-progress').value=current?Math.max(0,Math.min(1,(time-current.time)/(current.end-current.time))):0;
+      if (chart.notes.length) {
+        const target = vocalTarget(chart.notes, time), label = 'Target note · ' + target.label;
+        if (this.q('b-vocal-target').textContent !== label) this.q('b-vocal-target').textContent = label;
+        const canvas = this.q('b-vocal-melody'), rect = canvas.getBoundingClientRect(), width = Math.max(260, rect.width), height = 200, dpr = Math.min(2, devicePixelRatio || 1);
+        if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) { canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr); }
+        const context = canvas.getContext('2d'); context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawVocalStaff(context, width, height, chart, this.session ? time : Math.max(-0.5, chart.notes[0].time - 0.7));
+      }
+      return;
     }
     if(['guitar','bass'].includes(this.part.instrument) && this.q('b-view').value==='full'){this.frettedScore.draw(chart,time,!!this.session);return;}
     const canvas = this.q('b-canvas'), context = canvas.getContext('2d');
@@ -419,6 +434,9 @@ export class BandPractice {
     context.setTransform(dpr,0,0,dpr,0,0); context.clearRect(0,0,width,height);
     if(['guitar','bass'].includes(this.part.instrument)){drawFretted(context,width,height,chart,time,this.q('b-view').value==='tab');return;}
     if (this.part.instrument === 'drums' && this.q('b-view').value === 'sheet') { drawSheet(context, { width, height, dpr }, this.notation.model, chart, time, !!this.session, this.session?.listen); return; }
+    if (this.part.instrument === 'drums') {
+      drawDrumHighway(context, { width, height }, chart, time, { running: !!this.session, order: this.getDrumOrder?.(), flashes: this.drumFlashes, bindings: this.getDrumBindings() }); return;
+    }
     const keys = this.part.instrument === 'keyboard';
     let lanes;
     if (keys) { const min = Math.min(...chart.notes.map(n=>n.pitch),60+this.octave), max = Math.max(...chart.notes.map(n=>n.pitch),72+this.octave); lanes = Array.from({length:max-min+1},(_,i)=>({ id:min+i, name:pitchName(min+i), color:[1,3,6,8,10].includes((min+i)%12)?'#b5a0ed':'#63d9c4' })); }

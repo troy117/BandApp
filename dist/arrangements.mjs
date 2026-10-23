@@ -3,6 +3,7 @@ import { makeMidiChart, midiTimeGrid } from './midi.mjs';
 import { alignMidiChart } from './sync.mjs';
 import { BAND_INSTRUMENTS, followInstrument, frettedChart } from './follow-along.mjs';
 import { arrangementLyrics } from './lyrics.mjs';
+import { vocalMelody } from './vocal-guide.mjs';
 
 export const DUETS = [
   { id: 'duet-first', title: 'Together on one · Level 1', bpm: 80, bars: 8, groove: 'rock', melody: [60, 60, 64, 64, 67, 67, 64, 60], step: 1, length: 0.7 },
@@ -63,7 +64,8 @@ export function importedArrangement(song, metadata = {}) {
     if (part.instrument === 'vocals') {
       const lyrics = arrangementLyrics(song,metadata);
       if(!lyrics.length)throw new Error('Add timed lyrics for the vocals part. This MIDI may contain melody notes without words.');
-      chart = {...alignMidiChart(midiTimeGrid(song),timeScale),kind:'vocals',lyrics};
+      chart = { ...alignMidiChart({ ...midiTimeGrid(song), notes: vocalMelody(song, part.selected) }, timeScale), kind: 'vocals', lyrics };
+      chart.notes.forEach(note => { note.duration *= timeScale; });
     } else if (part.instrument === 'drums') chart = alignMidiChart(makeMidiChart(song, part.selected, metadata.mapping || {}), timeScale);
     else {
       const all = song.parts.filter(item => part.selected.includes(item.id)).flatMap(item => item.notes).sort((a, b) => a.tick - b.tick);

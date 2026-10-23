@@ -1,3 +1,4 @@
+import { drawDrumHighway } from './drum-highway.mjs';
 import { makeRunReport, stoppedJudge } from './run-report.mjs';
 import { RunReportView } from './report-view.mjs';
 import { drumLaneOrder, orderedDrums } from './drum-lanes.mjs';
@@ -112,7 +113,7 @@ function renderView() {
   $('practice-stage').classList.toggle('full-score-view', full);
   $('workspace').classList.toggle('full-score-workspace', full);
   canvas.hidden = full; $('full-score-scroll').hidden = !full;
-  $('lane-labels').hidden = sheet;
+  $('lane-labels').hidden = true;
   $('sheet-legend').hidden = !sheet;
   $('view-help').textContent = full ? 'The whole score wraps into rows. Play each note as the gold bar crosses it; the page follows the current row. Scroll to review any section. Stacked notes play together.' : sheet ? 'Play each note as the gold playhead crosses it. Notes stacked together are played together.' : 'Hit when each colored bar is centered in its matching box. The center mark is the beat.';
   if (sheet && imported) $('view-help').textContent += ' MIDI rhythms are rounded for readable notation; playback and scoring keep the original timing. Lyrics and original engraving are not included in MIDI.';
@@ -492,79 +493,9 @@ function resize() {
 }
 new ResizeObserver(resize).observe(canvas);
 function drawHighway(time) {
-  const { width: w, height: h } = viewport;
-  ctx.clearRect(0, 0, w, h);
-  const top = 42, target = h - 87, bottom = target + 21;
-  const nearWidth = w * 0.8, farWidth = w * 0.32;
-  const at = depth => ({ y: top + (target - top) * depth ** 1.55, left: (w - (farWidth + (nearWidth - farWidth) * depth)) / 2, width: farWidth + (nearWidth - farWidth) * depth });
-  const far = at(0), near = at(1);
-  ctx.beginPath(); ctx.moveTo(far.left, top); ctx.lineTo(far.left + far.width, top); ctx.lineTo(near.left + near.width, bottom); ctx.lineTo(near.left, bottom); ctx.closePath();
-  const grad = ctx.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, '#18282b'); grad.addColorStop(1, '#1c2b2f'); ctx.fillStyle = grad; ctx.fill();
-  const chart = session?.judge.chart || previewChart;
-  const lanes = laneDrums.length;
-  const dueGroup = session ? nextHitGroup(chart, time) : null;
-  const dueDrums = new Set(dueGroup?.due ? dueGroup.notes.map(note => note.drum) : []);
-  // One outlined receptor per lane. A note's center reaches its box center
-  // at its scheduled beat, on the same audible clock used by the sheet view.
-  for (let lane = 0; lane < lanes; lane++) {
-    const drum = laneDrums[lane];
-    const laneWidth = near.width / lanes;
-    const x = near.left + laneWidth * lane + laneWidth * 0.08;
-    ctx.fillStyle = '#0b1418';
-    ctx.beginPath(); ctx.roundRect(x, target - 18, laneWidth * 0.84, 36, 6); ctx.fill();
-  }
-  for (let lane = 0; lane <= lanes; lane++) {
-    ctx.beginPath(); ctx.moveTo(far.left + far.width * lane / lanes, top); ctx.lineTo(near.left + near.width * lane / lanes, bottom);
-    ctx.strokeStyle = lane === 0 || lane === lanes ? '#40555766' : '#344a4d66'; ctx.lineWidth = 1; ctx.stroke();
-  }
-  const lookahead = 3.3;
-  const visibleTime = session ? time : -0.4;
-  const drawingBeats = [...Array.from({ length: chart.countInBeats }, (_, i) => ({ time: (i - chart.countInBeats) * chart.countInBeatSeconds, downbeat: i === 0, bar: 0 })), ...chart.beats];
-  for (const beat of drawingBeats) {
-    const delta = beat.time - visibleTime;
-    if (delta < 0 || delta > lookahead) continue;
-    const p = at(1 - delta / lookahead);
-    ctx.beginPath(); ctx.moveTo(p.left, p.y); ctx.lineTo(p.left + p.width, p.y); ctx.strokeStyle = beat.downbeat ? '#627b7c55' : '#3e5a5d55'; ctx.lineWidth = 1; ctx.stroke();
-    if (beat.bar > 0 && beat.downbeat) { ctx.font = '8px Segoe UI, sans-serif'; ctx.fillStyle = '#6f898b'; ctx.fillText(String(beat.sourceBar ?? beat.bar).padStart(2, '0'), p.left - 21, p.y + 3); }
-  }
-  for (let i = chart.notes.length - 1; i >= 0; i--) {
-    const note = chart.notes[i];
-    const delta = note.time - visibleTime;
-    if (delta < -0.2 || delta > lookahead || note.status === 'hit') continue;
-    const drum = DRUMS.find(drum => drum.id === note.drum);
-    const lane = laneDrums.indexOf(drum);
-    const depth = Math.min(1.1, 1 - delta / lookahead);
-    const p = at(depth);
-    const noteWidth = p.width / lanes * 0.74;
-    const x = p.left + p.width / lanes * (lane + 0.5) - noteWidth / 2;
-    ctx.globalAlpha = note.status === 'miss' ? 0.25 : Math.min(1, 0.28 + depth);
-    ctx.shadowColor = drum.color; ctx.shadowBlur = 10 * depth;
-    ctx.fillStyle = drum.color;
-    const noteHeight = 4 + depth * 7;
-    ctx.beginPath(); ctx.roundRect(x, p.y - noteHeight / 2, noteWidth, noteHeight, 2 + depth * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#ffffff55'; ctx.fillRect(x + 3, p.y - noteHeight / 2 + 1, noteWidth - 6, 1);
-    ctx.globalAlpha = 1;
-  }
-  for (let lane = 0; lane < lanes; lane++) {
-    const drum = laneDrums[lane];
-    const age = performance.now() - (flashes.get(drum.id) || 0);
-    const laneWidth = near.width / lanes;
-    const x = near.left + laneWidth * lane + laneWidth * 0.08;
-    const due = dueDrums.has(drum.id);
-    if (age < 200) {
-      const glow = ctx.createLinearGradient(0, target - 85, 0, target); glow.addColorStop(0, drum.color + '00'); glow.addColorStop(1, drum.color + '33');
-      ctx.fillStyle = glow; ctx.fillRect(x, target - 85, laneWidth * 0.84, 104);
-    }
-    ctx.strokeStyle = age < 160 || due ? drum.color : drum.color + 'aa'; ctx.lineWidth = age < 160 || due ? 3 : 1.5;
-    if (due || age < 160) { ctx.fillStyle = drum.color + '22'; ctx.beginPath(); ctx.roundRect(x, target - 18, laneWidth * 0.84, 36, 6); ctx.fill(); }
-    ctx.beginPath(); ctx.roundRect(x, target - 18, laneWidth * 0.84, 36, 6); ctx.stroke();
-    ctx.strokeStyle = drum.color + '77'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x + 5, target); ctx.lineTo(x + laneWidth * 0.84 - 5, target); ctx.stroke();
-  }
-  ctx.fillStyle = '#8fa9a5'; ctx.font = '8px Segoe UI, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('HIT BOXES · CENTER = BEAT', w / 2, target + 35); ctx.textAlign = 'left';
-  const fade = ctx.createLinearGradient(0, 0, 0, 77); fade.addColorStop(0, '#111b1eff'); fade.addColorStop(1, '#111b1e00'); ctx.fillStyle = fade; ctx.fillRect(0, 0, w, 77);
+  drawDrumHighway(ctx, viewport, session?.judge.chart || previewChart, time, { running: !!session, order: laneOrder, flashes, bindings });
 }
+
 function frame() {
   const time = elapsed();
   if (session) {

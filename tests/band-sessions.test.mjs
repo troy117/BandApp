@@ -1,3 +1,4 @@
+import { arrangementFromBar } from '../dist/session-transport.mjs';
 import { createChart, Judge } from '../dist/engine.mjs';
 import { PitchJudge } from '../dist/instruments.mjs';
 import { createPracticeChart } from '../dist/practice.mjs';
@@ -295,4 +296,44 @@ test('keyboard section and stopped attempts save distinct reports without claimi
  assert.equal((await env.request(env.b,'/band/runs','POST',input)).status,200);assert.equal((await env.request(env.b,'/band/runs','POST',input)).data.duplicate,true);
  const saved=await env.request(env.b,'/users/'+env.b.user.id+'/runs/'+id);assert.equal(saved.data.record.stopped,true);assert.equal(saved.data.record.section,'2–3');assert.equal(saved.data.record.repeats,4);assert.equal(saved.data.record.full,false);assert.equal(saved.data.report.notes[0][7],2);assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM band_takes').get().n,0);
  const bad={...input,id:randomUUID(),summary:{...input.summary,total:source.notes.length}};assert.equal((await env.request(env.b,'/band/runs','POST',bad)).status,400);
+});
+
+
+test('one classroom session changes songs and starting bars, retains seats and sockets, and ends for everyone', async t => {
+  const env = await bandFixture(t), created = (await createRoom(env)).data.room;
+  const { peers, room } = await readyRoom(env, created);
+  const started = (await env.request(env.setup, '/band/rooms/' + room.id + '/start', 'POST', { version: room.version })).data.room;
+  const update = { version: started.version, sourceKind: 'duet', sourceId: 'band-first', startBar: 3, assignments: [{ userId: env.a.user.id, partId: 'drums' }, { userId: env.b.user.id, partId: 'keyboard' }] };
+  assert.equal((await env.request(env.a, '/band/rooms/' + room.id + '/update', 'POST', update)).status, 403);
+  const invalid = await env.request(env.setup, '/band/rooms/' + room.id + '/update', 'POST', { ...update, startBar: 999 });
+  assert.equal(invalid.status, 400);
+  assert.equal(env.server.bandSessions.rooms.get(room.id).state, 'playing');
+  const changed = await env.request(env.setup, '/band/rooms/' + room.id + '/update', 'POST', update);
+  assert.equal(changed.status, 200); const next = changed.data.room;
+  assert.equal(next.id, created.id); assert.equal(next.state, 'preparing'); assert.equal(next.arrangement.startBar, 3);
+  assert.equal(next.arrangement.bars, 8); assert.equal(next.participants.length, 2);
+  assert.ok(next.participants.every(person => person.connected && !person.ready && !person.progress));
+  assert.equal(env.store.db.prepare('SELECT state FROM band_takes WHERE id=?').get(started.takeId).state, 'interrupted');
+  assert.equal((await env.request(env.setup, '/band/rooms/' + room.id + '/update', 'POST', update)).status, 409);
+  const studentUpdate = await peers[1].wait(message => message.type === 'room' && message.room.version === next.version);
+  assert.equal(studentUpdate.room.arrangement.id, 'band-first');
+  for (const peer of peers) peer.send({ type: 'ready', version: next.version, revisionId: next.arrangement.revisionId, audio: true, input: 'Computer keys', sync: { samples: 5, rttMs: 10, uncertaintyMs: 5 } });
+  await peers[0].wait(message => message.type === 'room' && message.room.version === next.version && message.room.teacherReady && message.room.participants.every(person => person.ready));
+  const resumed = (await env.request(env.setup, '/band/rooms/' + room.id + '/start', 'POST', { version: next.version })).data.room;
+  assert.notEqual(resumed.takeId, started.takeId);
+  const arr = arrangementFromBar(builtinArrangement('band-first'), 3);
+  env.advance(resumed.startAt + arr.duration * 1000 + 400);
+  for (const [i, peer] of peers.slice(1).entries()) {
+    const judge = i === 0 ? new Judge(arr.parts[i].chart) : new PitchJudge(arr.parts[i].chart);
+    judge.advance(Infinity); peer.send({ type: 'finish', takeId: resumed.takeId, summary: partSummary(judge) }); await peer.wait(message => message.type === 'saved');
+  }
+  const completed = await peers[0].wait(message => message.type === 'room' && message.room.state === 'completed');
+  const runs = env.store.db.prepare('SELECT record FROM runs').all().map(row => JSON.parse(row.record));
+  assert.equal(runs.length, 2); assert.ok(runs.every(run => run.section === '3–8' && !run.full));
+  assert.equal(runs[0].total, arr.parts[0].chart.notes.length);
+  const closed = await env.request(env.setup, '/band/rooms/' + room.id + '/close', 'POST', { version: completed.room.version });
+  assert.equal(closed.data.room.state, 'closed');
+  for (const peer of peers.slice(1)) await peer.wait(message => message.type === 'room' && message.room.state === 'closed');
+  assert.equal((await env.request(env.a, '/band/rooms')).data.rooms.length, 0);
+  assert.equal((await env.request(env.setup, '/band/rooms/' + room.id + '/stop', 'POST', { version: closed.data.room.version })).status, 409);
 });

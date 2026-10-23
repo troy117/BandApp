@@ -18,6 +18,9 @@ test('shared playback maps the scheduled server clock once and rejects an unread
   practice.startScheduled(room,clock,false);practice.startScheduled(room,clock,false);
   assert.equal(began.length,1);assert.ok(Math.abs(began[0].start-(now+5000)/1000)<0.00001);assert.equal(began[0].options.takeId,'take-a');
   practice.startScheduled({...room,takeId:'late',countInAt:clock.serverAt(performance.now()-100)},clock,false);assert.equal(unready.length,1);assert.equal(began.length,1);
+  practice.startScheduled({...room,takeId:'wrong-song',arrangement:{revisionId:'v1',id:'another-song'}},clock,false);
+  practice.startScheduled({...room,takeId:'wrong-bar',arrangement:{revisionId:'v1',startBar:3}},clock,false);
+  assert.equal(unready.length,3);assert.equal(began.length,1);
 });
 test('keyboard timing uses the native event timestamp and local correction rather than the processing time',t=>{
   bandDocument(t,{querySelector:()=>null});const chart=builtinArrangement().parts[1].chart,now=performance.now(),judge=new PitchJudge(chart),fields={};
