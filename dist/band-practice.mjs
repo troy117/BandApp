@@ -438,7 +438,7 @@ export class BandPractice {
       this.karaoke.draw(chart, counting ? this.session.from || 0 : time, !!this.session && !counting, this.singing.paused || !!counting);
       if (counting) this.q('b-vocal-state').textContent = 'COUNT-IN · ' + Math.max(1, chart.countInBeats + 1 + Math.floor((time - (this.session.from || 0)) / chart.countInBeatSeconds));
       this.singing.draw(chart, time, !!this.session);
-      if (chart.notes.length) {
+      if (chart.notes.length && this.q('b-vocal-melody-panel').open) {
         const target = vocalTarget(chart.notes, time), label = 'Target note · ' + target.label;
         if (this.q('b-vocal-target').textContent !== label) this.q('b-vocal-target').textContent = label;
         const canvas = this.q('b-vocal-melody'), rect = canvas.getBoundingClientRect(), width = Math.max(260, rect.width), height = 200, dpr = Math.min(2, devicePixelRatio || 1);

@@ -1,6 +1,15 @@
 import { pitchName } from './instruments.mjs';
 import { vocalPitchFeedback } from './vocal-pitch.mjs';
 
+export const WARMUP_REFERENCE_SECONDS = 4;
+export const WARMUP_RESPONSE_AT = 4.3;
+export const WARMUP_STEP_SECONDS = 8.3;
+
+export function warmupMeterFrame(feedback) {
+  const cents = Number.isFinite(feedback?.cents) ? feedback.cents : null;
+  return { state: feedback?.state || 'ready', heard: feedback?.heard || '—', cents, position: cents === null ? null : 50 + Math.max(-1, Math.min(1, cents / 150)) * 46 };
+}
+
 export function warmupNotes(notes, { exercise = 'song', root = 0, minor = false, shift = 0 } = {}) {
   if (exercise === 'song') {
     const opening = [];
@@ -21,7 +30,7 @@ export function comfortableOctave(observations, reference) {
 }
 
 export function warmupMarkup() {
-  return `<section class="vocal-warmup" aria-labelledby="b-warmup-title"><h4 id="b-warmup-title">Warm up your voice</h4><p class="band-help">Listen, then gently echo each note on “ah.” Stay in a range that feels easy.</p><label class="singing-setting">Exercise<select id="b-warmup-exercise"><option value="song">Opening vocal melody</option><option value="major">Major key · five-note scale</option><option value="minor">Minor key · five-note scale</option></select></label><div class="warmup-registers"><label class="singing-setting" id="b-warmup-key-label" hidden>Practice key<select id="b-warmup-key">${['C','C♯ / D♭','D','D♯ / E♭','E','F','F♯ / G♭','G','G♯ / A♭','A','A♯ / B♭','B'].map((name,i)=>'<option value="'+i+'">'+name+'</option>').join('')}</select></label><label class="singing-setting">Warm-up octave<select id="b-warmup-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Original octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label></div><p id="b-warmup-notes" class="warmup-note-list"></p><div class="warmup-actions"><button id="b-warmup-start" class="button secondary">▶ Start warm-up</button><button id="b-warmup-find" class="button secondary">Find a comfortable octave</button></div><div class="warmup-readout"><span id="b-warmup-phase">LISTEN → SING</span><strong id="b-warmup-target">—</strong><p id="b-warmup-feedback" role="status">Choose a melody or key, then start.</p></div><p id="b-warmup-help" class="band-help">Opening melody uses your song’s notes. For scale practice, choose the key you want to work on.</p><p id="b-warmup-suggestion" class="band-help"></p><button id="b-warmup-apply" class="button secondary" hidden>Use this octave</button><p class="band-help">Use headphones. The reference tone plays first; pitch feedback starts when it’s your turn. An octave suggestion is a starting point—your comfort decides.</p></section>`;
+  return `<section class="vocal-warmup" aria-labelledby="b-warmup-title"><h4 id="b-warmup-title">Warm up your voice</h4><p class="band-help">Listen, then gently echo each note on “ah.” Stay in a range that feels easy.</p><label class="singing-setting">Exercise<select id="b-warmup-exercise"><option value="song">Opening vocal melody</option><option value="major">Major key · five-note scale</option><option value="minor">Minor key · five-note scale</option></select></label><div class="warmup-registers"><label class="singing-setting" id="b-warmup-key-label" hidden>Practice key<select id="b-warmup-key">${['C','C♯ / D♭','D','D♯ / E♭','E','F','F♯ / G♭','G','G♯ / A♭','A','A♯ / B♭','B'].map((name,i)=>'<option value="'+i+'">'+name+'</option>').join('')}</select></label><label class="singing-setting">Warm-up octave<select id="b-warmup-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Original octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label></div><p id="b-warmup-notes" class="warmup-note-list"></p><div class="warmup-actions"><button id="b-warmup-start" class="button secondary">▶ Start warm-up</button><button id="b-warmup-find" class="button secondary">Find a comfortable octave</button></div><div class="warmup-readout" id="b-warmup-meter" data-state="ready"><span id="b-warmup-phase">LISTEN → SING</span><div class="warmup-note-pair"><div><span>Target</span><strong id="b-warmup-target">—</strong></div><div><span>You</span><strong id="b-warmup-heard">—</strong></div></div><p id="b-warmup-feedback" role="status">Choose a melody or key, then start.</p><div id="b-warmup-track" class="singing-meter" role="img" aria-label="Warm-up pitch relative to target" aria-valuemin="-150" aria-valuemax="150" aria-valuetext="Pitch matching starts on your singing turn."><span class="singing-center"></span><span id="b-warmup-dot" class="pitch-indicator" hidden></span></div><div class="singing-meter-labels" aria-hidden="true"><span>Too low</span><span>On pitch</span><span>Too high</span></div></div><p id="b-warmup-help" class="band-help">Opening melody uses your song’s notes. For scale practice, choose the key you want to work on.</p><p id="b-warmup-suggestion" class="band-help"></p><button id="b-warmup-apply" class="button secondary" hidden>Use this octave</button><p class="band-help">Use headphones. Listen to the four-second tone, then sing for four seconds. The meter starts on your turn. An octave suggestion is a starting point—your comfort decides.</p></section>`;
 }
 
 const warmupText = (element, value) => { if (element.textContent !== value) element.textContent = value; };
@@ -50,7 +59,21 @@ export class VocalWarmup {
     if (this.busy && this.singing.microphone.state === 'requesting') this.singing.microphone.stop();
     this.generation++; this.running = this.finding = this.busy = false; this.practice.piano.off('vocal-warmup');
     if (this.q('b-warmup-start')) this.q('b-warmup-start').textContent = '▶ Start warm-up';
+    this.drawMeter();
     if (active) { this.q('b-warmup-phase').textContent = 'WARM-UP STOPPED'; this.q('b-warmup-feedback').textContent = 'Start again when you’re ready.'; }
+  }
+  drawMeter(feedback) {
+    const q = this.q, frame = warmupMeterFrame(feedback), meter = q('b-warmup-meter');
+    if (!meter) return;
+    meter.dataset.state = frame.state;
+    warmupText(q('b-warmup-heard'), frame.heard);
+    const dot = q('b-warmup-dot'); dot.hidden = frame.position === null;
+    if (frame.position !== null) dot.style.left = frame.position + '%';
+    const track = q('b-warmup-track');
+    track.setAttribute('role', frame.cents === null ? 'img' : 'meter');
+    if (frame.cents === null) track.removeAttribute('aria-valuenow');
+    else track.setAttribute('aria-valuenow', String(Math.round(Math.max(-150, Math.min(150, frame.cents)))));
+    track.setAttribute('aria-valuetext', frame.cents === null ? 'Pitch matching starts on your singing turn.' : feedback.label + ' · ' + Math.abs(Math.round(frame.cents)) + ' cents from target');
   }
   async start(finding = false) {
     if (this.practice.rooms.room) { this.q('b-warmup-help').textContent = 'Leave the jam session to warm up at your own pace.'; return; }
@@ -82,7 +105,8 @@ export class VocalWarmup {
     if (!Number.isFinite(now) || p.audio.context.state !== 'running') { this.stop(); warmupText(q('b-warmup-feedback'), 'Sound was interrupted. Start the warm-up again.'); return; }
     q('b-warmup-start').textContent = '■ Stop warm-up';
     if (this.finding) {
-      warmupText(q('b-warmup-phase'), 'YOUR COMFORTABLE VOICE'); warmupText(q('b-warmup-target'), detection ? pitchName(Math.round(detection.midi)) : '—');
+      this.drawMeter({ heard: detection ? pitchName(Math.round(detection.midi)) : '—' });
+      warmupText(q('b-warmup-phase'), 'YOUR COMFORTABLE VOICE'); warmupText(q('b-warmup-target'), '—');
       warmupText(q('b-warmup-feedback'), 'Sing an easy, steady “ah” for a few seconds. No high or low stretching.');
       if (detection && now - (this.lastObservation || -Infinity) > .06) { this.observations.push({ ...detection, at: now }); this.lastObservation = now; }
       this.observations = this.observations.filter(item => now - item.at < 2.5);
@@ -92,6 +116,7 @@ export class VocalWarmup {
         this.stop(); warmupText(q('b-warmup-phase'), suggestion ? 'TRY THIS OCTAVE' : 'TRY AGAIN');
         if (!suggestion) { warmupText(q('b-warmup-feedback'), 'No steady note found. Move closer, lower the background sound and try again.'); return; }
         this.suggestion = suggestion;
+        this.drawMeter({ heard: pitchName(suggestion.heard) });
         const shifted = warmupNotes(p.part.chart.notes, { ...this.choices(), shift: suggestion.shift });
         warmupText(q('b-warmup-feedback'), 'Heard a steady ' + pitchName(suggestion.heard) + '.');
         q('b-warmup-suggestion').textContent = 'Try ' + (suggestion.shift === 0 ? 'the original octave' : Math.abs(suggestion.shift / 12) + ' octave' + (Math.abs(suggestion.shift) === 24 ? 's' : '') + (suggestion.shift < 0 ? ' lower' : ' higher')) + ': ' + shifted.map(pitchName).join(' · ') + '. Keep the version that feels easy.';
@@ -99,18 +124,23 @@ export class VocalWarmup {
       }
       return;
     }
-    const elapsed = now - this.started, step = Math.floor(elapsed / 5), phase = elapsed % 5;
+    const elapsed = now - this.started, step = Math.floor(elapsed / WARMUP_STEP_SECONDS), phase = elapsed % WARMUP_STEP_SECONDS;
     if (step >= this.sequence.length) { this.stop(); warmupText(q('b-warmup-phase'), 'WARM-UP COMPLETE'); warmupText(q('b-warmup-feedback'), this.measuredSteps.size ? this.matches.size + ' of ' + this.measuredSteps.size + ' measured notes held near the target. Repeat gently, or return to your song.' : 'Warm-up completed by ear. Pitch wasn’t measured while the microphone was off.'); return; }
-    if (step !== this.step) { this.step = step; this.held = 0; p.piano.on('vocal-warmup', this.sequence[step], .65); p.piano.off('vocal-warmup', now + .8); }
+    if (step !== this.step) { this.step = step; this.held = 0; p.piano.on('vocal-warmup', this.sequence[step], .65, now, { sustain: true }); p.piano.off('vocal-warmup', now + WARMUP_REFERENCE_SECONDS); }
     warmupText(q('b-warmup-target'), pitchName(this.sequence[step]));
-    if (phase < 1.3) { warmupText(q('b-warmup-phase'), 'LISTEN · ' + (step + 1) + ' / ' + this.sequence.length); warmupText(q('b-warmup-feedback'), 'Listen to the note, then echo it.'); }
+    if (phase < WARMUP_RESPONSE_AT) {
+      this.drawMeter();
+      warmupText(q('b-warmup-phase'), (phase < WARMUP_REFERENCE_SECONDS ? 'LISTEN · ' + Math.ceil(WARMUP_REFERENCE_SECONDS - phase) + 's' : 'GET READY') + ' · ' + (step + 1) + ' / ' + this.sequence.length);
+      warmupText(q('b-warmup-feedback'), phase < WARMUP_REFERENCE_SECONDS ? 'Listen for four seconds. Your singing turn is next.' : 'Take a breath, then match the note.');
+    }
     else {
       if (this.singing.microphone.state === 'listening') this.measuredSteps.add(step);
-      warmupText(q('b-warmup-phase'), 'YOUR TURN · ' + (step + 1) + ' / ' + this.sequence.length);
+      warmupText(q('b-warmup-phase'), 'YOUR TURN · ' + Math.ceil(WARMUP_STEP_SECONDS - phase) + 's · ' + (step + 1) + ' / ' + this.sequence.length);
       const feedback = vocalPitchFeedback(detection, [{ pitch: this.sequence[step], time: 0, duration: 5 }], 2, { anyOctave: false });
       if (feedback.state === 'on-pitch') this.held += Math.min(.1, now - this.lastAt); else this.held = 0;
       if (this.held >= .7) this.matches.add(step);
-      warmupText(q('b-warmup-feedback'), this.singing.microphone.state !== 'listening' ? 'Echo the note by ear, or enable your microphone.' : this.matches.has(step) ? 'Nice steady note. Keep it easy.' : feedback.label);
+      this.drawMeter(this.singing.microphone.state === 'listening' ? feedback : null);
+      warmupText(q('b-warmup-feedback'), this.singing.microphone.state !== 'listening' ? 'Echo the note by ear, or enable your microphone.' : this.matches.has(step) && feedback.state === 'on-pitch' ? 'Nice steady note. Keep it easy.' : feedback.label);
     }
     this.lastAt = now;
   }

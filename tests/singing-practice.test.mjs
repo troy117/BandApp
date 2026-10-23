@@ -26,3 +26,14 @@ test('vocal seek schedules the correct backing segment and skips old metronome/m
     assert.equal(p.session.count, chart.countInBeats); assert.ok(chart.beats[p.session.beat].time >= 8); assert.ok(chart.notes[p.session.guide].time >= 8);
   }
 });
+
+test('vocal view switching preserves playback and lyric-only parts use the text view', () => {
+  const buttons = ['highway','lyrics'].map(view => ({ dataset: { vocalView: view }, attrs: {}, setAttribute(key,value) { this.attrs[key] = value; } }));
+  const fields = { 'b-lyrics-screen': { dataset: {} }, 'b-vocal-highway': {}, 'b-vocal-views': { querySelectorAll: () => buttons } };
+  const session = { startAt: 42 }, practice = { session, part: { instrument: 'vocals', chart: { notes: [{ pitch: 60 }] } } };
+  const singing = Object.assign(Object.create(SingingPractice.prototype), { practice, q: id => fields[id] });
+  singing.setView('highway'); assert.equal(fields['b-vocal-highway'].hidden, false); assert.equal(buttons[0].attrs['aria-pressed'], 'true');
+  singing.setView('lyrics'); assert.equal(fields['b-vocal-highway'].hidden, true); assert.equal(practice.session, session);
+  practice.part.chart.notes = []; singing.setView('highway');
+  assert.equal(singing.view, 'lyrics'); assert.equal(buttons[0].disabled, true); assert.equal(buttons[1].attrs['aria-pressed'], 'true');
+});

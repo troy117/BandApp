@@ -1,5 +1,12 @@
 # Changes
 
+## 0.17.0 — October 23, 2026 — Vocal highway and longer reference notes
+
+- Vocal parts with melodies open a horizontal pitch highway: cyan note/hold bars, a white sing line, scrolling white/yellow lyrics and an optional measured microphone trace. Large lyrics remains available. Words use existing line timing and remain approximate. Pause/continue, seek, entrance preview, octave choices and teacher-led transport retain their clock and controls.
+- Warm-up reference notes sustain for four seconds, followed by a brief quiet gap and four seconds to sing. A dedicated Target/You meter shows low/center/high guidance during the singing turn; reference tones and uncertain input stay neutral. Held-note feedback continues to reflect the current pitch after a successful match.
+- Browser-local feedback remains opt-in and ungraded. No school music, accounts, saved revisions, persistent volume, schema or hosting variables are changed. See [VOCAL_HIGHWAY.md](docs/VOCAL_HIGHWAY.md).
+- Validation: 165 tests cover four-second reference release, listen/response separation, neutral/low/high warm-up meters, octave-finder readouts, highway pitch/duration geometry, approximate lyric bounds, measured trace resets and view switching. Module syntax, standalone export, responsive layouts and generated microphone audio are checked; physical phone singing remains a user trial.
+
 ## 0.16.0 — October 23, 2026 — Warm-up and arcade highways
 
 - Vocal settings include opening-melody echo exercises, explicit major/minor key scales, octave shifts and a steady-voice octave suggestion that can set reference-guide sound. Listen/sing turns keep the reference tone out of pitch matching. Feedback remains local, opt-in and ungraded.

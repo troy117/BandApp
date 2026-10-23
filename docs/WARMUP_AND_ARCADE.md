@@ -1,10 +1,10 @@
-# Vocal warm-up and highway experience — Prototype 16
+# Vocal warm-up and highway experience — Prototype 16 / 17
 
 ## Vocal practice
 
 Open a song's Vocals part, then **Sound & pitch settings → Warm up your voice**. The opening-melody exercise takes five consecutive distinct pitches from the selected vocal melody. It retains the song's actual pitches; it does not infer a song key from the first note. Major/minor five-note scale exercises have an explicit Practice key selector. A warm-up octave selector shifts the exercise, with out-of-detector-range choices explained rather than silently changing individual notes.
 
-**Start warm-up** asks for microphone access if needed, then plays each reference for 0.8 seconds. The first 1.3 seconds are listen/settle time; the rest of each five-second step is the student's turn. Feedback compares the exact exercise pitch, with at least 0.7 seconds near the target needed to count a held note. The reference/listen interval is excluded from pitch matching. Headphones reduce speaker echo during the student’s turn. Students can practice by ear if microphone permission is denied. No grade, recording, upload, account field or school-song revision is created.
+**Start warm-up** asks for microphone access if needed. In Prototype 17, each reference sustains for four seconds, followed by a 0.3-second quiet gap and a four-second singing turn. Listen/Your turn countdowns identify each phase. A dedicated Target/You meter shows low/center/high pitch during the response. Feedback compares the exact exercise pitch, with at least 0.7 seconds near the target needed to count a held note. The reference/listen interval is excluded from pitch matching. Headphones reduce speaker echo during the student’s turn. Students can practice by ear if microphone permission is denied. No grade, recording, upload, account field or school-song revision is created. See [the vocal highway guide](VOCAL_HIGHWAY.md) for the new song display.
 
 **Find a comfortable octave** asks for an easy steady vowel. It needs at least 15 confident, unclipped observations spanning 1.4 seconds, with stable pitch in a recent 2.5-second window. A result proposes an octave for the exercise; **Use this octave** applies it to the warm-up and optional melody-guide sound. This is a starting suggestion, not a measured vocal range or a declaration that a singer is warmed up. Students keep the octave that feels easy. Sheet music and stored concert pitches remain unchanged; song singing range can still accept a comfortable octave or require the written octave.
 

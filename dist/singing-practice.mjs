@@ -3,12 +3,15 @@ import { vocalPitchFeedback } from './vocal-pitch.mjs';
 import { vocalTarget } from './vocal-guide.mjs';
 import { pitchName } from './instruments.mjs';
 import { warmupMarkup, VocalWarmup } from './vocal-warmup.mjs';
+import { VocalHighway } from './vocal-highway.mjs';
 
 export function singingMarkup() {
   return `<div id="b-lyrics-screen" class="band-lyrics" hidden>
     <header class="singing-heading"><div><p class="eyebrow">YOUR VOICE. YOUR PACE.</p><h3 id="b-singing-title">Singing practice</h3></div><button id="b-singing-expand" class="button secondary" aria-label="Expand singing practice" title="Full screen">Focus view</button></header>
     <div class="singing-mic-row"><button id="b-vocal-mic" class="button secondary" aria-pressed="false">Enable microphone</button><span id="b-vocal-mic-badge">MIC OFF</span></div>
     <p id="b-vocal-mic-status" class="singing-mic-status" role="status">Optional pitch feedback. Your voice stays on this device.</p>
+    <div id="b-vocal-views" class="singing-view-switch" role="group" aria-label="Vocal practice view"><button class="button secondary" data-vocal-view="highway" aria-pressed="true">Pitch highway</button><button class="button secondary" data-vocal-view="lyrics" aria-pressed="false">Large lyrics</button></div>
+    <section id="b-vocal-highway" class="vocal-highway" aria-label="Vocal pitch highway with lyrics"><div class="vocal-highway-legend"><span><i></i>Melody</span><span><i></i>Your voice</span><span>Higher notes ↑</span></div><canvas id="b-vocal-highway-canvas" aria-label="Vocal notes and lyrics move toward the white sing line. Higher bars mean higher pitches; longer bars mean longer holds."></canvas><p>Sing as the bars reach the white line. Word timing is approximate.</p></section>
     <div class="singing-words"><p id="b-vocal-state">READY TO SING</p><div id="b-vocal-line" aria-live="polite"></div><progress id="b-vocal-progress" max="1" value="0" aria-label="Current lyric line progress"></progress><p id="b-vocal-next"></p></div>
     <section id="b-vocal-pitch" class="singing-pitch" aria-label="Live pitch guide" data-state="off">
       <div class="singing-note-pair"><div><span>Target</span><strong id="b-pitch-wanted">—</strong></div><strong id="b-pitch-feedback" role="status" aria-live="polite">Sing with the lyrics</strong><div><span>You</span><strong id="b-pitch-heard">—</strong></div></div>
@@ -27,6 +30,13 @@ export class SingingPractice {
     this.microphone = new VocalMicrophone({ onState: state => this.micState(state) });
     this.warmup = new VocalWarmup(this);
     const q = this.q;
+    this.highway = new VocalHighway(q('b-vocal-highway-canvas'));
+    this.preferredView = 'highway';
+    try { if (localStorage.getItem('groove-vocal-view-v1') === 'lyrics') this.preferredView = 'lyrics'; } catch {}
+    for (const button of q('b-vocal-views').querySelectorAll('[data-vocal-view]')) button.onclick = () => {
+      this.preferredView = button.dataset.vocalView; this.setView(this.preferredView);
+      try { localStorage.setItem('groove-vocal-view-v1', this.preferredView); } catch {}
+    };
     q('b-singing-settings').ontoggle = () => { if (!q('b-singing-settings').open) this.warmup.stop(); };
     q('b-vocal-mic').onclick = () => ['requesting', 'listening'].includes(this.microphone.state) ? this.microphone.stop() : this.microphone.start();
     q('b-singing-play').onclick = () => { if (!practice.session && !practice.expanded && !practice.rooms.room && window.matchMedia('(max-width:600px)').matches) practice.expand(); practice.attempt(() => practice.play()); };
@@ -53,6 +63,17 @@ export class SingingPractice {
     q('b-singing-settings').open = false; q('b-vocal-melody-panel').open = false;
     q('b-singing-error').hidden = true;
     this.warmup.reset();
+    this.highway.reset(); this.setView(this.preferredView);
+  }
+  setView(view) {
+    const hasMelody = this.practice.part.instrument === 'vocals' && this.practice.part.chart.notes.length > 0;
+    this.view = hasMelody && view === 'highway' ? 'highway' : 'lyrics';
+    this.q('b-lyrics-screen').dataset.view = this.view;
+    this.q('b-vocal-highway').hidden = this.view !== 'highway';
+    for (const button of this.q('b-vocal-views').querySelectorAll('[data-vocal-view]')) {
+      button.setAttribute('aria-pressed', String(button.dataset.vocalView === this.view));
+      button.disabled = button.dataset.vocalView === 'highway' && !hasMelody;
+    }
   }
   time() { const p = this.practice; return p.session ? p.audio.audibleTime() - p.session.startAt : this.position; }
   lineStart() {
@@ -116,5 +137,9 @@ export class SingingPractice {
     q('b-vocal-pitch').dataset.state = feedback.state;
     for (const [id, value] of [['b-pitch-feedback', feedback.label], ['b-pitch-hint', feedback.hint], ['b-pitch-wanted', feedback.target], ['b-pitch-heard', feedback.heard]]) if (q(id).textContent !== value) q(id).textContent = value;
     const dot = q('b-pitch-dot'); dot.hidden = feedback.cents === null; if (!dot.hidden) dot.style.left = (50 + Math.max(-1, Math.min(1, feedback.cents / 150)) * 46) + '%';
+    if (this.view === 'highway') this.highway.draw(chart, time, {
+      shift: Number(q('b-vocal-guide-octave').value), feedback, playing,
+      sampleTime: time - (detected?.age || 0) - Number(q('b-vocal-delay').value) / 1000,
+    });
   }
 }

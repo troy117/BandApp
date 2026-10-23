@@ -23,6 +23,8 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
+Prototype 17 adds a horizontal vocal pitch highway with scrolling lyrics and an optional local microphone trace. Switch between Pitch highway and Large lyrics. Warm-up reference notes now sustain for four seconds, followed by a quiet gap and a four-second singing turn with a dedicated target/voice pitch meter. See [vocal highway and warm-up testing](docs/VOCAL_HIGHWAY.md).
+
 Prototype 16 adds vocal warm-ups, key-scale practice and a comfortable-octave suggestion under Sound & pitch settings. Note highways now have side meters and an optional Arcade style with controllable light effects. Scored drums/keyboard show live performance; unscored modes show song progress. See [warm-up and arcade controls](docs/WARMUP_AND_ARCADE.md).
 
 Prototype 15 adds phone singing practice: a focused karaoke screen, optional microphone pitch feedback, Target / You notes, a simple high/low/on-pitch meter, and large pause/continue, retry-line and skip controls. Students can sing in a comfortable octave or match the written octave. Audio stays on the device and is never recorded, uploaded or graded. Headphones help isolate the student's voice; physical phone testing remains necessary. See [the singing practice guide](docs/SINGING_PRACTICE.md).
