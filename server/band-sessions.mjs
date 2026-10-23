@@ -12,6 +12,15 @@ import { arrangementFromBar } from '../dist/session-transport.mjs';
 const bandError = (status, message) => Object.assign(new Error(message), { status });
 const staffMember = actor => ['teacher', 'owner'].includes(actor.role);
 const runningRoom = room => room.state === 'playing';
+export function checkedLiveVoice(voice, instrument) {
+  if (voice === undefined) return null;
+  const states = ['on-pitch','low','high','quiet','rest','off','ready','unclear','changing','no-melody'];
+  if (instrument !== 'vocals' || !voice || !states.includes(voice.state)) throw bandError(400, 'Invalid live pitch guidance.');
+  const measured = ['on-pitch','low','high'].includes(voice.state);
+  if (measured ? !Number.isFinite(voice.cents) || Math.abs(voice.cents) > 12800 : voice.cents !== null) throw bandError(400, 'Invalid live pitch guidance.');
+  if (voice.state === 'on-pitch' && Math.abs(voice.cents) > 35 || voice.state === 'low' && voice.cents >= -35 || voice.state === 'high' && voice.cents <= 35) throw bandError(400, 'Invalid live pitch guidance.');
+  return { state: voice.state, cents: measured ? Math.round(voice.cents) : null };
+}
 const descriptor = arrangement => ({ id: arrangement.id, revisionId: arrangement.revisionId, sourceKind: arrangement.sourceKind, title: arrangement.title, duration: arrangement.duration, bpm: arrangement.bpm, bars: arrangement.sourceBars || arrangement.parts[0].chart.bars, startBar: arrangement.startBar || 1, parts: arrangement.parts.map(part => ({ id: part.id, name: part.name, instrument: part.instrument, total: part.chart.notes.length })) });
 
 export class BandSessions {
@@ -78,8 +87,24 @@ export class BandSessions {
     }
     if (path === 'takes' && method === 'GET') {
       this.store.requireStaff(actor);
-      const rows = this.store.db.prepare('SELECT * FROM band_takes WHERE teacher_id=? ORDER BY created_at DESC,id DESC LIMIT 20').all(actor.id);
+      const deleted = url.searchParams.get('deleted') === 'true';
+      const rows = this.store.db.prepare("SELECT * FROM band_takes WHERE teacher_id=? AND " + (deleted ? '' : 'NOT ') + "EXISTS(SELECT 1 FROM settings WHERE key='band-take-hidden:' || band_takes.id) ORDER BY created_at DESC,id DESC LIMIT 20").all(actor.id);
       send(200, { takes: rows.map(row => ({ id: row.id, at: row.created_at, state: row.state, arrangement: JSON.parse(row.record), results: this.store.db.prepare('SELECT user_id,state,record FROM band_results WHERE take_id=?').all(row.id).map(result => ({ userId: result.user_id, state: result.state, record: JSON.parse(result.record) })) })) }); return true;
+    }
+    const takeEdit = path.match(/^takes\/([0-9a-f-]+)\/(delete|restore)$/);
+    if (takeEdit && method === 'POST') {
+      this.store.requireStaff(actor); this.api.limit('band-take-edit:' + actor.id, 240, 3600000);
+      const row = this.store.db.prepare('SELECT * FROM band_takes WHERE id=? AND teacher_id=?').get(takeEdit[1], actor.id);
+      if (!row) throw bandError(404, 'Shared take not found.');
+      if (row.state === 'playing') throw bandError(409, 'Stop the current take before deleting it.');
+      await this.api.json(request);
+      const key = 'band-take-hidden:' + row.id;
+      this.store.transaction(() => {
+        if (takeEdit[2] === 'delete') this.store.db.prepare('INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(key, String(this.store.now()));
+        else this.store.db.prepare('DELETE FROM settings WHERE key=?').run(key);
+        this.store.audit(actor, 'band.take_' + takeEdit[2], row.id);
+      });
+      send(200, { deleted: takeEdit[2] === 'delete', id: row.id }); return true;
     }
     let match = path.match(/^arrangements\/(duet|school)\/([a-z0-9-]+)$/);
     if (match && method === 'GET') { send(200, { arrangement: await this.arrangement(actor, match[1], match[2], url.searchParams.get('revision')) }); return true; }
@@ -303,7 +328,8 @@ export class BandSessions {
       if(message.type === 'progress') {
         if(!Number.isFinite(message.position)||message.position<0||message.position>room.arrangement.duration+1)throw bandError(400,'Invalid follow-along position.');
         if(this.clock()-(p.lastProgress||0)<100)return;
-        p.lastProgress=this.clock();p.progress={mode:'follow',position:message.position};this.broadcast(room);return;
+        const voice = checkedLiveVoice(message.voice, part.instrument);
+        p.lastProgress=this.clock();p.progress={mode:'follow',position:message.position,...(voice ? { voice } : {})};this.broadcast(room);return;
       }
       if(message.type === 'finish') {
         if(this.clock()<room.startAt+room.arrangement.duration*1000-100)throw bandError(409,'The song has not finished.');

@@ -14,6 +14,8 @@ This is a concise project discussion log, written at the user's request so work 
 
 ## Development and hosting decisions
 
+- October 23, Prototype 18: prioritize student phone practice with header instrument/jam access, in-focus song switching, backing volume near Mic, screen wake locks and landscape vocals with a right-side meter. Teacher Jam uses live per-student cards rather than streamed screens, assigns available default parts and offers recoverable shared-take deletion. Vocal guidance state/cents is ephemeral and teacher-only in an active jam; microphone audio remains on the phone. Existing music, results and mounted storage are retained. See MOBILE_CLASSROOM.md.
+
 - User declined a proposed private Sites project and asked to keep development local initially.
 - User later specified https://github.com/troy117/BandApp.git and Railway hosting. Continue pushing completed, checked updates to that repository. Do not create a Sites project.
 - The school kit was identified as a **Roland TD-17 V-Drums**. Hardware work was deferred until access is available; the current app still uses keyboard/pad controls.

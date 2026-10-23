@@ -55,6 +55,22 @@ async function bandFixture(t) {
   return {directory,store,api,server,setup,a,b,other,outsider,request,wire,add,advance:value=>{now=value;},now:()=>now};
 }
 const createRoom=env=>env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'duet-first',assignments:[{userId:env.a.user.id,partId:'drums'},{userId:env.b.user.id,partId:'keyboard'}]});
+test('shared take deletion is teacher-owned, recoverable and preserves all student result rows', async t => {
+  const env = await bandFixture(t), created = await createRoom(env), ready = await readyRoom(env, created.data.room);
+  const started = (await env.request(env.setup,'/band/rooms/'+ready.room.id+'/start','POST',{version:ready.room.version})).data.room;
+  const route = '/band/takes/' + started.takeId;
+  assert.equal((await env.request(env.setup,route+'/delete','POST',{})).status,409);
+  await env.request(env.setup,'/band/rooms/'+started.id+'/stop','POST',{version:started.version});
+  const before = env.store.db.prepare('SELECT COUNT(*) AS n FROM band_results WHERE take_id=?').get(started.takeId).n;
+  assert.equal((await env.request(env.a,route+'/delete','POST',{})).status,403);
+  assert.equal((await env.request(env.other,route+'/delete','POST',{})).status,404);
+  assert.equal((await env.request(env.setup,route+'/delete','POST',{})).status,200);
+  assert.equal((await env.request(env.setup,'/band/takes')).data.takes.length,0);
+  assert.equal((await env.request(env.setup,'/band/takes?deleted=true')).data.takes[0].id,started.takeId);
+  assert.equal(env.store.db.prepare('SELECT COUNT(*) AS n FROM band_results WHERE take_id=?').get(started.takeId).n,before);
+  assert.equal((await env.request(env.setup,route+'/restore','POST',{})).status,200);
+  assert.equal((await env.request(env.setup,'/band/takes')).data.takes[0].id,started.takeId);
+});
 async function readyRoom(env,room) {
   const peers=await Promise.all([env.wire(env.setup),env.wire(env.a),env.wire(env.b)]);
   for(const [i,peer] of peers.entries()){peer.send({type:'join',roomId:room.id,clientId:'test-client-'+i});await peer.wait(m=>m.type==='room'&&m.room.id===room.id);}
@@ -62,6 +78,19 @@ async function readyRoom(env,room) {
   const ready=await peers[0].wait(m=>m.type==='room'&&m.room.teacherReady&&m.room.participants.every(p=>p.ready));
   return {peers,room:ready.room};
 }
+
+test('vocal guidance reaches the assigned teacher live without creating a vocal grade or stored voice record', async t => {
+  const env = await bandFixture(t);
+  const created = await env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'band-first',assignments:[{userId:env.a.user.id,partId:'drums'},{userId:env.b.user.id,partId:'vocals'}]});
+  const ready = await readyRoom(env,created.data.room), started = (await env.request(env.setup,'/band/rooms/'+ready.room.id+'/start','POST',{version:ready.room.version})).data.room;
+  env.advance(started.startAt+1000);
+  ready.peers[2].send({type:'progress',takeId:started.takeId,position:1,summary:{mode:'follow'},voice:{state:'on-pitch',cents:2}});
+  const room = (await ready.peers[0].wait(message=>message.type==='room'&&message.room.participants.some(person=>person.progress?.voice))).room;
+  const progress = room.participants.find(person=>person.userId===env.b.user.id).progress;
+  assert.equal(progress.voice.state,'on-pitch'); assert.equal(progress.accuracy,undefined);
+  const studentView = await env.request(env.a,'/band/rooms/'+room.id); assert.equal(studentView.data.room.participants.length,1); assert.equal(studentView.data.room.participants[0].userId,env.a.user.id);
+  assert.equal(env.store.db.prepare('SELECT record FROM band_results WHERE take_id=? AND user_id=?').get(started.takeId,env.b.user.id).record.includes('voice'),false);
+});
 test('teacher-led rooms isolate roster permissions, require readiness and authenticated origin/CSRF',async t=>{
   const env=await bandFixture(t);
   assert.equal((await env.request(env.a,'/band/rooms','POST',{})).status,403);

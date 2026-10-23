@@ -1,5 +1,9 @@
 # Groove Lab conversation record
 
+## Phone and classroom layout — October 23, 2026
+
+The user reported that student vocals and keyboard screens felt crowded on a phone. They requested instrument selection in the top bar, vocal songs beside Focus, song switching inside fullscreen, backing volume beside Mic, screen-awake support, landscape vocal highway/large lyrics with an easily visible right-side pitch meter, and a top-menu Join jam shortcut. For teacher Jam they requested recent shared-take deletion, automatic default-instrument assignments and class performance meters instead of the teacher's Band practice panel. Prototype 18 implements these with recoverable Delete/Restore, live per-student cards and ephemeral teacher-only vocal state/cents; it does not stream screens or record audio. See MOBILE_CLASSROOM.md for behavior and validation.
+
 Saved October 20, 2026 at the user's request for continuing on a home computer. This records the user requests available in this chat and the decisions needed to continue. Earlier assistant answers are summarized in [DISCUSSION_LOG.md](DISCUSSION_LOG.md), rather than reconstructed as a verbatim transcript. Images are described here; screenshots, tool output, passwords, student records and music files are not included.
 
 Read [HANDOFF.md](HANDOFF.md) for the current implementation and [JAM_SESSIONS.md](JAM_SESSIONS.md) for the next proposed project.

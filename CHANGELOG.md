@@ -1,5 +1,14 @@
 # Changes
 
+## 0.18.0 — October 23, 2026 — Phone practice and live class meters
+
+- Mobile instrument selection joins the library/account header. Vocal songs move beside Focus view, backing volume sits beside Mic, and all fullscreen practice views offer song selection. Landscape vocal focus reserves most of the screen for Pitch highway or Large lyrics and keeps a pitch meter on the far right.
+- Focus/fullscreen requests a screen wake lock, releases it on exit/hiding and requests it again on return. Status distinguishes a held lock from unsupported or denied requests.
+- Active jam assignments add a top-menu shortcut. New teacher assignments choose each student's default instrument when available. The teacher's Jam screen shows live class meters instead of their own Band practice panel. Drum/keyboard accuracy reflects notes judged so far; vocal guidance is live and ungraded, guitar/bass remain unscored.
+- Only current vocal state/cents is shared with the assigned teacher during an active jam. Audio stays on the device, no voice history or grade is stored, and students still receive only their own room participant. The microphone notice follows joining/leaving the room.
+- Teachers can Delete and Restore their own shared takes. Student results/reports remain available; playing takes cannot be deleted. No database schema, school music/revision, mounted volume or hosting-variable change.
+- Validation: 174 automated tests, syntax and standalone checks pass. Responsive browser trials with synthetic accounts/original music verify song selection inside vocal/keyboard/drum focus, volume, held wake locks, default assignments, live meters and delete/restore. Physical phone trials remain useful. See [MOBILE_CLASSROOM.md](docs/MOBILE_CLASSROOM.md).
+
 ## 0.17.0 — October 23, 2026 — Vocal highway and longer reference notes
 
 - Vocal parts with melodies open a horizontal pitch highway: cyan note/hold bars, a white sing line, scrolling white/yellow lyrics and an optional measured microphone trace. Large lyrics remains available. Words use existing line timing and remain approximate. Pause/continue, seek, entrance preview, octave choices and teacher-led transport retain their clock and controls.

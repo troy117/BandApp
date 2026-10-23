@@ -5,11 +5,15 @@ Updated October 23, 2026. This is the starting point for continuing at home.
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.17.0 / Prototype 17**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Browser app, version **0.18.0 / Prototype 18**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Phone practice and teacher dashboard
+
+Prototype 18 moves the mobile instrument menu to the header, puts the vocal song dropdown beside Focus and backing volume beside Mic, adds song selection inside all focus views, requests screen wake locks, and fills landscape vocal focus with highway/large lyrics plus a far-right pitch meter. The header offers Join jam for active assignments. New teacher jam assignments choose the student's default instrument when available. Teachers see live class meters instead of their own Band practice panel, plus recoverable Delete/Restore for recent shared takes. Only current vocal state/cents is relayed to the assigned teacher during a jam, never audio or saved grades; student room isolation remains. No school music/revision/schema/volume/variable changes. 174 tests, syntax and standalone checks pass. See [MOBILE_CLASSROOM.md](MOBILE_CLASSROOM.md). Browser trials use original music and synthetic accounts; physical phones still need a classroom trial.
 
 ## Vocal highway and longer warm-up
 

@@ -21,6 +21,8 @@ import { followInstrument, FollowCursor } from './follow-along.mjs';
 import { drawFretted } from './follow-view.mjs';
 import { KaraokeLyrics } from './karaoke-view.mjs';
 import { SingingPractice } from './singing-practice.mjs';
+import { MobilePractice } from './mobile-practice.mjs';
+import { ScreenAwake, awakeLabel } from './screen-awake.mjs';
 import { HighwayExperience, arcadePulse, drawArcadeBackdrop, drawArcadeBurst } from './highway-experience.mjs';
 
 export class BandPractice {
@@ -36,11 +38,11 @@ export class BandPractice {
     nav.innerHTML = '<button id="instrument-menu-toggle" aria-expanded="true" aria-label="Collapse instrument menu"><span aria-hidden="true">☰</span><span class="instrument-label">Instruments</span></button><div class="instrument-choices">'+[['drums','Drums','Dr'],['keyboard','Keyboard','♬'],['guitar','Guitar','Gt'],['bass','Bass','Bs'],['vocals','Vocals','♪'],['jam','Jam session','♫']].map(([id,label,icon])=>'<button data-band-mode="'+id+'" aria-label="'+label+'" title="'+label+'" aria-pressed="'+(id==='drums')+'"><span class="instrument-icon" aria-hidden="true">'+icon+'</span><span class="instrument-label">'+label+'</span></button>').join('')+'</div>';
     const toggle=nav.querySelector('#instrument-menu-toggle');
     const collapseMenu=collapsed=>{document.body.classList.toggle('instrument-menu-collapsed',collapsed);toggle.setAttribute('aria-expanded',String(!collapsed));toggle.setAttribute('aria-label',(collapsed?'Expand':'Collapse')+' instrument menu');window.dispatchEvent(new Event('resize'));};
-    let menuCollapsed=window.matchMedia('(max-width: 800px)').matches;
+    let menuCollapsed=window.matchMedia('(max-width:800px), (orientation:landscape) and (max-height:600px)').matches;
     collapseMenu(menuCollapsed);toggle.onclick=()=>collapseMenu(menuCollapsed=!menuCollapsed);
     this.q('workspace').before(nav);
     const root = document.createElement('section'); root.id = 'band-workspace'; root.hidden = true; root.innerHTML = bandMarkup(); nav.after(root);
-    for (const button of nav.querySelectorAll('[data-band-mode]')) button.onclick = () => this.setMode(button.dataset.bandMode);
+    for (const button of nav.querySelectorAll('[data-band-mode]')) button.onclick = () => { this.setMode(button.dataset.bandMode); if (window.matchMedia('(max-width:800px), (orientation:landscape) and (max-height:600px)').matches) collapseMenu(menuCollapsed = true); };
     this.catalog = DUETS.map(song => { const arrangement = builtinArrangement(song.id); return { ...arrangement, parts: arrangement.parts.map(({ id, name, instrument }) => ({ id, name, instrument })) }; });
     this.arrangement = builtinArrangement(); this.part = this.arrangement.parts.find(part => part.instrument === 'keyboard');
     this.rooms = new BandRooms(this); this.importer = new BandImport(this);
@@ -51,6 +53,8 @@ export class BandPractice {
     this.highwayExperience = new HighwayExperience(q('b-stage'), 'b-highway-meter');
     this.karaoke = new KaraokeLyrics(q);
     this.singing = new SingingPractice(this);
+    this.awake = new ScreenAwake({ onState: state => { q('b-awake-state').textContent = awakeLabel(state); } });
+    this.mobile = new MobilePractice(this);
     q('b-publish').hidden = !school.staff;
     q('b-octave').value = this.octave; q('b-offset').value = this.offset; q('b-channel').value = this.channel; q('b-sound').checked = preferences.sound !== false;
     q('b-song').onchange = () => this.attempt(() => this.loadChoice(q('b-song').value));
@@ -116,6 +120,9 @@ export class BandPractice {
     if(mode==='keyboard' && followInstrument(this.part.instrument)) { const part=this.arrangement.parts.find(part=>part.instrument==='keyboard');if(part)this.selectPart(part.id);else this.useArrangement(builtinArrangement(),'keyboard'); }
     this.renderKeys();
     document.body.classList.toggle('singing-mode', this.active && this.part.instrument === 'vocals');
+    this.q('b-practice').hidden = mode === 'jam' && !!this.school.staff;
+    document.body.classList.toggle('teacher-jam-mode', mode === 'jam' && !!this.school.staff);
+    this.mobile?.layout(); this.mobile?.poll();
   }
   identity() {
     this.stop('School account changed.'); this.rooms.leave(); this.lastReport = null; this.pendingResult = null; this.loadToken++; this.importer.reset();
@@ -125,6 +132,7 @@ export class BandPractice {
     this.q('b-feedback').textContent = 'Listen to the pattern, then try it yourself.';
     this.q('b-publish').hidden = !this.school.staff;this.q('b-open-import').hidden=this.school.user?.role==='student';
     this.useArrangement(builtinArrangement()); this.attempt(() => this.refreshCatalog()); if (this.mode === 'jam') this.attempt(() => this.rooms.refresh());
+    this.collapse(); this.mobile?.reset(); this.mobile?.poll(); this.mobile?.layout();
   }
   async refreshCatalog() {
     this.catalog = DUETS.map(song => { const arr = builtinArrangement(song.id); return { ...arr, parts: arr.parts.map(({ id, instrument, name }) => ({ id, instrument, name })) }; });
@@ -134,6 +142,7 @@ export class BandPractice {
     const current = this.arrangement.sourceKind + ':' + this.arrangement.id;
     this.renderCatalog(); if (this.catalog.some(song => song.sourceKind + ':' + song.id === current)) this.q('b-song').value = current;
     this.rooms.catalogChoices();
+    this.mobile?.soloSongs();
   }
   renderCatalog() {
     this.q('b-song').innerHTML = this.catalog.map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + (song.sourceKind === 'school' ? ' · School' : '') + '</option>').join('');
@@ -185,6 +194,7 @@ export class BandPractice {
     if (keys) q('b-view').value = 'highway';
     if(this.part.instrument==='vocals')q('b-view').value='lyrics';else if([...q('b-view').options].find(option=>option.value===q('b-view').value)?.disabled)q('b-view').value='highway';
     this.notation = null; this.renderKeys(); this.renderView(); this.stats(null); this.lockControls();
+    this.mobile?.layout();
   }
   setSection(selection, repeats = 4) {
     if(this.rooms.room)throw new Error('Leave the jam session before individual section practice.');
@@ -333,6 +343,7 @@ export class BandPractice {
     this.q('b-loop-controls').hidden=!!room||followInstrument(this.part.instrument);
     for(const id of ['b-loop-enabled','b-loop-from','b-loop-to','b-loop-repeats'])this.q(id).disabled=locked;
     for (const id of ['b-song', 'b-part', 'b-open-import']) this.q(id).disabled = locked;
+    this.q('b-song').disabled = !!room;
     for (const id of ['b-channel', 'b-offset', 'b-octave', 'b-device', 'b-reset-keys', 'b-connect', 'b-kit']) this.q(id).disabled = inputLocked;
     for (const button of this.q('b-bindings').querySelectorAll('button')) button.disabled = inputLocked;
     this.q('b-play').disabled = !!room; this.q('b-listen').disabled = !!room || !!this.session;
@@ -421,11 +432,12 @@ export class BandPractice {
   async expand() {
     const token = this.fullToken = (this.fullToken || 0) + 1;
     this.expanded = true; this.q('b-stage').classList.add('band-expanded'); this.q('b-full-controls').hidden = false;
+    this.awake?.setActive(true); this.mobile?.layout();
     try { if (this.q('b-stage').requestFullscreen) { await this.q('b-stage').requestFullscreen(); if (!this.expanded || token !== this.fullToken) { if (document.fullscreenElement === this.q('b-stage')) await document.exitFullscreen(); return; } this.nativeFull = true; } } catch {}
     if (this.expanded && token === this.fullToken) this.q(this.rooms.room ? 'b-full-exit' : 'b-full-play').focus();
   }
   collapse() { if (!this.expanded) return; if (document.fullscreenElement === this.q('b-stage')) document.exitFullscreen().catch(() => {}); this.finishCollapse(); }
-  finishCollapse() { this.fullToken = (this.fullToken || 0) + 1; this.expanded = false; this.nativeFull = false; this.q('b-stage').classList.remove('band-expanded'); this.q('b-full-controls').hidden = true; }
+  finishCollapse() { this.fullToken = (this.fullToken || 0) + 1; this.expanded = false; this.nativeFull = false; this.q('b-stage').classList.remove('band-expanded'); this.q('b-full-controls').hidden = true; this.awake?.setActive(false); this.mobile?.layout(); }
   frame() {
     if (this.active && !this.q('b-practice').hidden) this.draw();
     requestAnimationFrame(() => this.frame());

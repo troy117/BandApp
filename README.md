@@ -23,6 +23,8 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
+Prototype 18 refines phone practice: instruments in the top menu, songs selectable inside focus, backing volume beside Mic, and a landscape vocal layout with a right-side pitch meter in both highway and large-lyrics views. Focus requests a screen wake lock. Assigned students get Join jam; teachers get default-instrument assignments, recoverable take deletion and live class meters. Only current vocal guidance is shared in an active jam; audio stays on the phone and no vocal grade is saved. See [phone practice and teacher dashboard](docs/MOBILE_CLASSROOM.md).
+
 Prototype 17 adds a horizontal vocal pitch highway with scrolling lyrics and an optional local microphone trace. Switch between Pitch highway and Large lyrics. Warm-up reference notes now sustain for four seconds, followed by a quiet gap and a four-second singing turn with a dedicated target/voice pitch meter. See [vocal highway and warm-up testing](docs/VOCAL_HIGHWAY.md).
 
 Prototype 16 adds vocal warm-ups, key-scale practice and a comfortable-octave suggestion under Sound & pitch settings. Note highways now have side meters and an optional Arcade style with controllable light effects. Scored drums/keyboard show live performance; unscored modes show song progress. See [warm-up and arcade controls](docs/WARMUP_AND_ARCADE.md).

@@ -472,6 +472,7 @@ for (const [id, field] of [['groove', 'grooveId'], ['bars', 'bars'], ['bpm', 'bp
   $(id).addEventListener(id === 'offset' ? 'input' : 'change', () => {
     if (session) return;
     const element = $(id);
+    if (id === 'groove' && element.value.startsWith('school:')) { const songId = element.value.slice(7); element.value = settings.grooveId; importer.loadSchoolSong(songId); return; }
     let value = element.type === 'checkbox' ? element.checked : field === 'grooveId' ? element.value : Number(element.value);
     if (field === 'bpm' && (!element.value || !Number.isFinite(value) || value < 40 || value > 160)) {
       element.value = settings.bpm;

@@ -1,8 +1,10 @@
+import { ScreenAwake, awakeLabel } from './screen-awake.mjs';
 // Maximize only the score, keeping its transport inside the fullscreen element.
 export class ScoreScreen {
   constructor({ root, opener, exit, play, listen, title, toolbar, document: doc = document, onPlay, onListen }) {
     Object.assign(this, { root, opener, exitButton: exit, playButton: play, listenButton: listen, title, toolbar, doc });
     this.active = false; this.native = false; this.revision = 0;
+    this.awake = new ScreenAwake({ document: doc, onState: state => { const label = doc.getElementById?.('score-awake'); if (label) label.textContent = awakeLabel(state); } });
     opener.addEventListener('click', () => this.enter());
     exit.addEventListener('click', () => this.exit());
     play.addEventListener('click', onPlay); listen.addEventListener('click', onListen);
@@ -21,6 +23,7 @@ export class ScoreScreen {
     this.doc.body.classList.toggle('score-maximized', active);
     this.toolbar.hidden = !active;
     this.opener.setAttribute('aria-pressed', String(active));
+    this.awake.setActive(active); globalThis.window?.dispatchEvent(new Event('practice-layout-change'));
   }
   async enter() {
     if (this.active) return;

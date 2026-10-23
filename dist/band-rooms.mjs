@@ -2,6 +2,7 @@ import { BandLink } from './band-link.mjs';
 import { escapeHtml } from './song-import.mjs';
 import { followInstrument } from './follow-along.mjs';
 import { arrangementFromBar } from './session-transport.mjs';
+import { defaultSeatPart, classMeterMarkup } from './class-experience.mjs';
 
 export class BandRooms {
   constructor(practice) {
@@ -9,6 +10,7 @@ export class BandRooms {
     this.link = new BandLink(this.school, { onRoom: room => practice.attempt(() => this.receive(room)), onState: (state, sync) => this.connectionState(state, sync), onError: (message, status) => { if ([401, 403, 404].includes(status) || message.includes('another tab')) this.leave(); practice.message(message); }, onSaved: takeId => { if (practice.lastReport?.takeId === takeId) { this.q('b-save-state').textContent = followInstrument(this.practice.lastReport?.part.instrument) ? 'Session participation saved. No performance score.' : 'Saved to your school account and this session.'; practice.attachTakeReport(takeId);practice.school.refreshHistory().catch(() => {}); } } });
     this.q('b-refresh').onclick = () => practice.attempt(() => this.refresh());
     this.q('b-room-song').onchange = () => this.partChoices();
+    for (const id of ['a','b']) this.q('b-student-' + id).onchange = () => this.studentPart(id);
     this.q('b-create').onsubmit = event => { event.preventDefault(); practice.attempt(() => this.create()); };
     this.seatCount=2;this.studentOptions='<option value="">Choose a student</option>';
     this.q('b-add-seat').onclick=()=>{if(this.seatCount>=8)return;this.seatCount++;this.extraSeats();this.partChoices(true);};
@@ -41,13 +43,13 @@ export class BandRooms {
     });
     if (this.school.staff) {
       const { users } = await this.school.request('/users'); if (generation !== this.school.generation) return;
-      const students = users.filter(user => user.role === 'student' && user.active && !user.mustChangePassword);
+      const students = users.filter(user => user.role === 'student' && user.active && !user.mustChangePassword); this.students = students;
       const options = students.map(user => '<option value="' + user.id + '">' + escapeHtml(user.name) + ' (@' + escapeHtml(user.username) + ')</option>').join('');
       q('b-student-a').innerHTML = '<option value="">Choose a student</option>' + options; q('b-student-b').innerHTML = '<option value="">Choose a student</option>' + options;
       this.studentOptions='<option value="">Choose a student</option>'+options;this.extraSeats();
       this.catalogChoices();
-      const { takes } = await this.school.request('/band/takes'); if (generation !== this.school.generation) return;
-      q('b-takes').innerHTML = takes.length ? takes.map(take => '<article class="band-person"><h4>' + escapeHtml(take.arrangement.title) + '</h4><p>' + new Date(take.at).toLocaleString() + ' · ' + escapeHtml(take.state) + ' · Take ' + take.id.slice(0,8) + '</p>' + take.results.map(result => { const assignment = take.arrangement.assignments.find(p => p.userId === result.userId); return '<p>' + escapeHtml(assignment?.name || 'Student') + ' · ' + escapeHtml(assignment?.instrument || '') + ' · ' + escapeHtml(result.state) + (result.state === 'completed' && result.record.mode === 'follow' ? ' · Followed song (unscored)' : result.state === 'completed' ? ' · ' + Math.round(result.record.accuracy) + '% · ' + result.record.hits + '/' + result.record.total + ' matched' : '') + '</p>'; }).join('') + '</article>').join('') : '<p class="band-help">Finished and interrupted shared takes appear here.</p>';
+      const { takes } = await this.school.request('/band/takes' + (this.showDeleted ? '?deleted=true' : '')); if (generation !== this.school.generation) return;
+      this.takeRows = takes; this.renderTakes();
     }
   }
   catalogChoices() {
@@ -89,12 +91,28 @@ export class BandRooms {
     } finally { this.updating = false; this.q('b-session-apply').disabled = false; }
   }
   seatIds() {return Array.from({length:this.seatCount},(_,i)=>i===0?'a':i===1?'b':String(i+1));}
-  resetSeats() {this.seatCount=2;this.studentOptions='<option value="">Choose a student</option>';this.q('b-extra-seats').textContent='';this.q('b-add-seat').disabled=false;this.q('b-remove-seat').hidden=true;}
+  studentPart(id) {
+    const song = this.practice.catalog.find(song => song.sourceKind + ':' + song.id === this.q('b-room-song').value);
+    const student = this.students?.find(user => user.id === this.q('b-student-' + id).value);
+    const part = defaultSeatPart(song, student, this.seatIds().indexOf(id)); if (part) this.q('b-part-' + id).value = part.id;
+  }
+  renderTakes() {
+    const q = this.q;
+    q('b-takes').innerHTML = '<p class="band-help">Deleting hides the shared take here. Student practice records stay available; deleted takes can be restored.</p><button class="text-button" id="b-show-deleted">' + (this.showDeleted ? 'Recent takes' : 'Deleted takes') + '</button>' + (this.takeRows || []).map(take => '<article class="band-person"><h4>' + escapeHtml(take.arrangement.title) + '</h4><p>' + new Date(take.at).toLocaleString() + ' · ' + escapeHtml(take.state) + '</p>' + take.results.map(result => { const person = take.arrangement.assignments.find(p => p.userId === result.userId); return '<p>' + escapeHtml(person?.name || 'Student') + ' · ' + escapeHtml(person?.instrument || '') + ' · ' + escapeHtml(result.state) + (result.record.mode === 'follow' ? ' · Unscored' : Number.isFinite(result.record.accuracy) ? ' · ' + Math.round(result.record.accuracy) + '%' : '') + '</p>'; }).join('') + '<button class="button secondary" data-take-id="' + take.id + '"' + (take.state === 'playing' ? ' disabled' : '') + '>' + (this.showDeleted ? 'Restore take' : 'Delete take') + '</button></article>').join('');
+    q('b-show-deleted').onclick = () => this.practice.attempt(async () => { const generation = this.school.generation, deleted = this.showDeleted = !this.showDeleted; const { takes } = await this.school.request('/band/takes' + (deleted ? '?deleted=true' : '')); if (generation !== this.school.generation || deleted !== this.showDeleted) return; this.takeRows = takes; this.renderTakes(); });
+    for (const button of q('b-takes').querySelectorAll('[data-take-id]')) button.onclick = () => this.practice.attempt(async () => {
+      button.disabled = true; const generation = this.school.generation, deleted = this.showDeleted;
+      try { await this.school.request('/band/takes/' + button.dataset.takeId + (deleted ? '/restore' : '/delete'), { method: 'POST', data: {} }); if (generation !== this.school.generation || deleted !== this.showDeleted) return; this.takeRows = this.takeRows.filter(take => take.id !== button.dataset.takeId); this.renderTakes(); }
+      catch (error) { if (generation === this.school.generation) button.disabled = false; throw error; }
+    });
+  }
+  resetSeats() {this.students=[];this.showDeleted=false;this.takeRows=[];this.q('b-takes').textContent='';this.seatCount=2;this.studentOptions='<option value="">Choose a student</option>';this.q('b-extra-seats').textContent='';this.q('b-add-seat').disabled=false;this.q('b-remove-seat').hidden=true;}
   extraSeats() {
     const parts=new Map();for(const id of this.seatIds()){const field=this.q('b-part-'+id);if(field)parts.set(id,field.value);}
     const saved=new Map();for(let i=3;i<=8;i++){const select=this.q('b-student-'+i);if(select)saved.set(i,{user:select.value,part:this.q('b-part-'+i)?.value});}
     this.q('b-extra-seats').innerHTML=Array.from({length:this.seatCount-2},(_,i)=>'<label>Student '+(i+3)+'<select id="b-student-'+(i+3)+'">'+this.studentOptions+'</select></label><label>Part<select id="b-part-'+(i+3)+'"></select></label>').join('');
     this.partChoices();for(const [i,value] of saved)if(i<=this.seatCount){this.q('b-student-'+i).value=value.user;if(value.part)this.q('b-part-'+i).value=value.part;}
+    for (let i = 3; i <= this.seatCount; i++) this.q('b-student-' + i).onchange = () => this.studentPart(String(i));
     for(const [id,value] of parts){const field=this.q('b-part-'+id);if([...field.options].some(option=>option.value===value))field.value=value;}
     this.q('b-add-seat').disabled=this.seatCount>=8;this.q('b-remove-seat').hidden=this.seatCount<=2;
   }
@@ -102,6 +120,7 @@ export class BandRooms {
     const song = this.practice.catalog.find(song => song.sourceKind + ':' + song.id === this.q('b-room-song').value); if (!song) return;
     const choices = song.parts.map(part => '<option value="' + part.id + '">' + escapeHtml(part.name) + '</option>').join('');
     for(const [i,id] of this.seatIds().entries()){const select=this.q('b-part-'+id),previous=select.value;select.innerHTML=choices;select.value=preserve&&song.parts.some(part=>part.id===previous)?previous:(song.parts[i]||song.parts[0]).id;}
+    if (!preserve) for (const id of this.seatIds()) if (this.q('b-student-' + id).value) this.studentPart(id);
   }
   async create() {
     const song = this.practice.catalog.find(song => song.sourceKind + ':' + song.id === this.q('b-room-song').value); if (!song) return;
@@ -155,10 +174,11 @@ export class BandRooms {
   }
   render() {
     const q = this.q, room = this.room;
+    this.practice.singing?.syncMicContext();
     q('b-current-room').hidden = !room; q('b-create').hidden = !this.school.staff || !!room;
     q('b-rooms').hidden = !!room;
     this.practice.lockControls();
-    if (!room) { q('b-practice').hidden = false; return; }
+    if (!room) { q('b-practice').hidden = this.practice.mode === 'jam' && !!this.school.staff; return; }
     q('b-practice').hidden = !!this.teacher;
     q('b-room-state').textContent = room.state.toUpperCase();
     q('b-room-title').textContent = room.arrangement.title + ' · From bar ' + (room.arrangement.startBar || 1) + ' · ' + room.teacherName;
@@ -169,6 +189,7 @@ export class BandRooms {
       const follow=followInstrument(p.instrument);
       return '<article class="band-person"><h4>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.instrument) + '</h4><p>' + escapeHtml(p.state) + ' · ' + (p.connected ? 'Connected' : 'Not connected') + (p.input ? ' · ' + escapeHtml(p.input) : '') + '</p><strong class="band-person-score">' + (follow?'Follow-along':stats ? Math.round(stats.accuracy) + '%' : '—') + '</strong><progress max="' + room.arrangement.duration + '" value="' + position + '" aria-label="' + escapeHtml(p.name) + ' song progress"></progress><p>' + (follow?'Song progress only · no performance score':stats ? stats.hits + ' matched · ' + stats.misses + ' missed · ' + stats.wrong + ' wrong · ' + stats.extras + ' extra · Best streak ' + stats.bestStreak + (stats.meanMs === null ? '' : ' · ' + Math.round(Math.abs(stats.meanMs)) + ' ms ' + (stats.meanMs < 0 ? 'early' : 'late')) : 'Waiting for a take.') + '</p><p>' + escapeHtml(p.message || '') + '</p></article>';
     }).join('');
+    if (this.teacher) q('b-performers').innerHTML = '<div class="class-dashboard-heading"><h3>Live class meters</h3><p>Scored accuracy updates as notes are judged. Vocal pitch guidance is live and ungraded.</p></div>' + room.participants.map(person => classMeterMarkup(person, room.arrangement.duration)).join('');
     const own = room.participants.find(p => p.userId === this.school.user?.id);
     q('b-ready').hidden = room.state !== 'preparing';
     q('b-ready').disabled = this.preparing || !!this.songLoading || this.loadedRoomKey !== this.arrangementKey(room) || !this.link.clock.status.ready || !this.link.authenticated;
@@ -208,7 +229,7 @@ export class BandRooms {
     await this.receive(room); if (action === 'close') { this.leave(); await this.refresh(); }
   }
   unready(reason) { this.prepareToken = (this.prepareToken || 0) + 1; this.prepared = false; if (this.room) this.link.send({ type: 'unready', version: this.room.version, reason }); }
-  progress(summary, position) { if (this.room?.takeId) this.link.send({ type: 'progress', takeId: this.room.takeId, summary, position }); }
+  progress(summary, position) { if (this.room?.takeId) this.link.send({ type: 'progress', takeId: this.room.takeId, summary, position, ...(this.practice.part.instrument === 'vocals' ? { voice: this.practice.singing.liveVoice } : {}) }); }
   finish(summary) {
     if (!this.room?.takeId || !this.link.send({ type: 'finish', takeId: this.room.takeId, summary })) this.q('b-save-state').textContent = 'Connection lost: this take could not be confirmed as completed. Your local CSV is available.';
   }

@@ -4,6 +4,19 @@ import { SingingPractice } from '../dist/singing-practice.mjs';
 import { BandPractice } from '../dist/band-practice.mjs';
 import { builtinArrangement } from '../dist/arrangements.mjs';
 
+test('joining and leaving a jam updates microphone disclosure before capture without hiding permission errors', () => {
+  const fields = {}, practice = { rooms: {} }, microphone = { state: 'off', message: 'Your microphone is off.' };
+  const singing = Object.assign(Object.create(SingingPractice.prototype), { practice, microphone, q: id => fields[id] ||= { dataset: {}, setAttribute() {} } });
+  singing.syncMicContext(); assert.match(fields['b-vocal-mic-status'].textContent, /on this device/);
+  practice.rooms.room = { id: 'test-room' }; singing.syncMicContext();
+  assert.match(fields['b-vocal-mic-status'].textContent, /shared with your teacher/);
+  Object.assign(microphone, { state: 'denied', message: 'Allow microphone in site settings.' }); singing.micState(microphone);
+  assert.equal(fields['b-vocal-mic-status'].textContent, microphone.message);
+  singing.syncMicContext(); assert.equal(fields['b-vocal-mic-status'].textContent, microphone.message);
+  practice.rooms.room = null; Object.assign(microphone, { state: 'off', message: 'Your microphone is off.' }); singing.syncMicContext();
+  assert.match(fields['b-vocal-mic-status'].textContent, /on this device/);
+});
+
 test('singing pause/continue retains song position, retry uses a lead-in and jam controls remain teacher-led', async () => {
   const chart = { duration: 30, countInBeats: 4, countInBeatSeconds: .5, lyrics: [{ time: 5, end: 8, text: 'Original line' }, { time: 12, end: 14, text: 'Next line' }] };
   const started = [], p = { token: 0, active: true, part: { instrument: 'vocals', chart }, rooms: {}, school: {}, audio: { context: { currentTime: 20 }, audibleTime: () => 20 }, prepareAudio: async () => {}, stop() { this.session = null; singing.stopped(); }, begin(at, options) { this.session = { startAt: at }; started.push({ at, options }); } };

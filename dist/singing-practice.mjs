@@ -4,12 +4,13 @@ import { vocalTarget } from './vocal-guide.mjs';
 import { pitchName } from './instruments.mjs';
 import { warmupMarkup, VocalWarmup } from './vocal-warmup.mjs';
 import { VocalHighway } from './vocal-highway.mjs';
+import { voiceStatusLabel } from './class-experience.mjs';
 
 export function singingMarkup() {
   return `<div id="b-lyrics-screen" class="band-lyrics" hidden>
-    <header class="singing-heading"><div><p class="eyebrow">YOUR VOICE. YOUR PACE.</p><h3 id="b-singing-title">Singing practice</h3></div><button id="b-singing-expand" class="button secondary" aria-label="Expand singing practice" title="Full screen">Focus view</button></header>
-    <div class="singing-mic-row"><button id="b-vocal-mic" class="button secondary" aria-pressed="false">Enable microphone</button><span id="b-vocal-mic-badge">MIC OFF</span></div>
-    <p id="b-vocal-mic-status" class="singing-mic-status" role="status">Optional pitch feedback. Your voice stays on this device.</p>
+    <header class="singing-heading"><div><p class="eyebrow">YOUR VOICE. YOUR PACE.</p><h3 id="b-singing-title">Singing practice</h3><div id="b-vocal-song-slot"></div></div><button id="b-singing-expand" class="button secondary" aria-label="Expand singing practice" title="Full screen">Focus view</button></header>
+    <div class="singing-mic-row" id="b-singing-mic-row"><button id="b-vocal-mic" class="button secondary" aria-pressed="false">Enable microphone</button><span id="b-vocal-mic-badge">MIC OFF</span></div>
+    <div id="b-vocal-volume-slot" class="singing-volume-slot"></div><p id="b-vocal-mic-status" class="singing-mic-status" role="status">Optional pitch feedback. Your voice stays on this device.</p>
     <div id="b-vocal-views" class="singing-view-switch" role="group" aria-label="Vocal practice view"><button class="button secondary" data-vocal-view="highway" aria-pressed="true">Pitch highway</button><button class="button secondary" data-vocal-view="lyrics" aria-pressed="false">Large lyrics</button></div>
     <section id="b-vocal-highway" class="vocal-highway" aria-label="Vocal pitch highway with lyrics"><div class="vocal-highway-legend"><span><i></i>Melody</span><span><i></i>Your voice</span><span>Higher notes ↑</span></div><canvas id="b-vocal-highway-canvas" aria-label="Vocal notes and lyrics move toward the white sing line. Higher bars mean higher pitches; longer bars mean longer holds."></canvas><p>Sing as the bars reach the white line. Word timing is approximate.</p></section>
     <div class="singing-words"><p id="b-vocal-state">READY TO SING</p><div id="b-vocal-line" aria-live="polite"></div><progress id="b-vocal-progress" max="1" value="0" aria-label="Current lyric line progress"></progress><p id="b-vocal-next"></p></div>
@@ -17,8 +18,8 @@ export function singingMarkup() {
       <div class="singing-note-pair"><div><span>Target</span><strong id="b-pitch-wanted">—</strong></div><strong id="b-pitch-feedback" role="status" aria-live="polite">Sing with the lyrics</strong><div><span>You</span><strong id="b-pitch-heard">—</strong></div></div>
       <div class="singing-meter" aria-hidden="true"><span class="singing-center"></span><span id="b-pitch-dot" hidden></span></div><div class="singing-meter-labels" aria-hidden="true"><span>Too low</span><span>On pitch</span><span>Too high</span></div><p id="b-pitch-hint">Enable your microphone when you’re ready for pitch feedback.</p>
     </section>
-    <div class="singing-player"><p id="b-singing-error" class="singing-play-error" role="alert" hidden></p><label class="singing-seek-label" for="b-singing-seek">Song position <span id="b-singing-time">0:00 / 0:00</span></label><input id="b-singing-seek" type="range" min="0" max="1" step="0.1" value="0"><div class="singing-player-buttons"><button id="b-singing-back" class="button secondary" aria-label="Practice this lyric line again">↶ Try line again</button><button id="b-singing-play" class="button primary">▶ Play song</button></div><button id="b-singing-next" class="text-button">Skip to next vocal line →</button><p id="b-singing-room" class="band-help" hidden>Your teacher controls playback in this session.</p></div>
-    <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary>${warmupMarkup()}<p class="band-help">Use headphones and keep your phone nearby. One voice works best. Live guidance is for practice; it isn’t saved as a grade.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label">Music volume<input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Melody guide octave (sound)<select id="b-vocal-guide-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Written octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label><label class="singing-setting">Microphone timing correction <span id="b-vocal-delay-label">80 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="80"></label><p class="band-help">If feedback changes before you reach the next note, increase this slightly. Headphones with a cable usually have less delay than Bluetooth.</p></details>
+    <aside id="b-vocal-side-meter" class="vocal-side-meter" aria-label="Live singing pitch"><span>Pitch</span><strong id="b-vocal-side-label" role="status">Mic off</strong><div class="vocal-side-track" aria-hidden="true"><span>High</span><i></i><b id="b-vocal-side-dot" hidden></b><span>Low</span></div><small>Target <b id="b-vocal-side-target">—</b></small><small>You <b id="b-vocal-side-heard">—</b></small></aside><div class="singing-player"><p id="b-singing-error" class="singing-play-error" role="alert" hidden></p><label class="singing-seek-label" for="b-singing-seek">Song position <span id="b-singing-time">0:00 / 0:00</span></label><input id="b-singing-seek" type="range" min="0" max="1" step="0.1" value="0"><div class="singing-player-buttons"><button id="b-singing-back" class="button secondary" aria-label="Practice this lyric line again">↶ Try line again</button><button id="b-singing-play" class="button primary">▶ Play song</button></div><button id="b-singing-next" class="text-button">Skip to next vocal line →</button><p id="b-singing-room" class="band-help" hidden>Your teacher controls playback in this session.</p></div>
+    <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary>${warmupMarkup()}<p class="band-help">Use headphones and keep your phone nearby. One voice works best. Live guidance is for practice; it isn’t saved as a grade.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label" for="b-singing-volume">Background volume <output id="b-singing-volume-value">65%</output><input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Melody guide octave (sound)<select id="b-vocal-guide-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Written octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label><label class="singing-setting">Microphone timing correction <span id="b-vocal-delay-label">80 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="80"></label><p class="band-help">If feedback changes before you reach the next note, increase this slightly. Headphones with a cable usually have less delay than Bluetooth.</p></details>
     <details id="b-vocal-melody-panel" class="singing-details" hidden><summary>Melody &amp; sheet music</summary><div class="band-row"><p id="b-vocal-target"></p><label class="band-check"><input id="b-vocal-guide-enabled" type="checkbox">Hear melody guide</label></div><canvas id="b-vocal-melody" aria-label="Vocal melody on a treble staff with note names and hold lengths"></canvas><p class="band-help">Follow the green line. Shaded tails show how long to hold. Headphones keep the guide out of your microphone.</p></details>
   </div>`;
 }
@@ -30,6 +31,10 @@ export class SingingPractice {
     this.microphone = new VocalMicrophone({ onState: state => this.micState(state) });
     this.warmup = new VocalWarmup(this);
     const q = this.q;
+    const quick = document.createElement('div'); quick.className = 'singing-quick-controls';
+    q('b-singing-mic-row').before(quick);
+    quick.append(q('b-singing-mic-row'), q('b-vocal-volume-slot'), q('b-vocal-views'));
+    q('b-vocal-volume-slot').append(q('b-singing-volume-label'));
     this.highway = new VocalHighway(q('b-vocal-highway-canvas'));
     this.preferredView = 'highway';
     try { if (localStorage.getItem('groove-vocal-view-v1') === 'lyrics') this.preferredView = 'lyrics'; } catch {}
@@ -47,7 +52,7 @@ export class SingingPractice {
     q('b-singing-seek').onpointerup = q('b-singing-seek').onpointercancel = q('b-singing-seek').onblur = () => { this.scrubbing = false; };
     q('b-singing-expand').onclick = () => practice.expand();
     q('b-singing-click').onchange = () => { q('b-click').checked = q('b-singing-click').checked; };
-    q('b-singing-volume').oninput = () => { q('b-volume').value = q('b-singing-volume').value; q('b-volume').oninput(); };
+    q('b-singing-volume').oninput = () => { q('b-volume').value = q('b-singing-volume').value; q('b-singing-volume-value').textContent = q('b-singing-volume').value + '%'; q('b-volume').oninput(); };
     q('b-vocal-delay').oninput = () => { q('b-vocal-delay-label').textContent = q('b-vocal-delay').value + ' ms'; };
     document.addEventListener('visibilitychange', () => { if (document.hidden) { this.warmup.stop(); this.microphone.stop('off', 'Microphone off while this page is hidden. Tap Enable microphone when you return.'); } });
     window.addEventListener('pagehide', () => { this.warmup.stop(); this.microphone.stop(); });
@@ -58,6 +63,7 @@ export class SingingPractice {
     const p = this.practice, q = this.q, vocals = p.active && p.part.instrument === 'vocals';
     document.body.classList.toggle('singing-mode', vocals); q('b-stage').classList.toggle('singing-stage', vocals);
     q('b-singing-title').textContent = p.arrangement.title; q('b-singing-volume').value = q('b-volume').value; q('b-singing-click').checked = q('b-click').checked;
+    q('b-singing-volume-value').textContent = q('b-volume').value + '%'; this.liveVoice = { state: 'off', cents: null };
     q('b-vocal-mic').disabled = false;
     if (p.part.instrument === 'vocals' && !p.part.chart.notes.length) q('b-vocal-mic-status').textContent = 'Lyrics are ready. Use the key warm-up below, or ask your teacher to add the song’s vocal melody.';
     q('b-singing-settings').open = false; q('b-vocal-melody-panel').open = false;
@@ -106,11 +112,17 @@ export class SingingPractice {
     if (play) await this.toggle();
   }
   stopped() { this.position = 0; this.paused = false; }
+  syncMicContext() {
+    const room = this.practice.rooms.room?.id || '';
+    if (this.micRoom === room) return;
+    this.micRoom = room; this.micState(this.microphone);
+  }
   micState({ state, message }) {
     const q = this.q, on = state === 'listening', pending = state === 'requesting';
     q('b-vocal-mic').textContent = on ? 'Turn microphone off' : pending ? 'Cancel microphone' : 'Enable microphone';
     q('b-vocal-mic').setAttribute('aria-pressed', String(on)); q('b-vocal-mic-badge').textContent = on ? '● MIC ON' : pending ? 'WAITING' : 'MIC OFF';
     q('b-vocal-mic-badge').dataset.on = String(on); q('b-vocal-mic-status').textContent = state === 'off' && message === 'Your microphone is off.' ? 'Optional pitch feedback. Your voice stays on this device.' : message;
+    if (this.practice.rooms.room && (on || state === 'off')) q('b-vocal-mic-status').textContent = 'Audio stays on your phone. When the mic is on, live pitch guidance is shared with your teacher in this jam.';
   }
   draw(chart, time, playing) {
     const p = this.practice, q = this.q, room = !!p.rooms.room;
@@ -137,6 +149,10 @@ export class SingingPractice {
     q('b-vocal-pitch').dataset.state = feedback.state;
     for (const [id, value] of [['b-pitch-feedback', feedback.label], ['b-pitch-hint', feedback.hint], ['b-pitch-wanted', feedback.target], ['b-pitch-heard', feedback.heard]]) if (q(id).textContent !== value) q(id).textContent = value;
     const dot = q('b-pitch-dot'); dot.hidden = feedback.cents === null; if (!dot.hidden) dot.style.left = (50 + Math.max(-1, Math.min(1, feedback.cents / 150)) * 46) + '%';
+    this.liveVoice = { state: this.microphone.state === 'listening' ? feedback.state : 'off', cents: Number.isFinite(feedback.cents) ? feedback.cents : null };
+    const side = q('b-vocal-side-meter'); side.dataset.state = feedback.state;
+    for (const [id, value] of [['b-vocal-side-label', voiceStatusLabel(this.liveVoice.state)], ['b-vocal-side-target', feedback.target], ['b-vocal-side-heard', feedback.heard]]) if (q(id).textContent !== value) q(id).textContent = value;
+    const sideDot = q('b-vocal-side-dot'); sideDot.hidden = !Number.isFinite(feedback.cents); if (!sideDot.hidden) sideDot.style.bottom = (50 + Math.max(-1, Math.min(1, feedback.cents / 150)) * 42) + '%';
     if (this.view === 'highway') this.highway.draw(chart, time, {
       shift: Number(q('b-vocal-guide-octave').value), feedback, playing,
       sampleTime: time - (detected?.age || 0) - Number(q('b-vocal-delay').value) / 1000,
