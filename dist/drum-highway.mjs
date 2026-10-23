@@ -1,18 +1,20 @@
 import { drumHighwayLanes, drumHighwayLane } from './drum-lanes.mjs';
 import { keyLabel } from './engine.mjs';
 import { nextHitGroup } from './notation.mjs';
+import { arcadePulse, drawArcadeBackdrop, drawArcadeBurst } from './highway-experience.mjs';
 
-export function drawDrumHighway(ctx, viewport, chart, time, { running = false, order, flashes = new Map(), labels = true, bindings = {} } = {}) {
+export function drawDrumHighway(ctx, viewport, chart, time, { running = false, order, flashes = new Map(), labels = true, bindings = {}, arcade = false, motion = true } = {}) {
   const laneDrums = drumHighwayLanes(chart, order);
   if (!laneDrums.length) { ctx.clearRect(0, 0, viewport.width, viewport.height); return; }
   const { width: w, height: h } = viewport;
   ctx.clearRect(0, 0, w, h);
+  if (arcade) drawArcadeBackdrop(ctx, w, h, running ? time : 0, { motion });
   const top = 42, target = h - 87, bottom = target + 21;
   const nearWidth = w * 0.8, farWidth = w * 0.32;
   const at = depth => ({ y: top + (target - top) * depth ** 1.55, left: (w - (farWidth + (nearWidth - farWidth) * depth)) / 2, width: farWidth + (nearWidth - farWidth) * depth });
   const far = at(0), near = at(1);
   ctx.beginPath(); ctx.moveTo(far.left, top); ctx.lineTo(far.left + far.width, top); ctx.lineTo(near.left + near.width, bottom); ctx.lineTo(near.left, bottom); ctx.closePath();
-  const grad = ctx.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, '#18282b'); grad.addColorStop(1, '#1c2b2f'); ctx.fillStyle = grad; ctx.fill();
+  const grad = ctx.createLinearGradient(0, top, 0, bottom); grad.addColorStop(0, arcade ? '#151834' : '#18282b'); grad.addColorStop(1, arcade ? '#142740' : '#1c2b2f'); ctx.fillStyle = grad; ctx.fill();
   const lanes = laneDrums.length;
   const dueGroup = running ? nextHitGroup(chart, time) : null;
   const dueDrums = new Set(dueGroup?.due ? dueGroup.notes.map(note => drumHighwayLane(note)) : []);
@@ -51,14 +53,21 @@ export function drawDrumHighway(ctx, viewport, chart, time, { running = false, o
     const noteWidth = p.width / lanes * 0.74;
     const x = p.left + p.width / lanes * (lane + 0.5) - noteWidth / 2;
     ctx.globalAlpha = note.status === 'miss' ? 0.25 : Math.min(1, 0.28 + depth);
-    ctx.shadowColor = drum.color; ctx.shadowBlur = 10 * depth;
+    ctx.shadowColor = drum.color; ctx.shadowBlur = (arcade ? 15 + 12 * arcadePulse(running ? time : 0, motion && running) : 10) * depth;
     ctx.fillStyle = drum.color;
     const noteHeight = 4 + depth * 7;
     ctx.beginPath(); ctx.roundRect(x, p.y - noteHeight / 2, noteWidth, noteHeight, 2 + depth * 2);
     if (drum.id === 'hihat-open') { ctx.lineWidth = 2; ctx.strokeStyle = drum.color; ctx.stroke(); } else ctx.fill();
+    if (arcade) { ctx.strokeStyle = '#ffffffbb'; ctx.lineWidth = 1; ctx.stroke(); }
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#ffffff55'; ctx.fillRect(x + 3, p.y - noteHeight / 2 + 1, noteWidth - 6, 1);
     ctx.globalAlpha = 1;
+  }
+  if (arcade && running) for (const note of chart.notes) {
+    if (note.status !== 'hit' || !Number.isFinite(note.actualTime)) continue;
+    const age = time - note.actualTime; if (age < 0 || age > .32) continue;
+    const lane = laneDrums.findIndex(drum => drum.id === drumHighwayLane(note)); if (lane < 0) continue;
+    drawArcadeBurst(ctx, near.left + near.width / lanes * (lane + .5), target, laneDrums[lane].color, age, { motion });
   }
   for (let lane = 0; lane < lanes; lane++) {
     const drum = laneDrums[lane];

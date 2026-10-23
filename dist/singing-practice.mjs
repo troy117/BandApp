@@ -2,6 +2,7 @@ import { VocalMicrophone } from './vocal-microphone.mjs';
 import { vocalPitchFeedback } from './vocal-pitch.mjs';
 import { vocalTarget } from './vocal-guide.mjs';
 import { pitchName } from './instruments.mjs';
+import { warmupMarkup, VocalWarmup } from './vocal-warmup.mjs';
 
 export function singingMarkup() {
   return `<div id="b-lyrics-screen" class="band-lyrics" hidden>
@@ -14,7 +15,7 @@ export function singingMarkup() {
       <div class="singing-meter" aria-hidden="true"><span class="singing-center"></span><span id="b-pitch-dot" hidden></span></div><div class="singing-meter-labels" aria-hidden="true"><span>Too low</span><span>On pitch</span><span>Too high</span></div><p id="b-pitch-hint">Enable your microphone when you’re ready for pitch feedback.</p>
     </section>
     <div class="singing-player"><p id="b-singing-error" class="singing-play-error" role="alert" hidden></p><label class="singing-seek-label" for="b-singing-seek">Song position <span id="b-singing-time">0:00 / 0:00</span></label><input id="b-singing-seek" type="range" min="0" max="1" step="0.1" value="0"><div class="singing-player-buttons"><button id="b-singing-back" class="button secondary" aria-label="Practice this lyric line again">↶ Try line again</button><button id="b-singing-play" class="button primary">▶ Play song</button></div><button id="b-singing-next" class="text-button">Skip to next vocal line →</button><p id="b-singing-room" class="band-help" hidden>Your teacher controls playback in this session.</p></div>
-    <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary><p class="band-help">Use headphones and keep your phone nearby. One voice works best. Live guidance is for practice; it isn’t saved as a grade.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label">Music volume<input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Microphone timing correction <span id="b-vocal-delay-label">80 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="80"></label><p class="band-help">If feedback changes before you reach the next note, increase this slightly. Headphones with a cable usually have less delay than Bluetooth.</p></details>
+    <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary>${warmupMarkup()}<p class="band-help">Use headphones and keep your phone nearby. One voice works best. Live guidance is for practice; it isn’t saved as a grade.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label">Music volume<input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Melody guide octave (sound)<select id="b-vocal-guide-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Written octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label><label class="singing-setting">Microphone timing correction <span id="b-vocal-delay-label">80 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="80"></label><p class="band-help">If feedback changes before you reach the next note, increase this slightly. Headphones with a cable usually have less delay than Bluetooth.</p></details>
     <details id="b-vocal-melody-panel" class="singing-details" hidden><summary>Melody &amp; sheet music</summary><div class="band-row"><p id="b-vocal-target"></p><label class="band-check"><input id="b-vocal-guide-enabled" type="checkbox">Hear melody guide</label></div><canvas id="b-vocal-melody" aria-label="Vocal melody on a treble staff with note names and hold lengths"></canvas><p class="band-help">Follow the green line. Shaded tails show how long to hold. Headphones keep the guide out of your microphone.</p></details>
   </div>`;
 }
@@ -24,7 +25,9 @@ export class SingingPractice {
   constructor(practice) {
     this.practice = practice; this.q = practice.q; this.position = 0; this.paused = false; this.busy = false;
     this.microphone = new VocalMicrophone({ onState: state => this.micState(state) });
+    this.warmup = new VocalWarmup(this);
     const q = this.q;
+    q('b-singing-settings').ontoggle = () => { if (!q('b-singing-settings').open) this.warmup.stop(); };
     q('b-vocal-mic').onclick = () => ['requesting', 'listening'].includes(this.microphone.state) ? this.microphone.stop() : this.microphone.start();
     q('b-singing-play').onclick = () => { if (!practice.session && !practice.expanded && !practice.rooms.room && window.matchMedia('(max-width:600px)').matches) practice.expand(); practice.attempt(() => practice.play()); };
     q('b-singing-back').onclick = () => practice.attempt(() => this.seek(this.lineStart(), true));
@@ -36,8 +39,8 @@ export class SingingPractice {
     q('b-singing-click').onchange = () => { q('b-click').checked = q('b-singing-click').checked; };
     q('b-singing-volume').oninput = () => { q('b-volume').value = q('b-singing-volume').value; q('b-volume').oninput(); };
     q('b-vocal-delay').oninput = () => { q('b-vocal-delay-label').textContent = q('b-vocal-delay').value + ' ms'; };
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.microphone.stop('off', 'Microphone off while this page is hidden. Tap Enable microphone when you return.'); });
-    window.addEventListener('pagehide', () => this.microphone.stop());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { this.warmup.stop(); this.microphone.stop('off', 'Microphone off while this page is hidden. Tap Enable microphone when you return.'); } });
+    window.addEventListener('pagehide', () => { this.warmup.stop(); this.microphone.stop(); });
   }
   reset() {
     this.generation = (this.generation || 0) + 1; this.position = 0; this.paused = false; this.busy = false;
@@ -45,10 +48,11 @@ export class SingingPractice {
     const p = this.practice, q = this.q, vocals = p.active && p.part.instrument === 'vocals';
     document.body.classList.toggle('singing-mode', vocals); q('b-stage').classList.toggle('singing-stage', vocals);
     q('b-singing-title').textContent = p.arrangement.title; q('b-singing-volume').value = q('b-volume').value; q('b-singing-click').checked = q('b-click').checked;
-    q('b-vocal-mic').disabled = !p.part.chart.notes.length;
-    if (p.part.instrument === 'vocals' && !p.part.chart.notes.length) q('b-vocal-mic-status').textContent = 'Lyrics are ready. Your teacher can add a vocal melody for pitch feedback.';
+    q('b-vocal-mic').disabled = false;
+    if (p.part.instrument === 'vocals' && !p.part.chart.notes.length) q('b-vocal-mic-status').textContent = 'Lyrics are ready. Use the key warm-up below, or ask your teacher to add the song’s vocal melody.';
     q('b-singing-settings').open = false; q('b-vocal-melody-panel').open = false;
     q('b-singing-error').hidden = true;
+    this.warmup.reset();
   }
   time() { const p = this.practice; return p.session ? p.audio.audibleTime() - p.session.startAt : this.position; }
   lineStart() {
@@ -59,6 +63,7 @@ export class SingingPractice {
   nextLine() { return this.practice.part.chart.lyrics?.find(cue => cue.time > Math.max(0, this.time()) + .1); }
   async toggle() {
     const p = this.practice;
+    this.warmup?.stop();
     if (p.session) { const time = this.time(); p.stop('Paused. Take a breath, then continue.'); this.position = Math.max(0, time); this.paused = true; return; }
     if (this.busy) return;
     if (p.school.user?.mustChangePassword) { p.school.openPassword(); return; }
@@ -98,8 +103,10 @@ export class SingingPractice {
     if (!this.scrubbing) q('b-singing-seek').value = position;
     q('b-singing-time').textContent = singingTime(this.scrubbing ? Number(q('b-singing-seek').value) : position) + ' / ' + singingTime(chart.duration);
     const detected = this.microphone.sample();
+    this.warmup.draw(detected);
     let feedback;
     if (!chart.notes.length) feedback = vocalPitchFeedback(null, [], time);
+    else if (this.warmup.running || this.warmup.finding || this.warmup.busy) feedback = { state: 'ready', label: 'Warming up', hint: 'Follow the Listen / Your turn exercise below.', target: '—', heard: '—', cents: null };
     else if (this.microphone.state !== 'listening') {
       const target = vocalTarget(chart.notes, time), note = target.active[0] || target.next;
       feedback = { state: 'off', label: 'Sing with the lyrics', hint: 'Enable your microphone for a live pitch guide.', target: note ? pitchName(note.pitch) : '—', heard: '—', cents: null };

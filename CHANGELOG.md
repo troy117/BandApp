@@ -1,5 +1,12 @@
 # Changes
 
+## 0.16.0 — October 23, 2026 — Warm-up and arcade highways
+
+- Vocal settings include opening-melody echo exercises, explicit major/minor key scales, octave shifts and a steady-voice octave suggestion that can set reference-guide sound. Listen/sing turns keep the reference tone out of pitch matching. Feedback remains local, opt-in and ungraded.
+- All solo/band note highways have a reserved side meter: live judged accuracy and streak for drums/keyboard, clearly unscored progress for guitar/bass, listen mode and teacher guides.
+- Classic/Arcade highway styles share timing/scoring. Arcade adds neon runways, glowing notes and real-hit bursts. Effects can be switched off and respect reduced motion. Concert-background media remains a future idea, as requested.
+- Validation: 157 tests pass, including warm-up intervals/evidence/cancellation, reference-turn separation, live-meter semantics, unscored modes and bounded non-mutating canvas effects. Browser syntax, standalone and responsive/generated-audio QA are checked. Existing school data/volume/revisions are retained.
+
 ## 0.15.0 — October 22, 2026 — Phone singing practice
 
 - A focused phone singing screen combines large karaoke lyrics, Target / You note names, a pitch meter, and large Play/Pause/Continue controls. Retry a lyric line, seek or skip to the next entrance with a lead-in. Phone playback opens the focus view; sound settings and the staff/reference tones are collapsible. Teacher-led jam playback retains teacher control.

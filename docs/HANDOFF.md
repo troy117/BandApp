@@ -1,15 +1,19 @@
 # Groove Lab — development handoff
 
-Updated October 22, 2026. This is the starting point for continuing at home.
+Updated October 23, 2026. This is the starting point for continuing at home.
 
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.15.0 / Prototype 15**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Browser app, version **0.16.0 / Prototype 16**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Warm-up, side meters and arcade highways
+
+Prototype 16 adds a vocal echo warm-up and explicit major/minor key exercises under Sound & pitch settings, a comfortable-octave suggestion applied to warm-up/reference sound, and side meters on all note highways. Choose Classic/Arcade and Effects inside the highway. Drums/keyboard use live judged accuracy/streak; guitar/bass, listen and teacher guide show explicitly unscored progress. No new grades, audio recordings/uploads, database schema, song revisions or hosting variables are added. Read [WARMUP_AND_ARCADE.md](WARMUP_AND_ARCADE.md). The stock concert background request was a question only and remains unimplemented. 157 automated tests pass; browser tests use generated audio and responsive layouts. Physical phone/voice validation remains necessary.
 
 ## Session controls and lyric timing
 

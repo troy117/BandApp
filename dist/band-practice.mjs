@@ -21,6 +21,7 @@ import { followInstrument, FollowCursor } from './follow-along.mjs';
 import { drawFretted } from './follow-view.mjs';
 import { KaraokeLyrics } from './karaoke-view.mjs';
 import { SingingPractice } from './singing-practice.mjs';
+import { HighwayExperience, arcadePulse, drawArcadeBackdrop, drawArcadeBurst } from './highway-experience.mjs';
 
 export class BandPractice {
   constructor({ school, beforeEnter, getDrumBindings, getDrumOrder, onReport, onAttempt, openDrumControls }) {
@@ -47,6 +48,7 @@ export class BandPractice {
     this.fullScore = new FullScoreView(this.q('b-full-scroll'), this.q('b-full-page'), this.q('b-full-canvas'));
     this.frettedScore=new FrettedFullScore(this.q('b-full-scroll'),this.q('b-full-page'),this.q('b-full-canvas'));
     const q = this.q;
+    this.highwayExperience = new HighwayExperience(q('b-stage'), 'b-highway-meter');
     this.karaoke = new KaraokeLyrics(q);
     this.singing = new SingingPractice(this);
     q('b-publish').hidden = !school.staff;
@@ -65,6 +67,8 @@ export class BandPractice {
     };
     q('b-sound').onchange = () => { this.clearHeld(); this.persist(); };
     q('b-vocal-guide-enabled').onchange = () => { if (!q('b-vocal-guide-enabled').checked) this.piano.clear(); };
+    q('b-vocal-guide-octave').onchange = () => { this.piano.clear(); if (Number(q('b-vocal-guide-octave').value)) q('b-vocal-range').value = 'any'; };
+    q('b-vocal-range').onchange = () => { if (q('b-vocal-range').value === 'exact') { q('b-vocal-guide-octave').value = '0'; this.piano.clear(); } };
     q('b-play').onclick = () => this.attempt(() => this.play());
     q('b-full-play').onclick = () => this.attempt(() => this.play());
     q('b-listen').onclick = () => this.attempt(() => this.play(true));
@@ -312,6 +316,7 @@ export class BandPractice {
     if (!options.teacher) { this.q('b-input-controls').open = false; if (!this.expanded) this.q('b-stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   }
   stop(reason = '', announce = true, partial = false) {
+    this.singing?.warmup.stop();
     const played=this.session?this.audio.audibleTime()-this.session.startAt:-1;
     this.token++; const session = this.session; this.session = null; this.clearHeld(); this.audio.silence();
     this.singing?.stopped();
@@ -347,7 +352,7 @@ export class BandPractice {
     while (session.guide < guides.length) {
       const note = guides[session.guide], at = session.startAt + note.time; if (at > horizon) break;
       if ((session.listen || (session.teacher && !this.backing) || (!session.teacher && this.part.instrument === 'vocals' && this.q('b-vocal-guide-enabled').checked)) && at >= this.audio.context.currentTime - 0.03) {
-        if (note.pitch !== undefined) { const id = 'guide:' + session.guide; this.piano.on(id, note.pitch, 0.45, at); this.piano.off(id, at + Math.max(0.08, Math.min(this.part.instrument === 'vocals' || note.instrument === 'vocals' ? 30 : 1.5, note.duration || 0.25))); }
+        if (note.pitch !== undefined) { const id = 'guide:' + session.guide, shift = !session.teacher && this.part.instrument === 'vocals' ? Number(this.q('b-vocal-guide-octave').value) : 0; this.piano.on(id, note.pitch + shift, 0.45, at); this.piano.off(id, at + Math.max(0.08, Math.min(this.part.instrument === 'vocals' || note.instrument === 'vocals' ? 30 : 1.5, note.duration || 0.25))); }
         else if(note.drum) this.audio.play(note.drum, at, 0.55);
       }
       session.guide++;
@@ -409,6 +414,7 @@ export class BandPractice {
   }
   renderView() {
     const full = this.q('b-view').value === 'full';
+    this.highwayExperience?.setVisible(this.q('b-view').value === 'highway' && this.part.instrument !== 'vocals');
     this.q('b-canvas').hidden = full || this.part.instrument==='vocals'; this.q('b-full-scroll').hidden = !full;this.q('b-lyrics-screen').hidden=this.part.instrument!=='vocals';
     this.q('b-canvas').setAttribute('aria-label', ['guitar','bass'].includes(this.part.instrument) ? 'Suggested string and fret '+(this.q('b-view').value==='tab'?'tablature. Follow the moving gold bar.':'highway. Play each fret when it reaches the gold box.') : this.q('b-view').value === 'highway' ? 'Instrument note highway. Play when the note enters its hit box.' : 'Drum sheet music. Follow the moving gold playhead.');
   }
@@ -426,6 +432,7 @@ export class BandPractice {
   }
   draw() {
     const chart = this.session?.judge.chart || this.playChart(), time = this.session ? this.audio.audibleTime() - this.session.startAt : this.part.instrument === 'vocals' ? this.singing.position : -0.5;
+    this.highwayExperience.draw(this.session?.judge, time, { playing: !!this.session, listen: !!this.session?.listen, teacher: !!this.session?.teacher });
     if(this.part.instrument==='vocals') {
       const counting = this.session && time < (this.session.from || 0);
       this.karaoke.draw(chart, counting ? this.session.from || 0 : time, !!this.session && !counting, this.singing.paused || !!counting);
@@ -450,19 +457,21 @@ export class BandPractice {
     const rect = canvas.getBoundingClientRect(), width = Math.max(260, rect.width), height = Math.max(100, rect.height), dpr = Math.min(2, devicePixelRatio || 1);
     if (canvas.width !== Math.round(width*dpr) || canvas.height !== Math.round(height*dpr)) { canvas.width = Math.round(width*dpr); canvas.height = Math.round(height*dpr); }
     context.setTransform(dpr,0,0,dpr,0,0); context.clearRect(0,0,width,height);
-    if(['guitar','bass'].includes(this.part.instrument)){drawFretted(context,width,height,chart,time,this.q('b-view').value==='tab');return;}
+    if(['guitar','bass'].includes(this.part.instrument)){drawFretted(context,width,height,chart,time,this.q('b-view').value==='tab',this.highwayExperience.options);return;}
     if (this.part.instrument === 'drums' && this.q('b-view').value === 'sheet') { drawSheet(context, { width, height, dpr }, this.notation.model, chart, time, !!this.session, this.session?.listen); return; }
     if (this.part.instrument === 'drums') {
-      drawDrumHighway(context, { width, height }, chart, time, { running: !!this.session, order: this.getDrumOrder?.(), flashes: this.drumFlashes, bindings: this.getDrumBindings() }); return;
+      drawDrumHighway(context, { width, height }, chart, time, { running: !!this.session, order: this.getDrumOrder?.(), flashes: this.drumFlashes, bindings: this.getDrumBindings(), ...this.highwayExperience.options }); return;
     }
     const keys = this.part.instrument === 'keyboard';
     let lanes;
     if (keys) { const min = Math.min(...chart.notes.map(n=>n.pitch),60+this.octave), max = Math.max(...chart.notes.map(n=>n.pitch),72+this.octave); lanes = Array.from({length:max-min+1},(_,i)=>({ id:min+i, name:pitchName(min+i), color:[1,3,6,8,10].includes((min+i)%12)?'#b5a0ed':'#63d9c4' })); }
     else lanes = orderedDrums(chart, this.getDrumOrder?.());
     const laneWidth = width/lanes.length, hitY = height-43, speed = Math.max(45,(height-70)/3.4);
+    const { arcade, motion } = this.highwayExperience.options;
+    if (arcade) drawArcadeBackdrop(context, width, height, time, { motion });
     for (let i=0;i<lanes.length;i++) {
       const lane=lanes[i], x=i*laneWidth;
-      context.fillStyle = i%2 ? '#152328' : '#111e22'; context.fillRect(x,0,laneWidth,height);
+      context.fillStyle = arcade ? i%2 ? '#151834bb' : '#0d1930aa' : i%2 ? '#152328' : '#111e22'; context.fillRect(x,0,laneWidth,height);
       context.strokeStyle='#30484f'; context.beginPath(); context.moveTo(x,0); context.lineTo(x,height); context.stroke();
       context.fillStyle='#e8c17b12'; context.fillRect(x+3,hitY-14,laneWidth-6,28); context.strokeStyle=lane.color; context.strokeRect(x+3,hitY-14,laneWidth-6,28);
       context.font='10px system-ui'; context.fillStyle=lane.color; context.textAlign='center'; context.fillText(lane.name||lane.short,x+laneWidth/2,height-7,Math.max(5,laneWidth-4));
@@ -473,8 +482,10 @@ export class BandPractice {
       const index=lanes.findIndex(lane=>lane.id===(keys?note.pitch:note.drum)); if(index<0)continue;
       const h=keys?Math.max(8,Math.min(38,(note.duration||0.1)*speed)):9;
       context.fillStyle=note.status==='hit'?'#b6f2cf':note.status==='wrong'?'#f58c99':note.status==='miss'?'#526367':lanes[index].color;
-      context.fillRect(index*laneWidth+5,y-h/2,Math.max(3,laneWidth-10),h);
+      if (arcade) { context.shadowColor=lanes[index].color;context.shadowBlur=12+10*arcadePulse(time,motion && !!this.session); }
+      context.fillRect(index*laneWidth+5,y-h/2,Math.max(3,laneWidth-10),h);context.shadowBlur=0;
     }
+    if (arcade && this.session) for (const note of chart.notes) if (note.status==='hit' && Number.isFinite(note.actualTime)) { const lane=lanes.findIndex(item=>item.id===note.pitch); if(lane>=0)drawArcadeBurst(context,(lane+.5)*laneWidth,hitY,lanes[lane].color,time-note.actualTime,{motion}); }
     context.strokeStyle='#e8c17b';context.lineWidth=2;context.beginPath();context.moveTo(0,hitY);context.lineTo(width,hitY);context.stroke();context.lineWidth=1;
   }
   download(name, body, type) { const url = URL.createObjectURL(new Blob([body], {type})), link = document.createElement('a'); link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000); }

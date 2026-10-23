@@ -15,6 +15,7 @@ import { FullScoreView } from './full-score.mjs';
 import { ScoreScreen } from './score-screen.mjs';
 import { DrumkitControls } from './drumkit-controls.mjs';
 import { BandPractice } from './band-practice.mjs';
+import { HighwayExperience } from './highway-experience.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
@@ -67,6 +68,7 @@ let viewport = { width: 800, height: 347, dpr: 1 };
 let notationCache = { chart: null, model: null };
 const fullScore = new FullScoreView($('full-score-scroll'), $('full-score-page'), $('full-score'));
 const scoreScreen = new ScoreScreen({ root: $('practice-stage'), opener: $('maximize-score'), exit: $('exit-score'), play: $('score-play'), listen: $('score-listen'), title: $('score-title'), toolbar: $('score-toolbar'), onPlay: () => startRun(), onListen: () => startRun('demo') });
+const drumExperience = new HighwayExperience($('practice-stage'), 'drum-performance', () => resize());
 const school = new SchoolClient({
   beforeOpen: () => { if (session || starting) stopRun('School account opened. Start a fresh run when you’re ready.'); band?.stop('School account opened.'); band?.rooms.unready('School account opened.'); },
   onIdentity: user => {
@@ -100,6 +102,7 @@ const drumkit = new DrumkitControls({
 function effectiveView() { return settings.view; }
 function renderView() {
   const sheet = effectiveView() !== 'highway', full = effectiveView() === 'full';
+  drumExperience.setVisible(!sheet);
   const imported = previewChart.kind !== 'groove';
   $('maximize-score').hidden = false;
   scoreScreen.setView(effectiveView());
@@ -493,7 +496,7 @@ function resize() {
 }
 new ResizeObserver(resize).observe(canvas);
 function drawHighway(time) {
-  drawDrumHighway(ctx, viewport, session?.judge.chart || previewChart, time, { running: !!session, order: laneOrder, flashes, bindings });
+  drawDrumHighway(ctx, viewport, session?.judge.chart || previewChart, time, { running: !!session, order: laneOrder, flashes, bindings, ...drumExperience.options });
 }
 
 function frame() {
@@ -530,6 +533,7 @@ function frame() {
     if (time > session.judge.chart.duration + 0.35) finishRun();
   }
   const chart = session?.judge.chart || previewChart;
+  drumExperience.draw(session?.judge, time, { playing: !!session, listen: session?.mode === 'demo' });
   if (effectiveView() !== 'highway') {
     if (notationCache.chart !== chart) notationCache = { chart, model: createNotation(chart) };
     if (effectiveView() === 'full') fullScore.draw(notationCache.model, chart, time, Boolean(session), session?.mode === 'demo');
