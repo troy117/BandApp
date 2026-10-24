@@ -264,6 +264,7 @@ export class SchoolClient {
     let upload;
     try {
       progress('Preparing the school song…');
+      if(draft.multiBacking)throw new Error('Open MIDI & audio sync to edit this song and retain all backing versions.');
       upload = await this.request('/library/uploads', { method: 'POST', signal, data: { title: (draft.schoolTitle || draft.song.title).slice(0, 120), fileName: draft.song.fileName, audioName: draft.audioName, selected: draft.selected, mapping: draft.mapping, offset: draft.offset, timeScale: draft.timeScale ?? 1, volume: draft.volume, audioStart:draft.audioStart, audioEnd:draft.audioEnd, midiBytes: draft.midiBytes.byteLength, audioBytes: draft.audioBytes?.byteLength || 0, ...draft.lyricSettings, ...(draft.arrangementParts ? { parts: draft.arrangementParts.map(part => part.instrument === 'drums' ? { ...part, selected: draft.selected } : part) } : {}), ...(source ? { songId: source.songId, revisionId: source.revisionId } : {}) } });
       progress('Uploading the MIDI drum part…'); await this.request(`/library/uploads/${upload.uploadId}/midi`, { method: 'PUT', data: draft.midiBytes, signal });
       if (draft.audioBytes) { progress('Uploading the backing recording…'); await this.request(`/library/uploads/${upload.uploadId}/audio`, { method: 'PUT', data: draft.audioBytes, signal }); }

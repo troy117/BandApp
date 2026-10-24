@@ -17,8 +17,8 @@ export async function backupSchool(sourceDirectory, outputDirectory) {
     // Published files are immutable. Taking the DB snapshot first lets us copy
     // exactly its referenced versions even while teachers publish newer songs.
     snapshot.exec("PRAGMA foreign_keys=ON; DELETE FROM sessions; DELETE FROM revisions WHERE state='draft'; DELETE FROM songs WHERE revision_id IS NULL;");
-    const revisions = snapshot.prepare("SELECT id,audio_expected FROM revisions WHERE state='published'").all();
-    for (const row of revisions) for (const kind of row.audio_expected ? ['midi', 'audio'] : ['midi']) await copyFile(path.join(source, 'music', `${row.id}.${kind}`), path.join(output, 'music', `${row.id}.${kind}`));
+    const revisions = snapshot.prepare("SELECT id,audio_expected,metadata FROM revisions WHERE state='published'").all();
+    for (const row of revisions) for (const kind of ['midi',...(JSON.parse(row.metadata).backingTracks ? JSON.parse(row.metadata).backingTracks.map(track=>'audio-'+track.id) : row.audio_expected ? ['audio'] : [])]) await copyFile(path.join(source, 'music', `${row.id}.${kind}`), path.join(output, 'music', `${row.id}.${kind}`));
     const manifest = { version: 1, createdAt: new Date().toISOString(), schoolId: snapshot.prepare("SELECT value FROM settings WHERE key='school_id'").get()?.value, accounts: snapshot.prepare('SELECT COUNT(*) AS n FROM users').get().n, attempts: snapshot.prepare('SELECT COUNT(*) AS n FROM runs').get().n, songVersions: revisions.length };
     snapshot.exec('PRAGMA wal_checkpoint(TRUNCATE)');
     await writeFile(path.join(output, 'backup.json'), JSON.stringify(manifest, null, 2), { mode: 0o600 });

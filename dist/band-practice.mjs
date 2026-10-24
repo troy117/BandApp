@@ -66,6 +66,7 @@ export class BandPractice {
     q('b-publish').hidden = !school.staff;
     q('b-open-import').hidden = !school.staff;
     q('b-octave').value = this.octave; q('b-offset').value = this.offset; q('b-channel').value = this.channel; q('b-sound').checked = preferences.sound !== false;
+    q('b-backing').onchange=()=>this.attempt(()=>this.loadChoice(this.arrangement.sourceKind+':'+this.arrangement.id,this.arrangement.revisionId,this.part.instrument,q('b-backing').value));
     q('b-song').onchange = () => this.attempt(() => this.loadChoice(q('b-song').value));
     q('b-part').onchange = () => this.selectPart(q('b-part').value);
     q('b-editor-song').onchange = () => { const id=q('b-editor-song').value; if(id)this.importer.attempt(()=>this.importer.editSchoolSong(id,'audio')); };
@@ -169,14 +170,14 @@ export class BandPractice {
     else if(songs.some(song=>song.sourceKind+':'+song.id===previous))this.q('b-song').value=previous;
     const selected=this.q('b-editor-song').value; this.q('b-editor-song').innerHTML='<option value="">Choose a school song…</option>'+this.catalog.filter(song=>song.sourceKind==='school').map(song=>'<option value="'+escapeHtml(song.id)+'">'+escapeHtml(song.title)+'</option>').join(''); this.q('b-editor-song').value=selected;
   }
-  async loadChoice(value, revision, instrument) {
+  async loadChoice(value, revision, instrument, backingId) {
     if (this.rooms.room) throw new Error('Leave the session before changing songs.');
     this.stop(); const token = ++this.loadToken, [kind, id] = value.split(':');
     let arrangement;
     if (kind === 'duet') arrangement = builtinArrangement(id);
     else {
       const song = this.catalog.find(song => song.id === id);
-      const response = await this.school.request('/band/arrangements/school/' + id + '?revision=' + encodeURIComponent(revision || song?.revisionId || '')); arrangement = response.arrangement;
+      const response = await this.school.request('/band/arrangements/school/' + id + '?revision=' + encodeURIComponent(revision || song?.revisionId || '') + (backingId?'&backing='+encodeURIComponent(backingId):'')); arrangement = response.arrangement;
     }
     if (token !== this.loadToken) return;
     instrument=instrument||(['keyboard','guitar','bass','vocals'].includes(this.mode)?this.mode:undefined);
@@ -189,6 +190,7 @@ export class BandPractice {
     this.q('b-volume').value = volume; this.q('b-speaker-volume').value = volume;
     const part = arrangement.parts.find(part => part.instrument === instrument) || arrangement.parts.find(part => part.instrument === 'keyboard') || arrangement.parts[0];
     this.part = part; this.renderPart();
+    const choices=arrangement.backingTracks || [];this.q('b-backing').innerHTML=choices.map(track=>'<option value="'+track.id+'">'+escapeHtml(track.label)+'</option>').join('');this.q('b-backing').value=arrangement.backingId || '';this.q('b-backing-picker').hidden=choices.length<2;
     const key = arrangement.sourceKind + ':' + arrangement.id;
     if ([...this.q('b-song').options].some(option => option.value === key)) this.q('b-song').value = key;
   }
@@ -324,7 +326,7 @@ export class BandPractice {
   startScheduled(room, clock, teacher) {
     if (this.startedTake === room.takeId) return;
     const countIn = clock.localAt(room.countInAt);
-    if (!this.rooms.prepared || this.arrangement.revisionId !== room.arrangement.revisionId || this.arrangement.id !== room.arrangement.id || (this.arrangement.startBar || 1) !== (room.arrangement.startBar || 1) || !clock.status.ready || this.audio.context?.state !== 'running' || performance.now() > countIn - 100 || document.hidden) {
+    if (!this.rooms.prepared || this.arrangement.backingId !== room.arrangement.backingId || this.arrangement.revisionId !== room.arrangement.revisionId || this.arrangement.id !== room.arrangement.id || (this.arrangement.startBar || 1) !== (room.arrangement.startBar || 1) || !clock.status.ready || this.audio.context?.state !== 'running' || performance.now() > countIn - 100 || document.hidden) {
       this.rooms.unready('Audio or timing was not ready for this start.'); this.message('Missed preparation. Wait for a fresh take.'); return;
     }
     this.stop('', false); this.startedTake = room.takeId;
@@ -366,7 +368,7 @@ export class BandPractice {
     const room = this.rooms?.room, locked = !!this.session || !!room, inputLocked = !!this.session || room?.state === 'playing';
     this.q('b-loop-controls').hidden=!!room||followInstrument(this.part.instrument);
     for(const id of ['b-loop-enabled','b-loop-from','b-loop-to','b-loop-repeats'])this.q(id).disabled=locked;
-    for (const id of ['b-song', 'b-part', 'b-open-import']) this.q(id).disabled = locked;
+    for (const id of ['b-song', 'b-backing', 'b-part', 'b-open-import']) this.q(id).disabled = locked;
     this.q('b-song').disabled = !!room;
     for (const id of ['b-channel', 'b-offset', 'b-octave', 'b-device', 'b-reset-keys', 'b-connect', 'b-kit']) this.q(id).disabled = inputLocked;
     for (const button of this.q('b-bindings').querySelectorAll('button')) button.disabled = inputLocked;
@@ -423,7 +425,7 @@ export class BandPractice {
     if(!reached)this.q('b-save-state').textContent='No expected notes reached. This preview does not add a saved attempt.';
     else if(session.takeId && !stopped){this.q('b-save-state').textContent='Confirming this session result…';this.rooms.finish(summary);}
     else if(session.accountId && this.school.user?.id===session.accountId && ['duet','school'].includes(session.arrangement.sourceKind)){
-      this.pendingResult={accountId:session.accountId,id:record.id,sourceKind:record.sourceKind,sourceId:record.sourceId,revisionId:record.revisionId,partId:record.partId,summary,report,...(info?{practice:{enabled:true,startBar:info.startBar,endBar:info.endBar,repeats:info.repeats,focus:'all'}}:{})};this.saveResult();
+      this.pendingResult={accountId:session.accountId,id:record.id,sourceKind:record.sourceKind,sourceId:record.sourceId,revisionId:record.revisionId,backingId:session.arrangement.backingId,partId:record.partId,summary,report,...(info?{practice:{enabled:true,startBar:info.startBar,endBar:info.endBar,repeats:info.repeats,focus:'all'}}:{})};this.saveResult();
     }else this.q('b-save-state').textContent='Attempt kept in this browser. Publish personal arrangements to school to save account reports.';
   }
   async attachTakeReport(takeId) {

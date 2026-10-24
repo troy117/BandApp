@@ -93,7 +93,8 @@ export function arrangementLyrics(song, metadata = {}) {
   const clock = metadata.lyricsClock ?? 'midi', offset = metadata.lyricsOffset ?? 0;
   if (!['midi','recording'].includes(clock) || !Number.isFinite(offset) || Math.abs(offset) > 300) throw new Error('Choose the lyric clock and an adjustment within 300 seconds.');
   const cues = metadata.lyricsText === undefined ? midiLyricCues(song) : parseLyricText(metadata.lyricsText);
-  const scale = clock === 'midi' ? metadata.timeScale ?? 1 : 1, shift = offset + (clock === 'recording' ? metadata.offset ?? 0 : 0), duration = song.duration * (metadata.timeScale ?? 1);
+  const reference = metadata.lyricsAlignment || metadata, ratio = (metadata.timeScale ?? 1) / (reference.timeScale ?? 1);
+  const scale = clock === 'midi' ? metadata.timeScale ?? 1 : ratio, shift = clock === 'recording' ? (offset + (reference.offset ?? 0)) * ratio : offset, duration = song.duration * (metadata.timeScale ?? 1);
   return cues.map((cue,i) => ({ time: cue.time * scale + shift, end: (cue.end ?? cues[i+1]?.time ?? cue.time + 8) * scale + shift, text: cue.text,
     ...(cue.words ? { words: cue.words.map(word => ({ ...word, time: word.time * scale + shift, end: word.end * scale + shift })) } : {})
   })).filter(cue => cue.end > 0 && cue.time < duration).map(cue => ({...cue,time:Math.max(0,cue.time),end:Math.min(duration,cue.end),

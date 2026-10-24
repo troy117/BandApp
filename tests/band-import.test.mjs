@@ -88,6 +88,6 @@ test('replacing a school backing preserves MIDI, all parts and word-timed lyrics
   assert.equal(upload.offset,-.25);assert.ok(Math.abs(upload.timeScale-1.05)<.00001);assert.equal(upload.volume,.37);
   assert.deepEqual(upload.parts,parts);assert.equal(upload.lyricsText,lyrics);assert.equal(upload.lyricsClock,'midi');assert.equal(upload.lyricsOffset,0);
   assert.deepEqual(requests.find(item=>item.route.endsWith('/midi')).options.data,bytes);
-  assert.deepEqual(requests.find(item=>item.route.endsWith('/audio')).options.data,newAudio);
+  assert.deepEqual(requests.find(item=>item.route.endsWith('/audio-main')).options.data,newAudio);
   assert.equal(importer.draft.schoolSource.revisionId,'after');
 });

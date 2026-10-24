@@ -1,3 +1,9 @@
+# 0.21.0 — Multiple backing choices
+
+- Named backing versions with student/focus selection and teacher-controlled jam choice.
+- Independent offset, MIDI speed, volume and trim settings for each recording, preserving MIDI and word-timed lyrics.
+- Atomic uploads, legacy compatibility, variant-aware results and complete school backups.
+
 # Changes
 
 ## 0.20.0 — October 23, 2026 — Piano score and dedicated sync workspace

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { parseMidiSong } from '../dist/midi.mjs';
 import { validateAlignment } from '../dist/sync.mjs';
 import { validateAudioRange } from '../dist/backing-range.mjs';
+import { validateBackingTracks, backingFileKind, withBacking } from '../dist/backing-tracks.mjs';
 import { DRUMS, GROOVES } from '../dist/engine.mjs';
 import { arrangementParts, importedArrangement } from '../dist/arrangements.mjs';
 import { BAND_SCHEMA, migrateBandStorage } from './band-results.mjs';
@@ -233,6 +234,8 @@ export class ClassroomStore {
     const title = cleanText(input.title, 120, 'song title'), fileName = cleanText(input.fileName, 180, 'MIDI filename');
     if (!/\.midi?$/i.test(fileName)) throw new SchoolError(400, 'Choose a standard MIDI file.');
     if (!Number.isInteger(input.midiBytes) || input.midiBytes < 14 || input.midiBytes > 10 * 1024 * 1024 || !Number.isInteger(input.audioBytes) || input.audioBytes < 0 || input.audioBytes > 100 * 1024 * 1024) throw new SchoolError(400, 'MIDI files must be at most 10 MB and recordings at most 100 MB.');
+    let backings;
+    try { if(input.backingTracks !== undefined) backings=validateBackingTracks(input.backingTracks,input.defaultBackingId); } catch(error) { throw new SchoolError(400,error.message); }
     const audioName = input.audioBytes ? cleanText(input.audioName, 180, 'recording filename') : '';
     if (!Array.isArray(input.selected) || !input.selected.length && !(Array.isArray(input.parts) && input.parts.length && input.parts.every(part=>part?.instrument==='vocals')) || input.selected.length > 512 || !input.selected.every(id => typeof id === 'string' && /^\d{1,3}:\d{1,2}$/.test(id))) throw new SchoolError(400, 'Choose the instrument parts to publish.');
     if (!input.mapping || typeof input.mapping !== 'object' || Array.isArray(input.mapping) || Object.keys(input.mapping).length > 128 || !Object.entries(input.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && Number(pitch) <= 127 && (drum === 'ignore' || DRUMS.some(item => item.id === drum)))) throw new SchoolError(400, 'Invalid drum assignments.');
@@ -246,7 +249,11 @@ export class ClassroomStore {
       if(input.lyricsClock !== undefined) { if(!['midi','recording'].includes(input.lyricsClock))throw new Error('Choose MIDI or recording for the lyric clock.');lyrics.lyricsClock=input.lyricsClock; }
       if(input.lyricsOffset !== undefined) {if(!Number.isFinite(input.lyricsOffset)||Math.abs(input.lyricsOffset)>300)throw new Error('Choose a lyric adjustment within 300 seconds.');lyrics.lyricsOffset=input.lyricsOffset;}
     } catch(error){throw new SchoolError(400,error.message);}
-    return { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...lyrics, ...(input.parts ? { arrangementVersion: 1, parts } : {}) };
+    let lyricsAlignment;
+    try { if(input.lyricsAlignment)lyricsAlignment=validateAlignment(input.lyricsAlignment.offset,input.lyricsAlignment.timeScale); } catch(error){throw new SchoolError(400,error.message);}
+    const extra = backings ? {backingTracks:backings,defaultBackingId:input.defaultBackingId} : {};
+    const result = { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...lyrics, ...(input.parts ? { arrangementVersion: 1, parts } : {}),...extra,...(lyricsAlignment?{lyricsAlignment}:{}) };
+    return backings?.length ? {...result,...withBacking(result,input.defaultBackingId),audioName:backings.find(b=>b.id===input.defaultBackingId).audioName} : result;
   }
   canManageSong(actor, song) { return isStaff(actor) && (actor.role === 'owner' || song.teacher_id === actor.id); }
   beginUpload(actor, input) {
@@ -254,20 +261,23 @@ export class ClassroomStore {
     let song = input.songId ? this.db.prepare('SELECT * FROM songs WHERE id=?').get(input.songId) : null;
     if (input.songId && (!song || !this.canManageSong(actor, song))) throw new SchoolError(404, 'Song not found.');
     if (song && song.revision_id !== input.revisionId) throw new SchoolError(409, 'This song has changed. Reload it from the school library before updating.');
+    if(song && JSON.parse(this.songRow(song.id).metadata).backingTracks?.length > 1 && input.backingTracks === undefined)throw new SchoolError(409,'This song has multiple backings. Update it in MIDI & audio sync to retain every version.');
+    const audioExpected=meta.backingTracks ? meta.backingTracks.reduce((sum,b)=>sum+b.audioBytes,0) : input.audioBytes;
     const used = this.db.prepare('SELECT COALESCE(SUM(midi_expected+audio_expected),0) AS n FROM revisions').get().n;
-    if (used + input.midiBytes + input.audioBytes > this.storageLimit) throw new SchoolError(413, 'School song storage is full. Ask the school owner to review storage capacity.');
+    if (used + input.midiBytes + audioExpected > this.storageLimit) throw new SchoolError(413, 'School song storage is full. Ask the school owner to review storage capacity.');
     if (this.db.prepare("SELECT COUNT(*) AS n FROM revisions WHERE teacher_id=? AND state='draft'").get(actor.id).n >= 5) throw new SchoolError(409, 'Finish or cancel the current song uploads before starting another.');
     const id = randomUUID(), songId = song?.id || randomUUID();
     this.transaction(() => {
       if (!song) this.db.prepare('INSERT INTO songs(id,teacher_id,updated_at) VALUES (?,?,?)').run(songId, actor.id, this.now());
-      this.db.prepare('INSERT INTO revisions(id,song_id,teacher_id,base_revision,metadata,midi_expected,audio_expected,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id, songId, actor.id, song?.revision_id ?? null, JSON.stringify(meta), input.midiBytes, input.audioBytes, this.now());
+      this.db.prepare('INSERT INTO revisions(id,song_id,teacher_id,base_revision,metadata,midi_expected,audio_expected,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id, songId, actor.id, song?.revision_id ?? null, JSON.stringify(meta), input.midiBytes, audioExpected, this.now());
     });
     return { uploadId: id, songId };
   }
-  musicPath(id, kind) { if (!uuidPattern.test(id) || !['midi', 'audio'].includes(kind)) throw new SchoolError(404, 'File not found.'); return path.join(this.directory, 'music', `${id}.${kind}`); }
+  musicPath(id, kind) { if (!uuidPattern.test(id) || !/^(midi|audio(?:-[a-z0-9][a-z0-9-]{0,39})?)$/.test(kind)) throw new SchoolError(404, 'File not found.'); return path.join(this.directory, 'music', `${id}.${kind}`); }
   draft(actor, id) { const row = this.db.prepare("SELECT * FROM revisions WHERE id=? AND state='draft' AND teacher_id=?").get(id, actor.id); if (!row) throw new SchoolError(404, 'Upload not found.'); return row; }
   async receiveFile(actor, id, kind, request) {
-    this.requireStaff(actor); const row = this.draft(actor, id), expected = kind === 'midi' ? row.midi_expected : kind === 'audio' ? row.audio_expected : 0;
+    this.requireStaff(actor); const row = this.draft(actor, id), meta=JSON.parse(row.metadata);
+    const expected = kind === 'midi' ? row.midi_expected : meta.backingTracks ? meta.backingTracks.find(b=>backingFileKind(b.id)===kind)?.audioBytes : kind === 'audio' ? row.audio_expected : 0;
     if (!expected) throw new SchoolError(400, 'This upload does not include that file.');
     if (request.headers['content-length'] && Number(request.headers['content-length']) !== expected) throw new SchoolError(400, 'The upload size does not match the selected file.');
     const key = `${id}:${kind}`;
@@ -291,9 +301,12 @@ export class ClassroomStore {
     this.publishing.add(id);
     try {
     this.requireStaff(actor); const row = this.draft(actor, id);
-    if (row.midi_received !== row.midi_expected || row.audio_received !== row.audio_expected || this.uploading.has(`${id}:midi`) || this.uploading.has(`${id}:audio`)) throw new SchoolError(409, 'Wait for both music files to finish uploading.');
+    const storedMeta=JSON.parse(row.metadata);
+    if(storedMeta.backingTracks)for(const backing of storedMeta.backingTracks){const info=await stat(this.musicPath(id,backingFileKind(backing.id))).catch(()=>null);if(info?.size!==backing.audioBytes)throw new SchoolError(409,'Wait for every backing track to finish uploading.');}
+    if (row.midi_received !== row.midi_expected || !storedMeta.backingTracks && row.audio_received !== row.audio_expected || [...this.uploading].some(key=>key.startsWith(id+':'))) throw new SchoolError(409, 'Wait for both music files to finish uploading.');
     const meta = JSON.parse(row.metadata), bytes = await readFile(this.musicPath(id, 'midi'));
     const song = parseMidiSong(bytes, meta.fileName);
+    for(const track of meta.backingTracks || [])importedArrangement(song,withBacking(meta,track.id));
     const arrangement = importedArrangement(song, meta), chart = (arrangement.parts.find(part => part.instrument === 'drums') || arrangement.parts[0]).chart;
     meta.parts = arrangement.parts.map(({ id, instrument, name, selected }) => ({ id, instrument, name, selected }));
     meta.arrangementVersion = 1;
@@ -301,7 +314,7 @@ export class ClassroomStore {
     this.transaction(() => {
       const current = this.db.prepare('SELECT * FROM songs WHERE id=?').get(row.song_id);
       if (!current || !this.canManageSong(actor, current) || current.revision_id !== row.base_revision) throw new SchoolError(409, 'The song changed during upload. Reload it and try again.');
-      this.db.prepare("UPDATE revisions SET metadata=?,state='published' WHERE id=?").run(JSON.stringify(meta), id);
+      this.db.prepare("UPDATE revisions SET metadata=?,state='published',audio_received=audio_expected WHERE id=?").run(JSON.stringify(meta), id);
       this.db.prepare('UPDATE songs SET revision_id=?,archived=0,updated_at=? WHERE id=?').run(id, this.now(), row.song_id);
       this.audit(actor, 'song.publish', row.song_id);
     });
@@ -310,8 +323,8 @@ export class ClassroomStore {
   }
   async discard(actor, id) {
     const row = this.draft(actor, id);
-    if (this.uploading.has(`${id}:midi`) || this.uploading.has(`${id}:audio`) || this.publishing.has(id)) throw new SchoolError(409, 'Stop the upload before cancelling it.');
-    for (const kind of ['midi', 'audio']) await unlink(this.musicPath(id, kind)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    if ([...this.uploading].some(key=>key.startsWith(id+':')) || this.publishing.has(id)) throw new SchoolError(409, 'Stop the upload before cancelling it.');
+    for (const kind of ['midi', 'audio',...(JSON.parse(row.metadata).backingTracks || []).map(b=>backingFileKind(b.id))]) await unlink(this.musicPath(id, kind)).catch(error => { if (error.code !== 'ENOENT') throw error; });
     this.transaction(() => { this.db.prepare('DELETE FROM revisions WHERE id=?').run(id); this.db.prepare('DELETE FROM songs WHERE id=? AND revision_id IS NULL AND NOT EXISTS(SELECT 1 FROM revisions WHERE song_id=?)').run(row.song_id, row.song_id); });
   }
   async cleanDrafts() {
@@ -339,6 +352,8 @@ export class ClassroomStore {
   }
   async sendFile(actor, songId, revisionId, kind, request, response) {
     const meta = this.getSong(actor, songId, revisionId);
+    if(kind === 'audio' && meta.backingTracks){if(!meta.backingTracks.length)throw new SchoolError(404,'Recording not found.');kind=backingFileKind(meta.defaultBackingId);}
+    if(kind.startsWith('audio-') && !meta.backingTracks?.some(b=>backingFileKind(b.id)===kind))throw new SchoolError(404,'Recording not found.');
     const file = this.musicPath(revisionId, kind);
     let info; try { info = await stat(file); } catch (error) { if (error.code === 'ENOENT') throw new SchoolError(404, 'Recording not found.'); throw error; }
     response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': info.size, 'Content-Disposition': `attachment; filename="${songId}.${kind === 'midi' ? 'mid' : 'audio'}"` });
@@ -440,14 +455,14 @@ export class ClassroomApi {
         send(200, { songs: resolved }); return true;
       }
       if (pathname === '/api/library/uploads' && method === 'POST') { this.limit(`uploads:${actor.id}`, 100, 60 * 60 * 1000); this.store.requireStaff(actor); await this.store.cleanDrafts(); send(201, this.store.beginUpload(actor, await this.json(request))); return true; }
-      match = pathname.match(/^\/api\/library\/uploads\/([0-9a-f-]+)(?:\/(midi|audio|publish))?$/);
+      match = pathname.match(/^\/api\/library\/uploads\/([0-9a-f-]+)(?:\/(midi|audio(?:-[a-z0-9][a-z0-9-]{0,39})?|publish))?$/);
       if (match) {
         const [, id, action] = match;
-        if (['midi', 'audio'].includes(action) && method === 'PUT') { await this.store.receiveFile(actor, id, action, request); send(200, { uploaded: true }); return true; }
+        if ((action === 'midi' || action?.startsWith('audio')) && method === 'PUT') { await this.store.receiveFile(actor, id, action, request); send(200, { uploaded: true }); return true; }
         if (action === 'publish' && method === 'POST') { try { send(200, { song: await this.store.publish(actor, id) }); } catch (error) { if (!error.status && error.code?.startsWith('SQLITE')) throw error; if (!error.status) throw new SchoolError(400, String(error.message).slice(0, 240)); throw error; } return true; }
         if (!action && method === 'DELETE') { await this.store.discard(actor, id); send(200, { discarded: true }); return true; }
       }
-      match = pathname.match(/^\/api\/library\/([0-9a-f-]+)(?:\/(archive|revisions\/([0-9a-f-]+)\/(midi|audio)))?$/);
+      match = pathname.match(/^\/api\/library\/([0-9a-f-]+)(?:\/(archive|revisions\/([0-9a-f-]+)\/(midi|audio(?:-[a-z0-9][a-z0-9-]{0,39})?)))?$/);
       if (match) {
         const [, id, action, revision, kind] = match;
         if (!action && method === 'GET') { const song = this.store.getSong(actor, id, url.searchParams.get('revision')); send(200, { song: this.band ? await this.band.librarySong(actor, song) : song }); return true; }

@@ -157,6 +157,7 @@ function renderLaneLabels() {
 }
 function renderGroove() {
   const imported = settings.grooveId === 'imported' && loadedSong;
+  $('drum-backing-picker').hidden=!imported || !importer.draft?.multiBacking;
   sourceChart = imported ? loadedSong.chart : createChart(settings.grooveId, settings.bpm, settings.bars);
   practice.setSource(sourceChart, imported ? loadedSong.song.fingerprint : settings.grooveId);
   previewChart = practice.build(sourceChart);

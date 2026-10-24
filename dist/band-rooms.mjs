@@ -60,9 +60,13 @@ export class BandRooms {
     this.configVersion = null;
     if (this.room) this.render();
   }
+  backingOptions(song,id,selected) {
+    const choices=song?.backingTracks || [];this.q(id).innerHTML=choices.map(track=>'<option value="'+track.id+'">'+escapeHtml(track.label)+'</option>').join('');this.q(id).value=selected || song?.backingId || choices[0]?.id || '';this.q(id+'-picker').hidden=choices.length<2;
+  }
   sessionPartChoices() {
     const song = this.practice.catalog.find(song => song.sourceKind + ':' + song.id === this.q('b-session-song').value);
     if (!song || !this.room) return;
+    this.backingOptions(song,'b-session-backing',song.id===this.room.arrangement.id?this.room.arrangement.backingId:null);
     const sameSong = song.id === this.room.arrangement.id && song.revisionId === this.room.arrangement.revisionId;
     this.q('b-session-from').max = sameSong ? this.room.arrangement.bars : 100000;
     this.q('b-session-parts').innerHTML = this.room.participants.map(person => {
@@ -85,7 +89,7 @@ export class BandRooms {
     const assignments = [...this.q('b-session-parts').querySelectorAll('select')].map(select => ({ userId: select.dataset.sessionStudent, partId: select.value }));
     this.updating = true; this.q('b-session-apply').disabled = true;
     try {
-      const { room } = await this.school.request('/band/rooms/' + this.room.id + '/update', { method: 'POST', data: { version: this.room.version, sourceKind: song.sourceKind, sourceId: song.id, revisionId: song.revisionId, startBar: Number(this.q('b-session-from').value), assignments } });
+      const { room } = await this.school.request('/band/rooms/' + this.room.id + '/update', { method: 'POST', data: { version: this.room.version, sourceKind: song.sourceKind, sourceId: song.id, revisionId: song.revisionId, backingId:this.q('b-session-backing').value || undefined, startBar: Number(this.q('b-session-from').value), assignments } });
       await this.receive(room);
       this.practice.message('Song and start bar applied. Everyone stays in the session; press Ready again.');
     } finally { this.updating = false; this.q('b-session-apply').disabled = false; }
@@ -118,6 +122,7 @@ export class BandRooms {
   }
   partChoices(preserve=false) {
     const song = this.practice.catalog.find(song => song.sourceKind + ':' + song.id === this.q('b-room-song').value); if (!song) return;
+    this.backingOptions(song,'b-room-backing');
     const choices = song.parts.map(part => '<option value="' + part.id + '">' + escapeHtml(part.name) + '</option>').join('');
     for(const [i,id] of this.seatIds().entries()){const select=this.q('b-part-'+id),previous=select.value;select.innerHTML=choices;select.value=preserve&&song.parts.some(part=>part.id===previous)?previous:(song.parts[i]||song.parts[0]).id;}
     if (!preserve) for (const id of this.seatIds()) if (this.q('b-student-' + id).value) this.studentPart(id);
@@ -125,21 +130,21 @@ export class BandRooms {
   async create() {
     const song = this.practice.catalog.find(song => song.sourceKind + ':' + song.id === this.q('b-room-song').value); if (!song) return;
     const assignments=this.seatIds().map(id=>({userId:this.q('b-student-'+id).value,partId:this.q('b-part-'+id).value})).filter(p=>p.userId);
-    const { room } = await this.school.request('/band/rooms', { method: 'POST', data: { sourceKind: song.sourceKind, sourceId: song.id, revisionId: song.revisionId, assignments } });
+    const { room } = await this.school.request('/band/rooms', { method: 'POST', data: { sourceKind: song.sourceKind, sourceId: song.id, revisionId: song.revisionId, backingId:this.q('b-room-backing').value || undefined, assignments } });
     await this.join(room.id);
   }
   async join(id) {
     if (this.room?.id === id && this.link.authenticated) return;
     this.leave(); const version = ++this.loading;
     const { room } = await this.school.request('/band/rooms/' + id); if (version !== this.loading) return;
-    const { arrangement } = await this.school.request('/band/arrangements/' + room.arrangement.sourceKind + '/' + room.arrangement.id + '?revision=' + encodeURIComponent(room.arrangement.revisionId)); if (version !== this.loading) return;
+    const { arrangement } = await this.school.request('/band/arrangements/' + room.arrangement.sourceKind + '/' + room.arrangement.id + '?revision=' + encodeURIComponent(room.arrangement.revisionId)+(room.arrangement.backingId?'&backing='+encodeURIComponent(room.arrangement.backingId):'')); if (version !== this.loading) return;
     this.room = room; this.practice.stop(); this.practice.useArrangement(arrangementFromBar(arrangement, room.arrangement.startBar || 1));
     this.loadedRoomKey = this.arrangementKey(room); this.songLoading = false;
     const own = room.participants.find(p => p.userId === this.school.user.id);
     if (own) { this.practice.selectPart(own.partId); this.q('b-click').checked = false; }
     this.link.join(id); this.render(); this.practice.message('Session loaded. Check your sound and input, then press Ready.');
   }
-  arrangementKey(room) { return [room.arrangement.sourceKind, room.arrangement.id, room.arrangement.revisionId, room.arrangement.startBar || 1].join(':'); }
+  arrangementKey(room) { return [room.arrangement.sourceKind, room.arrangement.id, room.arrangement.revisionId, room.arrangement.backingId, room.arrangement.startBar || 1].join(':'); }
   async receive(room) {
     if (room.id !== this.room?.id) return;
     if (room.state === 'closed') { if(this.practice.session?.takeId)this.practice.stop('The teacher closed this session.',false,true);this.leave(); this.practice.message('The teacher closed this session.'); return; }
@@ -151,7 +156,7 @@ export class BandRooms {
       this.songLoading = key; this.prepared = false; this.prepareToken = (this.prepareToken || 0) + 1;
       this.practice.stop('The teacher changed the song or start bar.', false, true); this.render();
       try {
-        const { arrangement } = await this.school.request('/band/arrangements/' + room.arrangement.sourceKind + '/' + room.arrangement.id + '?revision=' + encodeURIComponent(room.arrangement.revisionId));
+        const { arrangement } = await this.school.request('/band/arrangements/' + room.arrangement.sourceKind + '/' + room.arrangement.id + '?revision=' + encodeURIComponent(room.arrangement.revisionId)+(room.arrangement.backingId?'&backing='+encodeURIComponent(room.arrangement.backingId):''));
         if (token !== this.loading || this.room?.id !== room.id) return;
         this.practice.useArrangement(arrangementFromBar(arrangement, room.arrangement.startBar || 1));
         const own = this.room.participants.find(person => person.userId === this.school.user?.id);
@@ -215,7 +220,7 @@ export class BandRooms {
     await this.practice.prepareAudio();
     if (token !== this.prepareToken || !this.room || this.room.version !== version || this.school.generation !== generation || document.hidden || document.querySelector('dialog[open]')) return;
     const input = this.teacher ? 'Classroom speaker' : this.practice.inputLabel();
-    if (!this.link.send({ type: 'ready', version, revisionId: this.room.arrangement.revisionId, audio: true, input, sync: this.link.clock.status })) throw new Error('Reconnect before pressing Ready.');
+    if (!this.link.send({ type: 'ready', version, revisionId: this.room.arrangement.revisionId, backingId:this.room.arrangement.backingId, audio: true, input, sync: this.link.clock.status })) throw new Error('Reconnect before pressing Ready.');
     this.prepared = true; this.preparedOffset = this.link.clock.status.offset;
     if (!this.teacher) { this.q('b-input-controls').open = false; this.q('b-stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
     if (this.teacher) { this.practice.audio.master.gain.value = Number(this.q('b-speaker-volume').value) / 100 * 0.48; this.practice.audio.click(this.practice.audio.context.currentTime + 0.03, true); }

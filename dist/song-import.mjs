@@ -1,3 +1,4 @@
+import { backingChoices, backingFileKind, withBacking } from './backing-tracks.mjs';
 import { DRUMS } from './engine.mjs';
 import { parseMidiSong, pitchChoices, makeMidiChart, backingSchedule } from './midi.mjs';
 import { createDemoMidi, createDemoWav } from './demo-data.mjs';
@@ -24,6 +25,7 @@ export class SongImporter {
     this.libraryBusy = false;
     this.libraryScope = 'device';
     this.el = id => document.getElementById(id);
+    this.el('drum-backing').onchange=()=>{const source=this.draft?.schoolSource;if(source)this.loadSchoolSong(source.songId,source.revisionId,this.el('drum-backing').value);};
     this.el('audio-sync-tools').innerHTML = audioSyncMarkup();
     this.dialog = this.el('import-dialog');
     this.el('midi-file').addEventListener('change', () => { const file = this.el('midi-file').files[0]; if (file) this.readMidi(file); });
@@ -310,11 +312,12 @@ export class SongImporter {
       }
     } finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('show-archived').disabled = false; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
   }
-  async loadSchoolSong(id, revisionId) {
+  async loadSchoolSong(id, revisionId, backingId) {
     const token = ++this.libraryToken; this.libraryBusy = true;
     this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = true; }); this.el('library-status').textContent = 'Downloading the school song…';
     try {
-      const meta = (await this.school.request(`/library/${id}${revisionId?`?revision=${encodeURIComponent(revisionId)}`:''}`)).song;
+      const stored = (await this.school.request(`/library/${id}${revisionId?`?revision=${encodeURIComponent(revisionId)}`:''}`)).song;
+      const meta=withBacking(stored,backingId);
       if (token !== this.libraryToken) return;
       if (meta.parts?.length && (!meta.parts.some(part => part.instrument === 'drums') || this.bandActive?.() && meta.parts.some(part => part.instrument !== 'drums'))) {
         this.el('library-dialog').close();
@@ -323,9 +326,10 @@ export class SongImporter {
       }
       const midiBytes = await this.school.download(`/library/${id}/revisions/${meta.revisionId}/midi`);
       if (token !== this.libraryToken) return;
-      const audioBytes = meta.audioName ? await this.school.download(`/library/${id}/revisions/${meta.revisionId}/audio`) : null;
+      const audioBytes = meta.audioName ? await this.school.download(`/library/${id}/revisions/${meta.revisionId}/${stored.backingTracks?backingFileKind(meta.backingId):'audio'}`) : null;
       if (token !== this.libraryToken) return;
       const draft = this.makeDraft(parseMidiSong(midiBytes, meta.fileName)); draft.song.title = meta.title;
+      draft.multiBacking=stored.backingTracks?.length>1;draft.backingTracks=backingChoices(stored).map(({id,label})=>({id,label}));draft.backingId=meta.backingId;
       draft.arrangementParts = meta.parts || null; draft.lyricSettings = { lyricsText:meta.lyricsText, lyricsClock:meta.lyricsClock, lyricsOffset:meta.lyricsOffset };
       Object.assign(draft, { midiBytes, audioBytes, audioName: meta.audioName, selected: meta.selected, mapping: meta.mapping, offset: meta.offset, timeScale: meta.timeScale, volume: meta.volume, ...validateAudioRange(meta), schoolTitle: meta.title, schoolSource: { schoolId: this.school.schoolId, songId: id, revisionId: meta.revisionId, canManage: meta.canManage } });
       if (audioBytes) draft.buffer = await this.audio.decodeBacking(audioBytes.slice(0));
@@ -335,7 +339,8 @@ export class SongImporter {
       this.token++; this.busy = false; this.draft = draft;
       this.el('midi-file').value = ''; this.el('audio-file').value = ''; this.sync.reset(); this.render();
       if (this.apply()) this.el('library-dialog').close();
-    } catch (error) { if (token === this.libraryToken) { this.el('library-status').textContent = error.message; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
+      this.el('drum-backing').innerHTML=draft.backingTracks.map(track=>'<option value="'+track.id+'">'+escapeHtml(track.label)+'</option>').join('');this.el('drum-backing').value=draft.backingId || '';this.el('drum-backing-picker').hidden=draft.backingTracks.length<2;
+    } catch (error) { if (token === this.libraryToken) { this.el('drum-backing').value=this.draft?.backingId || '';this.el('library-status').textContent = error.message; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
     finally { if (token === this.libraryToken) { this.libraryBusy = false; this.el('library-list').querySelectorAll('button').forEach(button => { button.disabled = false; }); } }
   }
   async publishDeviceSong(id) {

@@ -2,7 +2,7 @@ export class MobilePractice {
   constructor(practice) {
     this.practice = practice; this.q = practice.q; this.mobile = matchMedia('(max-width:800px), (orientation:landscape) and (max-height:600px)');
     this.nav = document.querySelector('.instrument-nav'); this.trigger = this.q('instrument-menu-toggle');
-    this.actions = document.querySelector('.top-actions'); this.song = this.q('b-song').parentElement;
+    this.actions = document.querySelector('.top-actions'); this.song = this.q('b-practice-choices');
     this.song.classList.add('practice-song-picker'); this.solo = this.q('groove'); this.soloHome = this.solo.parentElement;
     this.q('b-song').setAttribute('aria-label','Practice song');
     this.soloSlot = document.createElement('label'); this.soloSlot.className = 'focus-song-picker'; this.soloSlot.setAttribute('aria-label', 'Practice song');
@@ -36,6 +36,9 @@ export class MobilePractice {
     const soloFull = this.q('practice-stage').classList.contains('score-expanded');
     if (soloFull && this.solo.parentElement !== this.soloSlot) this.soloSlot.append(this.solo);
     else if (!soloFull && this.solo.parentElement !== this.soloHome) this.soloHome.append(this.solo);
+    const drumBacking=this.q('drum-backing-picker');
+    if(soloFull && drumBacking.parentElement!==this.soloSlot)this.soloSlot.append(drumBacking);
+    else if(!soloFull && drumBacking.parentElement!==this.soloHome.parentElement)this.soloHome.after(drumBacking);
     this.soloSlot.hidden = !soloFull; this.q('score-title').hidden = soloFull;
     this.layoutSounds(soloFull);
     document.body.classList.toggle('mobile-practice', mobile);

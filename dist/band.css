@@ -190,3 +190,10 @@ body .instrument-nav{position:fixed;left:0;top:0;bottom:0;z-index:35;width:var(-
  .score-expanded.has-highway-meter .stage-overlay { top:195px; }
  .score-expanded.has-highway-meter .highway-meter { top:195px; }
 }
+
+/* Backing choices travel with the song picker into phone focus view. */
+#b-practice-choices{display:flex;gap:8px;align-items:end;flex:1;min-width:0}#b-practice-choices>label{flex:1;min-width:0}
+.backing-picker{display:grid;gap:5px;min-width:0;max-width:260px}.backing-picker>span{font-size:11px;color:#afc6c6}.backing-picker select{width:100%;min-width:0;min-height:42px;font-size:14px;padding:8px;background:#1e2e32;color:#edf4ee;border:1px solid #59706d;border-radius:7px}
+.backing-manager{padding:12px;border:1px solid #49625d;border-radius:10px;margin-bottom:12px}.backing-manager input[type=text]{min-width:0}
+.focus-song-picker:has(#drum-backing-picker){display:flex;gap:8px;align-items:center}.focus-song-picker>#groove{flex:1;width:0}.focus-song-picker>.backing-picker{flex:1}
+@media(max-width:520px){#b-practice-choices{flex-wrap:wrap}#b-practice-choices>label{flex-basis:100%;max-width:none}#b-full-song-slot #b-practice-choices{flex-wrap:nowrap}#b-full-song-slot #b-practice-choices>label{flex-basis:0}#b-full-song-slot .backing-picker>span{display:none}}

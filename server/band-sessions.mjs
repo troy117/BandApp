@@ -1,3 +1,4 @@
+import { backingChoices, backingFileKind, withBacking } from '../dist/backing-tracks.mjs';
 import { createPracticeChart } from '../dist/practice.mjs';
 import { validateRunReport } from '../dist/run-report.mjs';
 import { randomUUID } from 'node:crypto';
@@ -21,7 +22,7 @@ export function checkedLiveVoice(voice, instrument) {
   if (voice.state === 'on-pitch' && Math.abs(voice.cents) > 35 || voice.state === 'low' && voice.cents >= -35 || voice.state === 'high' && voice.cents <= 35) throw bandError(400, 'Invalid live pitch guidance.');
   return { state: voice.state, cents: measured ? Math.round(voice.cents) : null };
 }
-const descriptor = arrangement => ({ id: arrangement.id, revisionId: arrangement.revisionId, sourceKind: arrangement.sourceKind, title: arrangement.title, duration: arrangement.duration, bpm: arrangement.bpm, bars: arrangement.sourceBars || arrangement.parts[0].chart.bars, startBar: arrangement.startBar || 1, parts: arrangement.parts.map(part => ({ id: part.id, name: part.name, instrument: part.instrument, total: part.chart.notes.length })) });
+const descriptor = arrangement => ({ id: arrangement.id, revisionId: arrangement.revisionId, sourceKind: arrangement.sourceKind, backingId:arrangement.backingId, backingTracks:arrangement.backingTracks, title: arrangement.title, duration: arrangement.duration, bpm: arrangement.bpm, bars: arrangement.sourceBars || arrangement.parts[0].chart.bars, startBar: arrangement.startBar || 1, parts: arrangement.parts.map(part => ({ id: part.id, name: part.name, instrument: part.instrument, total: part.chart.notes.length })) });
 
 export class BandSessions {
   constructor(api, { clock = () => performance.now() } = {}) {
@@ -30,7 +31,7 @@ export class BandSessions {
     this.store.db.prepare("UPDATE band_takes SET state='interrupted' WHERE state='playing'").run();
     this.store.db.prepare("UPDATE band_results SET state='interrupted' WHERE state='playing'").run();
   }
-  async arrangement(actor, kind, id, revisionId) {
+  async arrangement(actor, kind, id, revisionId, backingId) {
     if (kind === 'duet') {
       if (typeof id !== 'string' || !DUETS.some(song => song.id === id)) throw bandError(400, 'Choose a provided duet.');
       return builtinArrangement(id);
@@ -40,12 +41,13 @@ export class BandSessions {
     const visible = this.store.getSong(actor, id), revision = revisionId || visible.revisionId;
     const row = this.store.db.prepare("SELECT metadata FROM revisions WHERE id=? AND song_id=? AND state='published'").get(revision, id);
     if (!row) throw bandError(404, 'Song version not found.');
-    const key = id + ':' + revision;
+    let meta;try{meta=withBacking({...JSON.parse(row.metadata),id,revisionId:revision},backingId);}catch(error){throw bandError(400,error.message);}
+    const key = id + ':' + revision + ':' + (meta.backingId || '');
     if (this.cache.has(key)) return this.cache.get(key);
-    const meta = { ...JSON.parse(row.metadata), id, revisionId: revision };
     const midi = parseMidiSong(await readFile(this.store.musicPath(revision, 'midi')), meta.fileName);
     const arrangement = importedArrangement(midi, meta);
-    arrangement.audio = meta.audioName ? { route: '/library/' + id + '/revisions/' + revision + '/audio', offset: meta.offset, volume: meta.volume, name: meta.audioName, audioStart:meta.audioStart, audioEnd:meta.audioEnd } : null;
+    arrangement.audio = meta.audioName ? { route: '/library/' + id + '/revisions/' + revision + '/' + (meta.backingTracks ? backingFileKind(meta.backingId) : 'audio'), offset: meta.offset, volume: meta.volume, name: meta.audioName, audioStart:meta.audioStart, audioEnd:meta.audioEnd } : null;
+    arrangement.backingId=meta.backingTracks ? meta.backingId : null; arrangement.backingTracks=backingChoices(meta).map(({id,label})=>({id,label}));
     this.cache.set(key, arrangement);
     if (this.cache.size > 12) this.cache.delete(this.cache.keys().next().value);
     return arrangement;
@@ -81,7 +83,7 @@ export class BandSessions {
       const songs = [];
       for (const stored of this.store.listSongs(actor)) {
         const song = await this.librarySong(actor, stored);
-        songs.push({ id: song.id, revisionId: song.revisionId, sourceKind: 'school', title: song.title, parts: arrangementParts(song.parts, song.selected) });
+        songs.push({ id: song.id, revisionId: song.revisionId, sourceKind: 'school', title: song.title, backingTracks:backingChoices(song).map(({id,label})=>({id,label})), backingId:song.defaultBackingId || (song.audioName?'main':null), parts: arrangementParts(song.parts, song.selected) });
       }
       send(200, { songs: [...DUETS.map(song => descriptor(builtinArrangement(song.id))), ...songs] }); return true;
     }
@@ -107,7 +109,7 @@ export class BandSessions {
       send(200, { deleted: takeEdit[2] === 'delete', id: row.id }); return true;
     }
     let match = path.match(/^arrangements\/(duet|school)\/([a-z0-9-]+)$/);
-    if (match && method === 'GET') { send(200, { arrangement: await this.arrangement(actor, match[1], match[2], url.searchParams.get('revision')) }); return true; }
+    if (match && method === 'GET') { send(200, { arrangement: await this.arrangement(actor, match[1], match[2], url.searchParams.get('revision'), url.searchParams.get('backing')) }); return true; }
     const reportRoute=path.match(/^takes\/([0-9a-f-]+)\/report$/);
     if(reportRoute && method==='POST') {
       this.api.limit('band-report:'+actor.id,240,3600000);
@@ -120,7 +122,7 @@ export class BandSessions {
     }
     if (path === 'runs' && method === 'POST') {
       this.api.limit('band-runs:' + actor.id, 240, 3600000);
-      const input = await this.api.json(request,8*1024*1024), arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId);
+      const input = await this.api.json(request,8*1024*1024), arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId, input.backingId);
       const part = arrangement.parts.find(part => part.id === input.partId);
       if (!part || !/^[0-9a-f-]{36}$/.test(input.id || '')) throw bandError(400, 'Choose a valid part/result.');
       if(followInstrument(part.instrument))throw bandError(400,'Follow-along parts do not produce performance scores.');
@@ -149,7 +151,7 @@ export class BandSessions {
       const input = await this.api.json(request);
       this.sweep();
       if (this.rooms.size >= 60 || [...this.rooms.values()].filter(room => room.teacherId === actor.id && room.state !== 'closed').length >= 3) throw bandError(409, 'Close an existing session before creating another.');
-      const arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId);
+      const arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId, input.backingId);
       if (!Array.isArray(input.assignments) || input.assignments.length < 1 || input.assignments.length > 8 || new Set(input.assignments.map(p => p?.userId)).size !== input.assignments.length) throw bandError(400, 'Choose one to eight different students.');
       const participants = input.assignments.map(assignment => {
         const user = this.store.user(assignment?.userId), part = arrangement.parts.find(p => p.id === assignment?.partId);
@@ -168,7 +170,7 @@ export class BandSessions {
       if (input.version !== room.version) throw bandError(409, 'The session changed. Refresh its state.');
       if (room.state === 'closed') throw bandError(409, 'This session has ended. Create a new session.');
       if (match[2] === 'update') {
-        const source = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId);
+        const source = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId, input.backingId);
         if (input.version !== room.version || room.state === 'closed') throw bandError(409, 'The session changed. Refresh its state.');
         if (!Array.isArray(input.assignments) || input.assignments.length !== room.participants.length || new Set(input.assignments.map(p => p?.userId)).size !== room.participants.length) throw bandError(400, 'Assign a part to every student in this session.');
         const assigned = room.participants.map(person => {
@@ -310,7 +312,7 @@ export class BandSessions {
     const teacher = room.teacherSocket === socket, p = room.participants.find(p => p.socket === socket);
     if (!teacher && !p) throw bandError(409, 'Join the session first.');
     if (message.type === 'ready') {
-      if (room.state !== 'preparing' || message.version !== room.version || message.revisionId !== room.arrangement.revisionId) throw bandError(409, 'Prepare the current song version first.');
+      if (room.state !== 'preparing' || message.version !== room.version || message.revisionId !== room.arrangement.revisionId || (message.backingId || null) !== (room.arrangement.backingId || null)) throw bandError(409, 'Prepare the current song version first.');
       const sync = message.sync;
       if (message.audio !== true || !sync || !Number.isInteger(sync.samples) || sync.samples < 3 || !Number.isFinite(sync.rttMs) || sync.rttMs < 0 || sync.rttMs > 300 || !Number.isFinite(sync.uncertaintyMs) || sync.uncertaintyMs < 0 || sync.uncertaintyMs > 100 || typeof message.input !== 'string' || !message.input.trim() || message.input.length > 100) throw bandError(400, 'Check audio, input and synchronization before Ready.');
       if (teacher) room.teacherReady = true;

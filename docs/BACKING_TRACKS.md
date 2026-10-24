@@ -1,4 +1,16 @@
-# Teacher backing tracks and audio alignment
+# Backing versions
+
+Teachers: open **MIDI & audio sync**, choose a school song, then **Add another backing**. Choose the audio file, give it a short student-facing name, and calibrate its offset/MIDI speed and start/end cuts. Compare it against drums, keyboard, guitar or another assigned part. Preview the beginning and a later section. Switch **Backing version** to return to another recording; its settings are retained. Choose **Default for students**, then publish the school song update to save all recordings together.
+
+Students: choose **Backing** beside the song. The same selector travels into phone focus view. Switching stops playback and loads the selected recording's note and lyric timing. Songs with one backing keep the simple layout. In a jam, the teacher chooses the backing in session setup or Song and playback; students use that shared clock and press Ready again after a change.
+
+Up to six recordings, 100 MB each and 300 MB combined. Every file uploads before a revision is published. Older revisions and original files remain available. School backups include every backing file. Legacy single-recording songs remain readable.
+
+Calibration uses an offset and a steady tempo adjustment. Added/missing bars or changing live tempo still require a matching edit of the recording or MIDI; a global adjustment cannot repair a different arrangement. Student performance reports use the selected backing's timeline. Microphone recordings remain local and are not uploaded.
+
+Lyrics normally follow MIDI time. Recording-clock lyrics retain a reference alignment when versions change, including existing word timestamps. Arrangement setup export/import applies to the selected backing; publish saves all backing versions and their calibrations.
+
+## Alignment tools
 
 Open **MIDI & audio sync** in the teacher sidebar or account menu and choose a school song. The **Audio & backing** shortcut in the library opens the same workspace. The editor also has a **Parts & lyrics** tab. See [piano and sync controls](PIANO_AND_SYNC.md) for waveform scrolling/zoom and reversible recording start/end cuts.
 

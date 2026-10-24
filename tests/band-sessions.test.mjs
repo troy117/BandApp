@@ -74,7 +74,7 @@ test('shared take deletion is teacher-owned, recoverable and preserves all stude
 async function readyRoom(env,room) {
   const peers=await Promise.all([env.wire(env.setup),env.wire(env.a),env.wire(env.b)]);
   for(const [i,peer] of peers.entries()){peer.send({type:'join',roomId:room.id,clientId:'test-client-'+i});await peer.wait(m=>m.type==='room'&&m.room.id===room.id);}
-  for(const peer of peers)peer.send({type:'ready',version:room.version,revisionId:room.arrangement.revisionId,audio:true,input:'Computer keys',sync:{samples:5,rttMs:10,uncertaintyMs:5}});
+  for(const peer of peers)peer.send({type:'ready',version:room.version,revisionId:room.arrangement.revisionId,backingId:room.arrangement.backingId,audio:true,input:'Computer keys',sync:{samples:5,rttMs:10,uncertaintyMs:5}});
   const ready=await peers[0].wait(m=>m.type==='room'&&m.room.teacherReady&&m.room.participants.every(p=>p.ready));
   return {peers,room:ready.room};
 }
@@ -365,4 +365,30 @@ test('one classroom session changes songs and starting bars, retains seats and s
   for (const peer of peers.slice(1)) await peer.wait(message => message.type === 'room' && message.room.state === 'closed');
   assert.equal((await env.request(env.a, '/band/rooms')).data.rooms.length, 0);
   assert.equal((await env.request(env.setup, '/band/rooms/' + room.id + '/stop', 'POST', { version: closed.data.room.version })).status, 409);
+});
+
+
+test('multiple recordings publish atomically, download separately, and use one teacher-selected clock in a jam',async t=>{
+ const env=await bandFixture(t),midi=duetMidi(),first=new Uint8Array([1,2,3]),second=new Uint8Array([4,5,6,7]);
+ const tracks=[{id:'synth',label:'MIDI aligned',audioName:'synth.wav',audioBytes:first.length,offset:0,timeScale:1,volume:.5},{id:'recording',label:'Live recording',audioName:'live.wav',audioBytes:second.length,offset:-2,timeScale:1.2,volume:.7,audioStart:2,audioEnd:10}];
+ const metadata={title:'Original duet',fileName:'duet.mid',midiBytes:midi.length,audioBytes:first.length,audioName:'synth.wav',selected:['0:9'],mapping:{},offset:0,timeScale:1,volume:.5,backingTracks:tracks,defaultBackingId:'synth'};
+ const begin=await env.request(env.setup,'/library/uploads','POST',metadata);assert.equal(begin.status,201);const upload=begin.data.uploadId;
+ assert.equal((await env.request(env.a,'/library/uploads/'+upload+'/audio-synth','PUT',first)).status,403);
+ await env.request(env.setup,'/library/uploads/'+upload+'/midi','PUT',midi);
+ await env.request(env.setup,'/library/uploads/'+upload+'/audio-synth','PUT',first);
+ assert.equal((await env.request(env.setup,'/library/uploads/'+upload+'/publish','POST',{})).status,409);
+ await env.request(env.setup,'/library/uploads/'+upload+'/audio-recording','PUT',second);
+ const published=await env.request(env.setup,'/library/uploads/'+upload+'/publish','POST',{});assert.equal(published.status,200);const song=published.data.song;
+ // Download through the HTTP server using the same origin as the fixture request helper.
+ const origin='http://127.0.0.1:'+env.server.address().port;
+ for(const [kind,expected] of [['audio-synth',first],['audio-recording',second],['audio',first]]){
+  const response=await fetch(origin+'/api/library/'+song.id+'/revisions/'+song.revisionId+'/'+kind,{headers:{Cookie:'groove_session='+env.a.token}});assert.equal(response.status,200);assert.deepEqual(new Uint8Array(await response.arrayBuffer()),expected);
+ }
+ assert.equal((await env.request(env.a,'/band/arrangements/school/'+song.id+'?backing=missing')).status,400);
+ const base=(await env.request(env.a,'/band/arrangements/school/'+song.id+'?backing=synth')).data.arrangement;
+ const live=(await env.request(env.a,'/band/arrangements/school/'+song.id+'?backing=recording')).data.arrangement;
+ assert.equal(live.id,song.id);assert.equal(live.parts[1].chart.notes[1].time,base.parts[1].chart.notes[1].time*1.2);assert.equal(live.audio.offset,-2);assert.equal(live.audio.audioStart,2);
+ const created=await env.request(env.setup,'/band/rooms','POST',{sourceKind:'school',sourceId:song.id,revisionId:song.revisionId,backingId:'recording',assignments:[{userId:env.a.user.id,partId:'drums'},{userId:env.b.user.id,partId:'keyboard'}]});assert.equal(created.status,201);assert.equal(created.data.room.arrangement.backingId,'recording');
+ await readyRoom(env,created.data.room);
+ const staleClient=await env.request(env.setup,'/library/uploads','POST',{...metadata,backingTracks:undefined,defaultBackingId:undefined,songId:song.id,revisionId:song.revisionId});assert.equal(staleClient.status,409);
 });
