@@ -223,7 +223,7 @@ function renderMappings() {
   $('mapping-list').innerHTML = DRUMS.map(drum => `<div class="mapping-row ${capture?.drum === drum.id ? 'capturing' : ''}" data-drum="${drum.id}"><span class="mapping-drum"><i class="drum-dot" style="--drum-color:${drum.color}"></i>${drum.name}</span><span class="mapping-keys">${bindings[drum.id].map(code => `<span class="key-chip">${keyLabel(code)}<button class="clear-key" data-remove="${code}" data-drum="${drum.id}" aria-label="Remove ${keyLabel(code)} from ${drum.name}">×</button></span>`).join('') || '<span class="unmapped">No key</span>'}</span><button class="button quiet" data-map="${drum.id}" aria-label="Change ${drum.name} key">${capture?.drum === drum.id && !capture.additional ? 'Press a key…' : 'Change'}</button><button class="button quiet" data-add="${drum.id}" aria-label="Add alternate ${drum.name} key">+ Key</button></div>`).join('');
 }
 function setLocked(locked) {
-  for (const id of ['groove', 'bpm', 'bars', 'metronome', 'guide']) $(id).disabled = locked || (id === 'bpm' && settings.grooveId === 'imported');
+  for (const id of ['groove', 'bpm', 'bars']) $(id).disabled = locked || (id === 'bpm' && settings.grooveId === 'imported');
   $('view-report').disabled = locked || !lastReport;
   practice.lock(locked);
   renderScoreControls();
@@ -470,7 +470,7 @@ function unloadSong() { stopRun(); loadedSong = null; importer.applied = null; i
 $('clear-song').addEventListener('click', unloadSong);
 for (const [id, field] of [['groove', 'grooveId'], ['bars', 'bars'], ['bpm', 'bpm'], ['tolerance', 'tolerance'], ['offset', 'offset'], ['guide', 'guide'], ['metronome', 'metronome']]) {
   $(id).addEventListener(id === 'offset' ? 'input' : 'change', () => {
-    if (session) return;
+    if (session && !['guide', 'metronome'].includes(id)) return;
     const element = $(id);
     if (id === 'groove' && element.value.startsWith('school:')) { const songId = element.value.slice(7); element.value = settings.grooveId; importer.loadSchoolSong(songId); return; }
     let value = element.type === 'checkbox' ? element.checked : field === 'grooveId' ? element.value : Number(element.value);
@@ -481,6 +481,7 @@ for (const [id, field] of [['groove', 'grooveId'], ['bars', 'bars'], ['bpm', 'bp
     }
     if (field === 'bpm') value = Math.round(value);
     settings[field] = value;
+    if (session) { session.settings[field] = value; persist(); return; }
     persist(); syncSettings();
   });
 }

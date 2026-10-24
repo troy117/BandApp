@@ -23,6 +23,8 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
+Version 0.19.1 puts Metronome and Melody guide checkboxes in vocal Focus view for teachers and students, in both Pitch highway and Large lyrics. Drum fullscreen includes Metronome and Guide drums, adjustable during playback. The existing controls move back to their settings panels on exit.
+
 Prototype 19 adds a teacher **Song audio & backing** menu and per-song editor: replace audio, compare its waveform with assigned MIDI notes, try suggested alignment, match two beats for steady drift, and preview with a metronome/guide before publishing. See [teacher backing-track setup](docs/BACKING_TRACKS.md).
 
 Prototype 18 refines phone practice: instruments in the top menu, songs selectable inside focus, backing volume beside Mic, and a landscape vocal layout with a right-side pitch meter in both highway and large-lyrics views. Focus requests a screen wake lock. Assigned students get Join jam; teachers get default-instrument assignments, recoverable take deletion and live class meters. Only current vocal guidance is shared in an active jam; audio stays on the phone and no vocal grade is saved. See [phone practice and teacher dashboard](docs/MOBILE_CLASSROOM.md).

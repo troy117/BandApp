@@ -8,6 +8,12 @@ export class MobilePractice {
     this.soloSlot = document.createElement('label'); this.soloSlot.className = 'focus-song-picker'; this.soloSlot.setAttribute('aria-label', 'Practice song');
     this.solo.setAttribute('aria-label', 'Practice song');
     this.q('score-title').after(this.soloSlot);
+    this.bandSounds = this.soundGroup(this.q('b-awake-state'));
+    this.soloSounds = this.soundGroup(this.q('score-awake'));
+    this.soundOptions = ['b-click', 'b-singing-click', 'b-vocal-guide-enabled', 'metronome', 'guide'].map(id => {
+      const label = this.q(id).closest('label'), home = document.createComment(id + ' home');
+      label.before(home); return { id, label, home };
+    });
     this.joinButton = document.createElement('button'); this.joinButton.id = 'join-active-jam'; this.joinButton.className = 'button quiet'; this.joinButton.hidden = true; this.actions.append(this.joinButton);
     this.joinButton.onclick = () => practice.attempt(async () => { practice.setMode('jam'); if (practice.rooms.room) return; if (this.invitations?.length === 1) await practice.rooms.join(this.invitations[0].id); });
     this.mobile.addEventListener('change', () => this.layout()); window.addEventListener('resize', () => this.layout());
@@ -31,7 +37,26 @@ export class MobilePractice {
     if (soloFull && this.solo.parentElement !== this.soloSlot) this.soloSlot.append(this.solo);
     else if (!soloFull && this.solo.parentElement !== this.soloHome) this.soloHome.append(this.solo);
     this.soloSlot.hidden = !soloFull; this.q('score-title').hidden = soloFull;
+    this.layoutSounds(soloFull);
     document.body.classList.toggle('mobile-practice', mobile);
+  }
+  soundGroup(before) {
+    const group = document.createElement('div'); group.className = 'focus-sound-options';
+    group.setAttribute('role', 'group'); group.setAttribute('aria-label', 'Practice sound'); before.before(group); return group;
+  }
+  layoutSounds(soloFull) {
+    const p = this.practice, vocal = p.part.instrument === 'vocals';
+    for (const { id, label, home } of this.soundOptions) {
+      const band = id.startsWith('b-');
+      const show = band ? p.expanded && (id === 'b-click' ? !vocal : vocal) : soloFull;
+      const destination = band ? this.bandSounds : this.soloSounds;
+      if (show) { if (label.parentElement !== destination) destination.append(label); }
+      else if (label.parentElement !== home.parentElement) home.after(label);
+    }
+    const guide = this.q('b-vocal-guide-enabled');
+    guide.disabled = vocal && !p.part.chart.notes.length;
+    guide.closest('label').title = guide.disabled ? 'This song does not have a vocal melody guide yet.' : '';
+    this.bandSounds.hidden = !p.expanded; this.soloSounds.hidden = !soloFull;
   }
   async poll() {
     const school = this.practice.school;

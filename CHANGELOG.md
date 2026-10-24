@@ -1,5 +1,11 @@
 # Changes
 
+## 0.19.1 — October 23, 2026 — Focus sound controls
+
+- Vocal focus toolbars include Metronome and Melody guide checkboxes for teachers and students in both vocal views. Existing controls move into focus and return to their settings panels without losing state. Songs without vocal notes show an unavailable melody guide.
+- Instrument focus includes its metronome. Drum fullscreen includes Metronome and Guide drums; both can change during playback. Keyboard focus navigation includes the checkboxes. Compact portrait controls use a second row; landscape vocals retain the highway/lyrics and right-side meter.
+- Validation: all 184 tests, syntax and standalone export checks pass. Isolated student browser trials verify live toggles, state retention, drum playback, and 390×844 / 844×390 vocal layouts. No school music, accounts, schema or hosting settings change.
+
 ## 0.19.0 — October 23, 2026 — Teacher backing-track editor
 
 - Teacher account menus and editable school-library songs offer Audio & backing. The shared-song editor separates audio controls from parts/lyrics and supports replacement recordings, volume, offset and MIDI speed.

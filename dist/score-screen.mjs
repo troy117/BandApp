@@ -66,7 +66,7 @@ export class ScoreScreen {
       event.preventDefault(); event.stopImmediatePropagation(); this.exit(); return;
     }
     if (event.key !== 'Tab') return;
-    const controls = [...this.root.querySelectorAll('button:not([disabled]), select:not([disabled]), [tabindex="0"]')].filter(item => item.getClientRects().length);
+    const controls = [...this.root.querySelectorAll('button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex="0"]')].filter(item => item.getClientRects().length);
     const first = controls[0], last = controls.at(-1), current = this.doc.activeElement;
     if (!first) return;
     if (!this.root.contains(current) || (event.shiftKey && current === first) || (!event.shiftKey && current === last)) {
