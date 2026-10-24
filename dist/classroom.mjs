@@ -28,6 +28,10 @@ export class SchoolClient {
     this.el('school-own-progress').addEventListener('click', () => this.showProgress(this.user.id));
     this.el('school-more-results').addEventListener('click', () => this.showProgress(this.progressUser, true));
     this.el('school-refresh-roster').addEventListener('click', () => this.loadRoster());
+    this.el('school-toggle-add-account').addEventListener('click', () => { const panel = this.el('school-add-account'); panel.hidden = !panel.hidden; this.el('school-toggle-add-account').setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) this.el('school-student-name').focus(); });
+    this.el('school-roster-search').addEventListener('input', () => this.renderRoster());
+    for (const id of ['school-roster-instrument', 'school-roster-status', 'school-roster-sort']) this.el(id).addEventListener('change', () => this.renderRoster());
+    this.el('school-roster-clear').addEventListener('click', () => { this.resetRosterFilters(); this.renderRoster(); this.el('school-roster-search').focus(); });
     this.el('school-copy-login').addEventListener('click', () => this.copyCredentials());
     this.el('school-roster').addEventListener('click', event => this.rosterAction(event));
     this.el('school-roster').addEventListener('change', event => { if(event.target.dataset.instrumentUser) this.setInstrument(event.target.dataset.instrumentUser, event.target.value); });
@@ -67,6 +71,7 @@ export class SchoolClient {
       for (const id of ['school-account-dialog', 'school-dashboard-dialog', 'school-password-dialog', 'school-student-password-dialog']) this.el(id).close();
       this.passwordStudent = null; this.el('school-set-password').value = '';
       this.el('school-user-form').reset();
+      this.resetRosterFilters(); this.closeAccountForm();
       for (const id of ['school-roster', 'school-results', 'school-progress-name', 'school-progress-summary', 'school-credential-username', 'school-credential-password']) this.el(id).textContent = '';
       this.el('school-credentials').hidden = true; this.el('school-roster-section').hidden = true; this.el('school-progress-section').hidden = true;
     }
@@ -160,9 +165,26 @@ export class SchoolClient {
     try {
       const response = await this.request('/users'); if (version !== this.generation) return;
       this.roster = response.users;
-      this.el('school-roster').innerHTML = this.roster.length ? this.roster.map(user => `<article class="school-student"><div><strong>${escapeHtml(user.name)}</strong><small>@${escapeHtml(user.username)} · ${user.role === 'teacher' ? 'Teacher' : 'Student'}${!user.active ? ' · Inactive' : ''}${user.teacherName ? ` · ${escapeHtml(user.teacherName)}` : ''}</small></div><div class="school-student-metrics"><span><b>${user.attempts}</b> attempts</span><span>${user.recentAccuracy === null ? 'No results yet' : `${Math.round(user.recentAccuracy)}% recent match rate`}</span><span>${user.lastPractice ? `Last practice ${schoolDate(user.lastPractice)}` : 'Ready for a first practice'}</span></div><div class="school-row-actions">${user.role==='student'?'<label>Default instrument<select data-instrument-user="'+user.id+'" aria-label="Default instrument for '+escapeHtml(user.name)+'">'+instrumentOptions(user.defaultInstrument)+'</select></label>':''}<button class="button secondary" data-student="${user.id}" data-action="progress">Results</button><button class="text-button" data-student="${user.id}" data-action="${user.role === 'student' ? 'set-password' : 'reset'}">${user.role === 'student' ? 'Set password' : 'Reset password'}</button><button class="text-button" data-student="${user.id}" data-action="active">${user.active ? 'Disable' : 'Enable'}</button></div></article>`).join('') : '<p class="school-empty">Add your first student below. Their completed practice runs will appear here.</p>';
+      this.renderRoster();
       this.renderTeacherChoice(); this.el('school-dashboard-status').textContent = 'Recent match rates average the last 30 scored attempts, including stopped practice. Open Results to compare tempo, focus and timing.';
     } catch (error) { this.el('school-dashboard-status').textContent = error.message; }
+  }
+  closeAccountForm() { this.el('school-add-account').hidden = true; this.el('school-toggle-add-account').setAttribute?.('aria-expanded', 'false'); }
+  resetRosterFilters() {
+    this.el('school-roster-search').value = ''; this.el('school-roster-instrument').value = '';
+    this.el('school-roster-status').value = 'active'; this.el('school-roster-sort').value = 'name';
+  }
+  renderRoster() {
+    const query = this.el('school-roster-search').value, instrument = this.el('school-roster-instrument').value;
+    const status = this.el('school-roster-status').value, sort = this.el('school-roster-sort').value;
+    const users = classroomRoster(this.roster, { query, instrument, status, sort });
+    const students = this.roster.filter(user => user.role === 'student' && user.active).length;
+    const teachers = this.roster.filter(user => user.role === 'teacher' && user.active).length;
+    const inactive = this.roster.filter(user => !user.active).length;
+    this.el('school-roster-summary').textContent = `${students} active student${students === 1 ? '' : 's'}${teachers ? ` · ${teachers} teacher${teachers === 1 ? '' : 's'}` : ''}${inactive ? ` · ${inactive} inactive` : ''}`;
+    this.el('school-roster-count').textContent = `${users.length} of ${this.roster.length} accounts shown`;
+    this.el('school-roster-clear').hidden = !query && !instrument && status === 'active' && sort === 'name';
+    this.el('school-roster').innerHTML = users.length ? `<table class="school-roster-table"><caption>Classroom accounts and recent practice</caption><thead><tr><th scope="col">Student / account</th><th scope="col">Default instrument</th><th scope="col">Recent practice</th><th scope="col">Last practiced</th><th scope="col">Actions</th></tr></thead><tbody>${users.map(user => classroomStudentMarkup(user, this.user?.id)).join('')}</tbody></table>` : `<p class="school-empty">${this.roster.length ? 'No accounts match these filters. Try another name or clear the filters.' : 'Add your first student with Add account above. Their practice results will appear here.'}</p>`;
   }
   renderTeacherChoice() {
     const owner = this.user?.role === 'owner', student = this.el('school-role').value === 'student';
@@ -176,7 +198,7 @@ export class SchoolClient {
     try {
       const password = this.el('school-student-password').value;
       const response = await this.request('/users', { method: 'POST', data: { name: this.el('school-student-name').value, username: this.el('school-student-username').value, role: this.user.role === 'owner' ? this.el('school-role').value : 'student', teacherId: this.user.role === 'owner' ? this.el('school-teacher').value : undefined, defaultInstrument: this.el('school-student-instrument').value || 'drums', ...(password ? { password } : {}) } });
-      this.showCredentials(response, password); this.el('school-student-name').value = ''; this.el('school-student-username').value = ''; await this.loadRoster();
+      this.showCredentials(response, password); this.el('school-student-name').value = ''; this.el('school-student-username').value = ''; this.closeAccountForm(); await this.loadRoster();
     } catch (error) { this.el('school-dashboard-status').textContent = error.message; }
     finally { button.disabled = false; this.el('school-student-password').value = ''; }
   }
@@ -233,11 +255,15 @@ export class SchoolClient {
     } catch (error) { this.el('school-dashboard-status').textContent = error.message; }
   }
   async setInstrument(userId, defaultInstrument) {
+    const selector = this.el('school-roster').querySelector?.(`[data-instrument-user="${userId}"]`);
+    const previous = this.roster.find(user => user.id === userId)?.defaultInstrument;
+    if (selector) selector.disabled = true;
     try { const result=await this.request('/users/'+userId+'/instrument',{method:'POST',data:{defaultInstrument}});
       if(userId===this.user?.id){this.user=result.user;this.el('school-default-instrument').value=result.user.defaultInstrument;}
       else { const old=this.roster.find(user=>user.id===userId);if(old)old.defaultInstrument=result.user.defaultInstrument; }
       this.el('school-dashboard-status').textContent='Default instrument saved.';this.el('school-account-status').textContent='Default instrument saved for your next sign-in.';
-    } catch(error) {this.el('school-dashboard-status').textContent=error.message;this.el('school-account-status').textContent=error.message;}
+    } catch(error) {if (selector && previous) selector.value = previous; this.el('school-dashboard-status').textContent=error.message;this.el('school-account-status').textContent=error.message;}
+    finally { if (selector) selector.disabled = false; }
   }
   async refreshHistory() { const id = this.user?.id, version = this.generation; if (!id || this.user.mustChangePassword) return; const response = await this.request(`/users/${id}/progress`); if (version === this.generation && id === this.user?.id) this.onHistory(response.records, response.summary); }
   resultState(message, retry = false) { this.el('school-result-state').hidden = !message; this.el('school-result-message').textContent = message; this.el('school-retry-results').hidden = !retry; }
@@ -282,6 +308,31 @@ export class SchoolClient {
   }
 }
 
+export function classroomRoster(users, { query = '', instrument = '', status = 'active', sort = 'name' } = {}) {
+  const search = query.trim().toLocaleLowerCase();
+  const nameOrder = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }) || a.username.localeCompare(b.username);
+  return users.filter(user => (status === 'all' || (status === 'inactive' ? !user.active : user.active))
+    && (!instrument || (user.role === 'student' && user.defaultInstrument === instrument))
+    && (!search || `${user.name} ${user.username}`.toLocaleLowerCase().includes(search)))
+    .sort((a, b) => {
+      if (sort === 'recent') return (b.lastPractice || 0) - (a.lastPractice || 0) || nameOrder(a, b);
+      if (sort === 'accuracy') return (b.recentAccuracy ?? -1) - (a.recentAccuracy ?? -1) || nameOrder(a, b);
+      if (sort === 'attempts') return b.attempts - a.attempts || nameOrder(a, b);
+      return nameOrder(a, b);
+    });
+}
+
+function classroomStudentMarkup(user, ownId) {
+  const name = escapeHtml(user.name), id = escapeHtml(user.id), student = user.role === 'student';
+  return `<tr class="school-student${!user.active ? ' school-student-inactive' : ''}">
+    <th scope="row" class="school-student-name"><strong>${name}${!user.active ? '<span class="school-inactive-badge">Inactive</span>' : ''}</strong><small>@${escapeHtml(user.username)}${!student ? ' · Teacher' : ''}</small>${user.teacherName && user.teacherId !== ownId ? `<small class="school-student-teacher">${escapeHtml(user.teacherName)}</small>` : ''}</th>
+    <td data-label="Instrument">${student ? `<select data-instrument-user="${id}" aria-label="Default instrument for ${name}">${instrumentOptions(user.defaultInstrument)}</select>` : '<span class="school-muted">Teacher</span>'}</td>
+    <td data-label="Recent practice" class="school-student-practice">${user.recentAccuracy == null ? '<span class="school-muted">No results yet</span>' : `<b>${Math.round(user.recentAccuracy)}% <span>match rate</span></b>`}<small>${user.attempts} attempt${user.attempts === 1 ? '' : 's'}</small></td>
+    <td data-label="Last practiced" class="school-student-date">${user.lastPractice ? schoolDate(user.lastPractice) : '<span class="school-muted">—</span>'}</td>
+    <td class="school-student-controls"><div class="school-row-actions"><button class="button secondary" data-student="${id}" data-action="progress" aria-label="Results for ${name}">Results</button><details class="school-account-actions"><summary aria-label="Manage account for ${name}">Manage <span aria-hidden="true">⌄</span></summary><div><button class="text-button" data-student="${id}" data-action="${student ? 'set-password' : 'reset'}">${student ? 'Set password' : 'Reset password'}</button><button class="text-button" data-student="${id}" data-action="active">${user.active ? 'Disable' : 'Enable'} account</button></div></details></div></td>
+  </tr>`;
+}
+
 function schoolDate(time) { return new Date(time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
 function schoolTiming(value) { return Math.abs(value) < 1 ? 'On time on average' : `${Math.round(Math.abs(value))} ms ${value < 0 ? 'early' : 'late'} on average`; }
 function schoolMarkup() {
@@ -290,8 +341,14 @@ function schoolMarkup() {
   <form id="school-setup-form" class="school-form" hidden><p class="school-message">Create the first teacher account. This account is the school owner and can add other teachers.</p><label>School name<input id="school-setup-name-school" value="Sierra Charter School" maxlength="100" required></label><label>Your display name<input id="school-setup-name" autocomplete="name" maxlength="60" required></label><label>Your username<input id="school-setup-username" autocomplete="username" pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]{2,39}" maxlength="40" required></label><label>Your password or passphrase<input id="school-setup-password" type="password" autocomplete="new-password" minlength="${passwordMinimum('owner')}" maxlength="128" required><small>8 characters or longer. No special characters required.</small></label><label id="school-setup-key-field">School setup key<input id="school-setup-key" type="password" autocomplete="off"><small>The private key configured by the school owner on the hosting service.</small></label><button class="button primary" type="submit">Create school owner account</button></form>
   <div id="school-signed-in" hidden><p id="school-signed-in-name" class="school-message"></p><div class="school-actions"><button id="school-open-dashboard" class="button primary">Open classroom</button><button id="school-manage-audio" class="button secondary" hidden>MIDI &amp; audio sync</button><button id="school-change-password" class="button secondary">Change password</button><button id="school-signout" class="text-button">Sign out</button></div></div><p id="school-account-status" class="school-status" role="status"></p></dialog>
   <dialog id="school-password-dialog" class="school-account-dialog" aria-labelledby="school-password-title"><div class="dialog-header"><div><p class="eyebrow">MAKE IT YOURS</p><h2 id="school-password-title">Choose your password.</h2></div><button class="close-button" data-school-close="school-password-dialog" aria-label="Close password change">×</button></div><form id="school-password-form" class="school-form"><label>Current or temporary password<input id="school-current-password" type="password" autocomplete="current-password" maxlength="128" required></label><label>New password or passphrase<input id="school-new-password" type="password" autocomplete="new-password" minlength="${passwordMinimum('owner')}" maxlength="128" required><small id="school-password-help">Use 8–128 characters.</small></label><button id="school-password-submit" type="submit" class="button primary">Save new password</button></form><p id="school-password-status" class="school-status" role="status"></p></dialog>
-  <dialog id="school-dashboard-dialog" class="school-dashboard-dialog" aria-labelledby="school-dashboard-title"><div class="dialog-header"><div><p id="school-dashboard-school" class="eyebrow">SCHOOL PRACTICE</p><h2 id="school-dashboard-title">Your classroom.</h2></div><button class="close-button" data-school-close="school-dashboard-dialog" aria-label="Close classroom">×</button></div><div class="school-actions"><button id="school-own-progress" class="text-button">My practice results</button></div>
-  <section id="school-roster-section"><div class="school-section-heading"><h3>Students &amp; teachers</h3><button id="school-refresh-roster" class="text-button">Refresh roster</button></div><div id="school-roster" class="school-roster"></div><h3>Add an account</h3><form id="school-user-form" class="school-form school-create-form"><label>Display name<input id="school-student-name" maxlength="60" required autocomplete="off"><small>A first name or nickname is enough.</small></label><label>Username<input id="school-student-username" maxlength="40" pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]{2,39}" required autocomplete="off"><small>At least 3 letters, numbers, dots, dashes or underscores.</small></label><label id="school-role-field" hidden>Account type<select id="school-role"><option value="student">Student</option><option value="teacher">Teacher</option></select></label><label id="school-teacher-field" hidden>Student’s teacher<select id="school-teacher"></select></label><label>Default instrument<select id="school-student-instrument">${instrumentOptions()}</select></label><label id="school-student-password-field">Student password (optional)<input id="school-student-password" type="password" autocomplete="new-password" minlength="${passwordMinimum('student')}" maxlength="128"><small>4 characters or longer. Leave blank to generate a temporary password.</small></label><button id="school-create-user" class="button primary" type="submit">Create account</button></form><p class="school-help">Students do not need email. Set a student password to let them sign in immediately, or leave it blank for a temporary password they change at first sign-in. Use Set password to choose a new student password later. Disabling an account keeps its results.</p><div id="school-credentials" class="school-credentials" hidden><h4>Share these login details directly.</h4><p>Username <code id="school-credential-username"></code></p><p><span id="school-credential-label">Password</span> <code id="school-credential-password"></code></p><button id="school-copy-login" class="button secondary">Copy login details</button><p id="school-credential-help" class="school-help">These details are shown only for this visit.</p></div></section>
+  <dialog id="school-dashboard-dialog" class="school-dashboard-dialog" aria-labelledby="school-dashboard-title"><div class="dialog-header"><div><p id="school-dashboard-school" class="eyebrow">SCHOOL PRACTICE</p><h2 id="school-dashboard-title">Your classroom.</h2></div><div class="school-dashboard-tools"><button id="school-own-progress" class="text-button">My practice results</button><button class="close-button" data-school-close="school-dashboard-dialog" aria-label="Close classroom">×</button></div></div>
+  <section id="school-roster-section">
+  <div class="school-section-heading school-roster-heading"><div><h3>Class roster</h3><p id="school-roster-summary" class="school-help"></p></div><div class="school-roster-heading-actions"><button id="school-toggle-add-account" class="button secondary" aria-expanded="false" aria-controls="school-add-account">+ Add account</button><button id="school-refresh-roster" class="text-button">Refresh</button></div></div>
+  <div id="school-add-account" class="school-add-account" hidden><h4>Add an account</h4><form id="school-user-form" class="school-form school-create-form"><label>Display name<input id="school-student-name" maxlength="60" required autocomplete="off"><small>A first name or nickname is enough.</small></label><label>Username<input id="school-student-username" maxlength="40" pattern="[a-zA-Z0-9][a-zA-Z0-9._\-]{2,39}" required autocomplete="off"><small>At least 3 letters, numbers, dots, dashes or underscores.</small></label><label id="school-role-field" hidden>Account type<select id="school-role"><option value="student">Student</option><option value="teacher">Teacher</option></select></label><label id="school-teacher-field" hidden>Student’s teacher<select id="school-teacher"></select></label><label>Default instrument<select id="school-student-instrument">${instrumentOptions()}</select></label><label id="school-student-password-field">Student password (optional)<input id="school-student-password" type="password" autocomplete="new-password" minlength="${passwordMinimum('student')}" maxlength="128"><small>4 characters or longer. Leave blank to generate a temporary password.</small></label><button id="school-create-user" class="button primary" type="submit">Create account</button></form><p class="school-help">No student email needed. Choose a password for immediate sign-in, or leave it blank for a temporary one.</p></div>
+  <div id="school-credentials" class="school-credentials" hidden><h4>Share these login details directly.</h4><p>Username <code id="school-credential-username"></code></p><p><span id="school-credential-label">Password</span> <code id="school-credential-password"></code></p><button id="school-copy-login" class="button secondary">Copy login details</button><p id="school-credential-help" class="school-help">These details are shown only for this visit.</p></div>
+  <div class="school-roster-toolbar"><label class="school-roster-search">Find a student<input id="school-roster-search" type="search" placeholder="Search name or username" autocomplete="off"></label><label>Instrument<select id="school-roster-instrument"><option value="">All instruments</option>${instrumentOptions('')}</select></label><label>Accounts<select id="school-roster-status"><option value="active">Active</option><option value="all">All accounts</option><option value="inactive">Inactive</option></select></label><label>Sort by<select id="school-roster-sort"><option value="name">Name A–Z</option><option value="recent">Latest practice</option><option value="accuracy">Match rate</option><option value="attempts">Most attempts</option></select></label></div>
+  <div class="school-roster-meta"><span id="school-roster-count" role="status"></span><button id="school-roster-clear" class="text-button" hidden>Clear filters</button></div>
+  <div id="school-roster" class="school-roster" tabindex="0" role="region" aria-label="Class roster"></div></section>
   <section id="school-progress-section" hidden><button id="school-back-roster" class="text-button">← Back to roster</button><h3 id="school-progress-name"></h3><p id="school-progress-summary" class="school-message"></p><div id="school-results"></div><button id="school-more-results" class="button secondary" hidden>Load earlier results</button></section><p id="school-dashboard-status" class="school-status" role="status"></p></dialog>
   <dialog id="school-student-password-dialog" class="school-account-dialog" aria-labelledby="school-student-password-title"><div class="dialog-header"><div><p class="eyebrow">STUDENT ACCOUNT</p><h2 id="school-student-password-title">Set student password</h2></div><button class="close-button" data-school-close="school-student-password-dialog" aria-label="Cancel student password change">×</button></div><p id="school-student-password-name" class="school-message"></p><form id="school-student-password-form" class="school-form"><label>New student password<input id="school-set-password" type="password" autocomplete="new-password" minlength="${passwordMinimum('student')}" maxlength="128" required><small>4 characters or longer. No special characters required.</small></label><p class="school-help">The student can use this password immediately. Any open sign-in for this student will end; their practice results stay saved.</p><button id="school-set-password-submit" class="button primary" type="submit">Set password</button></form><p id="school-student-password-status" class="school-status" role="status"></p></dialog>`;
 }

@@ -1,3 +1,10 @@
+# 0.24.0 — Compact teacher classroom
+
+- Teacher rosters use aligned desktop rows for names, default instruments, recent match rates, attempt counts, last practice and Results. Sticky column headings and a scrollable roster keep larger classes readable. Phone-sized screens retain stacked, touch-friendly rows.
+- Search names/usernames, filter by instrument or active/inactive accounts, and sort by name, latest practice, match rate or attempts. Counts show the full class and current matches; filters survive returning from Results or refreshing the roster.
+- Add account opens from the roster header. Password and enable/disable controls move into each row’s Manage disclosure. Default instrument edits show pending state and restore the saved choice after a failed request.
+- No account, music, result, schema or hosting-setting migration is required. Validation: 215 automated tests, module syntax and standalone export; isolated browser checks use a synthetic 29-account class.
+
 # 0.23.0 — Vocal accuracy and practice reports
 
 - A second vocal side meter tracks time on pitch alongside the current-pitch guide in both highway and large-lyric views. Phone landscape focus keeps overall accuracy on the left and live pitch on the right.

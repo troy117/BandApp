@@ -23,6 +23,8 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
+Prototype 24 compacts the teacher classroom into a desktop roster with sticky headings, search, instrument/account filters, sorting, expandable account creation and per-row Manage controls. See [classroom accounts](docs/CLASSROOMS.md).
+
 Prototype 23 adds vocal accuracy meters, automatic stopped/completed pitch reports and saved phrase review. See [vocal reports](docs/VOCAL_REPORTS.md).
 
 Prototype 22 adds independent, changing-tempo timing maps for each backing and imports analyzed vocal pitch guides. See [recording alignment](docs/RECORDING_ALIGNMENT.md).

@@ -2,6 +2,14 @@
 
 Updated for version 0.11.2 / Prototype 11.2 · October 22, 2026
 
+## Teacher classroom roster
+
+Open your teacher account menu, then **Open classroom**. The desktop roster keeps each account in one compact row, with its default instrument, recent match rate, attempt count, last practice and **Results**. Column headings stay visible as you scroll through a larger class. Recent match rate averages the last 30 scored attempts; it is not a grade across different instruments or practice settings. Open Results for context.
+
+Use **Find a student** to search display names or usernames, **Instrument** to show students with a particular default part, and **Accounts** to include inactive accounts. Active accounts show by default. Sort by name, latest practice, match rate or attempts. **Clear filters** returns to the default view. Returning from Results or refreshing retains your current filters.
+
+**+ Add account** expands the creation form above the roster. **Manage** on an account row contains the existing password and enable/disable controls. Disabling retains the account’s results. Instrument choices still save directly. On phones, the same roster becomes stacked rows with larger controls.
+
 ## Teacher-set student passwords
 
 In School sign in → Open classroom, enter Student password when adding a student, or choose Set password beside an existing student. Students can use 4–128 characters; teachers and the school owner use 8–128. A teacher can set passwords for their own students, and the school owner can manage all students. The student can sign in immediately and join jam sessions without changing a teacher-set password.
