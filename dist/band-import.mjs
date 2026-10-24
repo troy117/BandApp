@@ -1,4 +1,5 @@
 import { LyricTiming, plainLyricLines } from './lyric-timing.mjs';
+import { BandBacking } from './band-backing.mjs';
 import { parseMidiSong } from './midi.mjs';
 import { DEFAULT_MIDI_MAPPING } from './midi-input.mjs';
 import { arrangementParts, importedArrangement } from './arrangements.mjs';
@@ -12,11 +13,16 @@ export class BandImport {
     this.practice = practice; this.q = practice.q; this.token = 0; this.draft = null;
     const q = this.q;
     this.timing = new LyricTiming(this);
+    this.backing = new BandBacking(this);
     q('b-open-import').onclick = () => { if (practice.rooms.room) { practice.message('Leave the session before preparing a different arrangement.'); return; } practice.stop(); q('b-import-panel').hidden = false; q('b-import-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-    q('b-import-close').onclick = () => { this.timing.pause(); q('b-import-panel').hidden = true; };
+    q('b-import-close').onclick = () => { this.timing.pause(); this.backing.cancel(); q('b-import-panel').hidden = true; };
+    for (const tab of ['audio','parts']) {
+      q('b-import-'+tab+'-button').onclick = () => this.tab(tab);
+      q('b-import-'+tab+'-button').onkeydown = event => { if (['ArrowLeft','ArrowRight'].includes(event.key)) { event.preventDefault(); const next=tab==='audio'?'parts':'audio'; this.tab(next); q('b-import-'+next+'-button').focus(); } };
+    }
     q('b-midi-file').onchange = () => this.attempt(() => this.readMidi());
     q('b-audio-file').onchange = () => this.attempt(() => this.readAudio());
-    q('b-clear-audio').onclick = () => { this.timing.reset(); this.audioToken = (this.audioToken || 0) + 1; q('b-audio-file').value = ''; if (this.draft) Object.assign(this.draft, { audioBytes: null, buffer: null, audioName: '', pendingAudio: false, audioFailed: false }); q('b-import-state').textContent = 'Backing removed.'; };
+    q('b-clear-audio').onclick = () => { this.timing.reset(); this.backing.cancel(); this.audioToken = (this.audioToken || 0) + 1; q('b-audio-file').value = ''; if (this.draft) Object.assign(this.draft, { audioBytes: null, buffer: null, audioName: '', pendingAudio: false, audioFailed: false }); this.backing.reset(); q('b-import-state').textContent = 'Backing removed from this draft. Publish to save the change.'; };
     q('b-import-apply').onclick = () => this.attempt(() => this.apply());
     q('b-publish').onclick = () => this.attempt(() => this.publish());
     q('b-setup-save').onclick = () => this.attempt(() => this.downloadSetup());
@@ -36,7 +42,13 @@ export class BandImport {
     });
   }
   async attempt(action) { try { await action(); } catch (error) { this.q('b-import-state').textContent = error.message; } }
-  reset() { this.timing.reset(); this.token++; this.draft = null; this.q('b-import-panel').hidden = true; this.q('b-import-tracks').textContent = ''; for (const id of ['b-midi-file', 'b-audio-file', 'b-setup-file', 'b-import-title','b-lyrics-text','b-lyrics-file','b-lyric-plain']) this.q(id).value = ''; this.q('b-import-state').textContent = ''; this.q('b-lyric-detected').textContent='';this.q('b-lyrics-editor').open=false;this.q('b-publish').textContent = 'Publish new school song'; }
+  reset() { this.timing.reset(); this.backing.cancel(); this.token++; this.draft = null; this.requestedTab = 'parts'; this.q('b-import-panel').hidden = true; this.q('b-import-tracks').textContent = ''; for (const id of ['b-midi-file', 'b-audio-file', 'b-setup-file', 'b-import-title','b-lyrics-text','b-lyrics-file','b-lyric-plain']) this.q(id).value = ''; this.q('b-import-state').textContent = ''; this.q('b-lyric-detected').textContent='';this.q('b-lyrics-editor').open=false;this.q('b-publish').textContent = 'Publish new school song'; this.backing.reset(); }
+  tab(tab) {
+    this.requestedTab = tab; this.backing?.stop(); this.timing.pause();
+    for (const name of ['audio','parts']) { const active=name===tab; this.q('b-import-'+name+'-tab').hidden=!active; this.q('b-import-'+name+'-button').setAttribute('aria-selected',String(active)); this.q('b-import-'+name+'-button').tabIndex=active?0:-1; }
+    this.q('b-import-heading').textContent = tab==='audio' ? 'Audio & backing' : 'Prepare your band song';
+    if (tab==='audio') { this.q('b-audio-sync').open=true; this.backing?.render(); }
+  }
   renderDraft(metadata = {}) {
     this.timing.reset(); this.q('b-lyric-plain').value = '';
     const q = this.q, song = this.draft.song;
@@ -52,11 +64,12 @@ export class BandImport {
       const instrument=assigned ? assigned.get(part.id) || '' : suggestion;
       return '<div class="band-track"><div>' + escapeHtml(part.name) + '<small>Track ' + part.track + ' · MIDI channel ' + part.channel + ' · ' + part.notes.length + ' notes</small></div><label>Assign to<select data-band-track="' + escapeHtml(part.id) + '"><option value="">Ignore</option>'+Object.entries(BAND_INSTRUMENTS).map(([id,name])=>'<option value="'+id+'"'+(instrument===id?' selected':'')+'>'+name+'</option>').join('')+'</select></label></div>';
     }).join('');
+    this.backing?.reset(); if(this.backing)this.tab(this.requestedTab || 'parts');
   }
-  async editSchoolSong(id) {
+  async editSchoolSong(id, tab = 'parts') {
     if (this.practice.rooms.room) throw new Error('Leave the session before editing song parts.');
     if (!this.practice.school.staff) throw new Error('Sign in as a teacher to edit song parts.');
-    this.practice.stop(); this.reset(); const token = this.token, school = this.practice.school;
+    this.practice.stop(); this.reset(); this.requestedTab=tab; const token = this.token, school = this.practice.school;
     this.q('b-import-panel').hidden = false; this.q('b-import-state').textContent = 'Loading the existing MIDI, backing and part settings…';
     this.q('b-import-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     const { song: meta } = await school.request('/library/' + id);
@@ -75,7 +88,7 @@ export class BandImport {
   async readMidi() {
     const file = this.q('b-midi-file').files[0]; if (!file) return;
     if (file.size > 10 * 1024 * 1024) throw new Error('Choose a MIDI smaller than 10 MB.');
-    const token = ++this.token; this.draft = null; this.q('b-import-tracks').textContent = ''; this.q('b-audio-file').value = '';
+    this.backing.cancel(); const token = ++this.token; this.draft = null; this.q('b-import-tracks').textContent = ''; this.q('b-audio-file').value = '';
     const bytes = await file.arrayBuffer(); if (token !== this.token) return;
     const song = parseMidiSong(bytes, file.name); this.draft = { song, bytes, fileName: file.name, audioBytes: null, buffer: null, audioName: '' };
     this.renderDraft();
@@ -84,10 +97,12 @@ export class BandImport {
   async readAudio() {
     if (!this.draft) throw new Error('Choose MIDI first.');
     this.timing.reset();
+    this.backing.cancel();
     const file = this.q('b-audio-file').files[0]; if (!file) { this.draft.audioBytes = null; this.draft.buffer = null; this.draft.audioName = ''; return; }
     if (file.size > 100 * 1024 * 1024) throw new Error('Choose audio smaller than 100 MB.');
     const token = this.token, draft = this.draft, audioToken = this.audioToken = (this.audioToken || 0) + 1;
     Object.assign(draft, { pendingAudio: true, audioFailed: false, audioBytes: null, buffer: null, audioName: '' });
+    this.backing.render();
     this.q('b-import-state').textContent = 'Decoding backing recording…';
     try {
     const bytes = await file.arrayBuffer(), buffer = await this.practice.audio.decodeBacking(bytes.slice(0));
@@ -95,7 +110,7 @@ export class BandImport {
     Object.assign(draft, { audioBytes: bytes, buffer, audioName: file.name });
     this.q('b-import-state').textContent = 'Backing recording decoded. Offset and speed apply to every instrument part.';
     } catch (error) { if (token === this.token && audioToken === this.audioToken) draft.audioFailed = true; throw error; }
-    finally { if (audioToken === this.audioToken) draft.pendingAudio = false; }
+    finally { if (audioToken === this.audioToken) { draft.pendingAudio = false; if(token===this.token && draft===this.draft)this.backing.reset(); } }
   }
   metadata() {
     if (!this.draft) throw new Error('Choose a MIDI file first.');
@@ -111,17 +126,17 @@ export class BandImport {
     return { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset };
   }
   async apply() {
-    this.timing.pause();
+    this.timing.pause(); this.backing.cancel();
     const meta = this.metadata(), arrangement = importedArrangement(this.draft.song, meta);
     if (this.draft.buffer) arrangement.backing = { buffer: this.draft.buffer, offset: meta.offset, volume: meta.volume, name: meta.audioName };
     this.practice.stop(); this.practice.useArrangement(arrangement); this.q('b-import-state').textContent = 'Ready for local practice. Publish to school for other computers and saved account results.';
   }
   async publish() {
-    this.timing.pause();
+    this.timing.pause(); this.backing.cancel();
     const school = this.practice.school;
     if (!school.staff) throw new Error('Sign in as a teacher to publish an arrangement.');
     const meta = this.metadata(), draft = this.draft, token = this.token;
-    importedArrangement(draft.song, meta); this.q('b-publish').disabled = true;
+    importedArrangement(draft.song, meta); this.publishing=true; this.backing.render();
     let upload;
     try {
       this.q('b-import-state').textContent = 'Publishing the MIDI, backing and instrument settings…';
@@ -137,7 +152,7 @@ export class BandImport {
       await this.practice.refreshCatalog();
       await this.practice.loadChoice('school:' + published.song.id);
       this.q('b-import-state').textContent = 'Published to the school library. All parts, lyrics and backing settings travel together.';
-    } finally { this.q('b-publish').disabled = false; }
+    } finally { this.publishing=false; this.backing.render(); }
   }
   downloadSetup() {
     const metadata = this.metadata(), setup = { format: 'groove-lab-arrangement', version: 1, fingerprint: this.draft.song.fingerprint, ...metadata };
@@ -160,6 +175,7 @@ export class BandImport {
     }
     this.q('b-import-title').value = setup.title; this.q('b-import-offset').value = setup.offset; this.q('b-import-speed').value = 100 / setup.timeScale; this.q('b-import-volume').value = setup.volume * 100;
     this.q('b-lyrics-text').value=setup.lyricsText??'';this.q('b-lyrics-clock').value=setup.lyricsClock||'midi';this.q('b-lyrics-offset').value=setup.lyricsOffset||0;
+    this.backing.reset();
     this.q('b-import-state').textContent = 'Arrangement settings restored. Add the matching backing recording, then use or publish.';
   }
 }

@@ -1,6 +1,14 @@
 import { alignMidiChart, fitAlignment, midiPositionTime, audioOnsets, suggestAlignment, validateAlignment, waveformNotes } from './sync.mjs';
 import { makeMidiChart } from './midi.mjs';
 import { DRUMS } from './engine.mjs';
+import { pitchName } from './instruments.mjs';
+
+const syncNoteLane = note => DRUMS.some(drum => drum.id === note.drum) ? note.drum : 'notes';
+const syncNoteName = note => DRUMS.find(drum => drum.id === note.drum)?.name || (Number.isFinite(note.pitch) ? pitchName(note.pitch) : 'MIDI note');
+export function syncLanes(chart) {
+  const used = new Set(chart.notes.map(syncNoteLane));
+  return [...DRUMS.filter(drum => used.has(drum.id)), ...(used.has('notes') ? [{id:'notes',short:'NOTES',name:'MIDI notes',color:'#7bc4ee'}] : [])];
+}
 
 export class AudioSync {
   constructor(owner) {
@@ -41,11 +49,11 @@ export class AudioSync {
     this.el('sync-show-midi').addEventListener('change', () => this.draw());
     this.el('audio-sync').addEventListener('toggle', () => { if (this.el('audio-sync').open) this.draw(); });
     this.owner.dialog.addEventListener('close', () => this.stop());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) this.stop(); });
-    window.addEventListener('blur', () => this.stop());
-    window.addEventListener('resize', () => this.draw());
+    globalThis.document?.addEventListener('visibilitychange', () => { if (document.hidden) this.stop(); });
+    globalThis.window?.addEventListener('blur', () => this.stop());
+    globalThis.window?.addEventListener('resize', () => this.draw());
   }
-  base() { const d = this.owner.draft; return makeMidiChart(d.song, d.selected, d.mapping); }
+  base() { if (this.owner.syncChart) return this.owner.syncChart(); const d = this.owner.draft; return makeMidiChart(d.song, d.selected, d.mapping); }
   status(text) { this.el('sync-status').textContent = text; }
   reset() {
     this.stop(); this.candidates = []; this.features = null; this.featureBuffer = null;
@@ -78,6 +86,10 @@ export class AudioSync {
     alignMidiChart(this.base(), alignment.timeScale);
     if (this.owner.draft.buffer && alignment.offset <= -this.owner.draft.buffer.duration) throw new Error('That offset skips the whole recording.');
     this.stop(); Object.assign(this.owner.draft, { offset: alignment.offset, timeScale: alignment.timeScale });
+    try {
+      const midi = midiPositionTime(this.base(), Number(this.el('sync-bar').value), Number(this.el('sync-beat').value));
+      this.el('sync-audio').value = Math.max(0, midi * alignment.timeScale - alignment.offset).toFixed(3);
+    } catch { /* Keep the waveform usable while the beat fields are being edited. */ }
     this.owner.render(); this.status('Match updated. Preview together near the start, then check a later bar before saving.');
   }
   match() {
@@ -107,6 +119,7 @@ export class AudioSync {
     finally { if (token === owner.token) { owner.busy = false; owner.render(); } }
   }
   stop() {
+    this.previewToken = (this.previewToken || 0) + 1;
     clearTimeout(this.timer);
     if (this.preview) this.owner.audio.silence();
     this.preview = false; this.el('stop-sync').disabled = true;
@@ -114,23 +127,27 @@ export class AudioSync {
   }
   async play(together) {
     if (this.owner.busy || !this.owner.draft?.buffer) return;
-    this.stop(); const token = this.owner.token, d = this.owner.draft;
+    this.owner.beforePreview?.();
+    this.stop(); const token = this.owner.token, previewToken = this.previewToken, d = this.owner.draft;
     try {
       const chart = alignMidiChart(this.base(), d.timeScale ?? 1);
       const midi = together ? midiPositionTime(this.base(), Number(this.el('sync-bar').value), Number(this.el('sync-beat').value)) * (d.timeScale ?? 1) : 0;
       const position = together ? midi - d.offset : Number(this.el('sync-audio').value);
       if (!Number.isFinite(position) || (!together && (position < 0 || position >= d.buffer.duration))) throw new Error('Choose a position inside the recording.');
       await this.owner.audio.ready();
-      if (token !== this.owner.token || !this.owner.dialog.open) return;
+      if (token !== this.owner.token || previewToken !== this.previewToken || !this.owner.dialog.open) return;
       const at = this.owner.audio.context.currentTime + 0.08, duration = together ? Math.min(8, chart.duration - midi) : Math.min(8, d.buffer.duration - position);
       const delay = Math.max(0, -position), offset = Math.max(0, position), audioDuration = Math.min(duration - delay, d.buffer.duration - offset);
       if (audioDuration > 0) this.owner.audio.playBacking(d.buffer, at + delay, offset, d.volume, audioDuration);
       if (together) {
         for (const beat of chart.beats) if (beat.time >= midi - 1e-8 && beat.time < midi + duration) this.owner.audio.click(at + beat.time - midi, beat.downbeat);
-        if (this.el('sync-guide').checked) for (const note of chart.notes) if (note.time >= midi - 1e-8 && note.time < midi + duration) this.owner.audio.play(note.drum, at + note.time - midi, note.velocity * 0.65);
+        if (this.el('sync-guide').checked) for (const note of chart.notes) if (note.time >= midi - 1e-8 && note.time < midi + duration) {
+          if (this.owner.playSyncNote) this.owner.playSyncNote(note, at + note.time - midi);
+          else this.owner.audio.play(note.drum, at + note.time - midi, note.velocity * 0.65);
+        }
       }
       this.preview = true; this.el('stop-sync').disabled = false;
-      this.el('sync-preview-state').textContent = together ? `Playing ${duration.toFixed(1)} seconds from MIDI bar ${this.el('sync-bar').value}, beat ${this.el('sync-beat').value}, with a click${this.el('sync-guide').checked ? ' and guide drums' : ''}.` : `Playing recording from ${position.toFixed(3)} seconds.`;
+      this.el('sync-preview-state').textContent = together ? `Playing ${duration.toFixed(1)} seconds from MIDI bar ${this.el('sync-bar').value}, beat ${this.el('sync-beat').value}, with a click${this.el('sync-guide').checked ? ' and guide notes' : ''}.` : `Playing recording from ${position.toFixed(3)} seconds.`;
       this.timer = setTimeout(() => this.stop(), (duration + 0.2) * 1000);
     } catch (error) { this.status(error.message); }
   }
@@ -140,9 +157,9 @@ export class AudioSync {
     const d = this.owner.draft, showMidi = this.el('sync-show-midi').checked;
     let source = null;
     try { source = this.base(); } catch { /* The waveform remains usable while mapping is incomplete. */ }
-    const drums = showMidi && source ? DRUMS.filter(drum => source.notes.some(note => note.drum === drum.id)) : [];
+    const drums = showMidi && source ? syncLanes(source) : [];
     const left = 54, laneTop = 156, laneHeight = 21;
-    const width = Math.max(240, canvas.clientWidth), height = drums.length ? laneTop + drums.length * laneHeight + 24 : 148, dpr = Math.min(2, devicePixelRatio || 1);
+    const width = Math.max(240, canvas.clientWidth), height = drums.length ? laneTop + drums.length * laneHeight + 24 : 148, dpr = Math.min(2, globalThis.devicePixelRatio || 1);
     const plotWidth = width - left - 8, waveTop = 28, waveBottom = 126, waveCenter = 77;
     canvas.style.height = `${height}px`;
     canvas.width = width * dpr; canvas.height = height * dpr;
@@ -185,7 +202,7 @@ export class AudioSync {
           const key = hit.audioTime.toFixed(6);
           if (!onsets.has(key)) onsets.set(key, []);
           onsets.get(key).push(hit);
-          const index = drums.findIndex(drum => drum.id === hit.note.drum), drum = drums[index], y = laneTop + index * laneHeight;
+          const index = drums.findIndex(drum => drum.id === syncNoteLane(hit.note)), drum = drums[index], y = laneTop + index * laneHeight;
           context.fillStyle = drum.color; context.fillRect(hit.x - 3, y - 6, 6, 12);
           if (hit.note.bar === Number(this.el('sync-bar').value) && Math.abs(hit.note.beat - Number(this.el('sync-beat').value)) < 0.0001) { context.strokeStyle = '#fff5d5'; context.lineWidth = 1.5; context.strokeRect(hit.x - 5, y - 8, 10, 16); }
           this.noteTargets.push({ ...hit, y });
@@ -194,13 +211,13 @@ export class AudioSync {
         // its exact x coordinate, with separate rows below the audio.
         context.lineWidth = 1.5; context.globalAlpha = 0.8;
         for (const simultaneous of onsets.values()) for (const [index, hit] of simultaneous.entries()) {
-          context.strokeStyle = DRUMS.find(drum => drum.id === hit.note.drum).color;
+          context.strokeStyle = drums.find(drum => drum.id === syncNoteLane(hit.note)).color;
           context.beginPath(); context.moveTo(hit.x, waveTop + index / simultaneous.length * (waveBottom - waveTop)); context.lineTo(hit.x, waveTop + (index + 1) / simultaneous.length * (waveBottom - waveTop)); context.stroke();
         }
         context.globalAlpha = 1;
       }
       const selected = chart.notes.filter(note => note.bar === Number(this.el('sync-bar').value) && Math.abs(note.beat - Number(this.el('sync-beat').value)) < 0.0001);
-      this.el('sync-note-selection').textContent = selected.length ? `Selected MIDI beat: bar ${selected[0].bar}, beat ${Number(selected[0].beat.toFixed(4))} · ${[...new Set(selected.map(note => DRUMS.find(drum => drum.id === note.drum).name))].join(' + ')} · currently at ${(selected[0].time - d.offset).toFixed(3)} s in the recording.` : 'Choose a MIDI hit in a colored row, or enter a bar and beat above.';
+      this.el('sync-note-selection').textContent = selected.length ? `Selected MIDI beat: bar ${selected[0].bar}, beat ${Number(selected[0].beat.toFixed(4))} · ${[...new Set(selected.map(syncNoteName))].join(' + ')} · currently at ${(selected[0].time - d.offset).toFixed(3)} s in the recording.` : 'Choose a MIDI hit in a colored row, or enter a bar and beat above.';
     } catch { /* The waveform is still useful while mapping is incomplete. */ }
     this.el('sync-midi-legend').innerHTML = drums.map(drum => `<span><i style="background:${drum.color}" aria-hidden="true"></i>${drum.name}</span>`).join('');
     const x = left + (position - start) / length * plotWidth;

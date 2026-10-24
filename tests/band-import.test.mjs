@@ -7,7 +7,7 @@ import { duetMidi } from './duet-fixture.mjs';
 function fields() {
   const nodes = new Map();
   return id => {
-    if (!nodes.has(id)) nodes.set(id, { value: '', textContent: '', hidden: false, listeners: {}, addEventListener(type, handler) { this.listeners[type] = handler; }, scrollIntoView() {}, close() {} });
+    if (!nodes.has(id)) nodes.set(id, { value: '', textContent: '', hidden: false, listeners: {}, addEventListener(type, handler) { this.listeners[type] = handler; }, querySelectorAll() { return []; }, setAttribute(name,value) { this[name]=value; }, scrollIntoView() {}, close() {} });
     return nodes.get(id);
   };
 }
@@ -35,6 +35,7 @@ test('editing an existing library song retains backing, drum overrides and align
   assert.deepEqual(loaded,['school:song-a']);assert.equal(importer.draft.schoolSource.revisionId,'version-b');
   q('b-midi-file').files=[{name:'fresh.mid',size:bytes.byteLength,arrayBuffer:async()=>bytes}];await importer.readMidi();
   assert.equal(importer.draft.schoolSource,undefined);assert.equal(q('b-import-offset').value,0);assert.equal(q('b-publish').textContent,'Publish new school song');
+  importer.reset();assert.equal(q('b-publish').disabled,true);assert.equal(q('b-audio-file').disabled,true);assert.equal(q('b-midi-file').disabled,false);
 });
 
 test('library practice and part editing never fall through to archiving a song', async t => {
@@ -43,8 +44,8 @@ test('library practice and part editing never fall through to archiving a song',
   t.after(()=>{if(previousDocument===undefined)delete globalThis.document;else globalThis.document=previousDocument;if(previousWindow===undefined)delete globalThis.window;else globalThis.window=previousWindow;});
   const importer=new SongImporter({},()=>{});importer.libraryScope='school';
   importer.loadSchoolSong=id=>actions.push('load:'+id);importer.archiveSong=id=>actions.push('archive:'+id);
-  for(const action of ['load','keyboard','parts'])q('library-list').listeners.click({target:{closest:()=>({dataset:{action,song:'song-a'}})}});
-  assert.deepEqual(actions,['load:song-a']);assert.deepEqual(events,['band-load-school','band-edit-school']);
+  for(const action of ['load','keyboard','parts','audio'])q('library-list').listeners.click({target:{closest:()=>({dataset:{action,song:'song-a'}})}});
+  assert.deepEqual(actions,['load:song-a']);assert.deepEqual(events,['band-load-school','band-edit-school','band-edit-school']);
   q('library-list').listeners.click({target:{closest:()=>({dataset:{action:'archive',song:'song-a'}})}});
   assert.deepEqual(actions,['load:song-a','archive:song-a']);
 });
@@ -68,4 +69,25 @@ test('reopening explicit instrument assignments keeps ignored tracks ignored des
   assert.doesNotMatch(options('3:1'), / selected/);
   importer.renderDraft();
   assert.match(fields['b-import-tracks'].innerHTML, /value="bass" selected/);
+});
+
+test('replacing a school backing preserves MIDI, all parts and word-timed lyrics in the same song revision', async () => {
+  const q=fields(),bytes=duetMidi().buffer,oldAudio=new Uint8Array([1,2,3]).buffer,newAudio=new Uint8Array([4,5,6,7]).buffer,requests=[];
+  const lyrics='WEBVTT\n\n00:00:00.100 --> 00:00:00.900\n<00:00:00.100>Sing<00:00:00.500> <00:00:00.500>along\n';
+  const parts=[{id:'drums',name:'Drums',instrument:'drums',selected:['0:9']},{id:'keyboard',name:'Piano / Keyboard',instrument:'keyboard',selected:['1:0']},{id:'vocals',name:'Vocals',instrument:'vocals',selected:[]}];
+  const meta={id:'same-song',revisionId:'before',canManage:true,title:'Original music',fileName:'duet.mid',audioName:'old.wav',parts,mapping:{36:'tom3'},offset:0,timeScale:1,volume:.65,lyricsText:lyrics,lyricsClock:'midi',lyricsOffset:0};
+  const school={staff:true,download:async route=>route.endsWith('/midi')?bytes:oldAudio,request:async(route,options)=>{requests.push({route,options});if(route==='/library/same-song')return {song:meta};if(route==='/library/uploads')return {uploadId:'update'};if(route.endsWith('/publish'))return {song:{...meta,revisionId:'after'}};return {};}};
+  const practice={q,school,rooms:{room:null},stop(){},audio:{decodeBacking:async data=>({duration:data.byteLength===3?8:9})},refreshCatalog:async()=>{},loadChoice:async()=>{}};
+  const importer=new BandImport(practice);await importer.editSchoolSong('same-song');
+  const rows=[{value:'drums',dataset:{bandTrack:'0:9'}},{value:'keyboard',dataset:{bandTrack:'1:0'}}];q('b-import-tracks').querySelectorAll=()=>rows;
+  q('b-audio-file').files=[{name:'replacement.mp3',size:newAudio.byteLength,arrayBuffer:async()=>newAudio}];await importer.readAudio();
+  importer.backing.sync.set({offset:-.25,timeScale:1.05});q('b-import-volume').value=37;
+  await importer.publish();
+  const upload=requests.find(item=>item.route==='/library/uploads').options.data;
+  assert.equal(upload.songId,'same-song');assert.equal(upload.revisionId,'before');assert.equal(upload.audioName,'replacement.mp3');
+  assert.equal(upload.offset,-.25);assert.ok(Math.abs(upload.timeScale-1.05)<.00001);assert.equal(upload.volume,.37);
+  assert.deepEqual(upload.parts,parts);assert.equal(upload.lyricsText,lyrics);assert.equal(upload.lyricsClock,'midi');assert.equal(upload.lyricsOffset,0);
+  assert.deepEqual(requests.find(item=>item.route.endsWith('/midi')).options.data,bytes);
+  assert.deepEqual(requests.find(item=>item.route.endsWith('/audio')).options.data,newAudio);
+  assert.equal(importer.draft.schoolSource.revisionId,'after');
 });

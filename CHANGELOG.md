@@ -1,5 +1,12 @@
 # Changes
 
+## 0.19.0 — October 23, 2026 — Teacher backing-track editor
+
+- Teacher account menus and editable school-library songs offer Audio & backing. The shared-song editor separates audio controls from parts/lyrics and supports replacement recordings, volume, offset and MIDI speed.
+- Shared waveform/sync tools provide selectable note overlays, automatic candidates, one/two-beat matching, 50 ms nudges and eight-second recording/click/guide previews. Drum and pitched references are supported. Applying a match centers the waveform on its selected beat. Recording/MIDI length comparisons help identify different arrangements; audio pitch remains unchanged.
+- Drafts stay local until publication. Updates retain MIDI bytes, assignments and word-timed lyrics; student controls and backend permissions remain unchanged. Pending previews are cancelled on stop/close.
+- Validation: 184 tests pass. Syntax, standalone export and isolated teacher/student browser checks pass, including a real MP3 import and a local publish/reopen with byte comparisons. The production Sinatra recording remains unchanged; the longer downloaded backing needs a listening/section check before publication. See [teacher backing setup](docs/BACKING_TRACKS.md).
+
 ## 0.18.2 — October 23, 2026 — Score-timed vocal words
 
 - Inline WebVTT word timestamps now drive both large-lyric highlighting and horizontal highway word positions. Held words and gaps follow their saved times, including recording offsets and speed changes. Existing line-only cues retain their approximate sweep.

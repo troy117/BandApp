@@ -96,7 +96,7 @@ export class BandPractice {
     this.renderCatalog(); this.renderPart(); this.renderMidi(this.midi.snapshot());
     this.timer = setInterval(() => this.tick(), 25); requestAnimationFrame(() => this.frame());
     window.addEventListener('band-load-school', event => { const instrument=event.detail.instrument||(['guitar','bass','vocals'].includes(this.mode)?this.mode:'keyboard');this.setMode(instrument); this.attempt(() => this.loadChoice('school:' + event.detail.id, undefined, instrument)); });
-    window.addEventListener('band-edit-school', event => { this.setMode('keyboard'); this.importer.attempt(() => this.importer.editSchoolSong(event.detail.id)); });
+    window.addEventListener('band-edit-school', event => { this.setMode('keyboard'); this.importer.attempt(() => this.importer.editSchoolSong(event.detail.id, event.detail.tab)); });
   }
   get active() { return this.mode !== 'drums'; }
   message(text) { this.q('b-message').textContent = text; }
@@ -106,7 +106,7 @@ export class BandPractice {
     catch { this.message('Device storage is unavailable. Controls last for this visit.'); }
   }
   setMode(mode) {
-    if (this.mode !== mode) { this.singing.microphone.stop(); this.importer.timing.pause(); this.stop('Practice area changed.'); this.rooms.unready('Practice area changed.'); this.beforeEnter(); this.clearHeld(); this.collapse(); }
+    if (this.mode !== mode) { this.singing.microphone.stop(); this.importer.timing.pause(); this.importer.backing.cancel(); this.stop('Practice area changed.'); this.rooms.unready('Practice area changed.'); this.beforeEnter(); this.clearHeld(); this.collapse(); }
     this.mode = mode; document.body.classList.toggle('band-active', this.active); this.q('band-workspace').hidden = !this.active;
     document.querySelector('main h1').textContent = mode === 'drums' ? 'Drum practice' : mode === 'keyboard' ? 'Keyboard practice' : mode === 'jam' ? 'Jam session' : mode === 'vocals' ? 'Singing practice' : mode[0].toUpperCase()+mode.slice(1)+' · follow along';
     for (const button of document.querySelectorAll('[data-band-mode]')) button.setAttribute('aria-pressed', String(button.dataset.bandMode === mode));
@@ -326,6 +326,7 @@ export class BandPractice {
     if (!options.teacher) { this.q('b-input-controls').open = false; if (!this.expanded) this.q('b-stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   }
   stop(reason = '', announce = true, partial = false) {
+    this.importer?.backing?.stop();
     this.singing?.warmup.stop();
     const played=this.session?this.audio.audibleTime()-this.session.startAt:-1;
     this.token++; const session = this.session; this.session = null; this.clearHeld(); this.audio.silence();
