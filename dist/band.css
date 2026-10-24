@@ -197,3 +197,22 @@ body .instrument-nav{position:fixed;left:0;top:0;bottom:0;z-index:35;width:var(-
 .backing-manager{padding:12px;border:1px solid #49625d;border-radius:10px;margin-bottom:12px}.backing-manager input[type=text]{min-width:0}
 .focus-song-picker:has(#drum-backing-picker){display:flex;gap:8px;align-items:center}.focus-song-picker>#groove{flex:1;width:0}.focus-song-picker>.backing-picker{flex:1}
 @media(max-width:520px){#b-practice-choices{flex-wrap:wrap}#b-practice-choices>label{flex-basis:100%;max-width:none}#b-full-song-slot #b-practice-choices{flex-wrap:nowrap}#b-full-song-slot #b-practice-choices>label{flex-basis:0}#b-full-song-slot .backing-picker>span{display:none}}
+
+/* Song-wide vocal practice accuracy, alongside the highway and large lyrics. */
+.vocal-performance-layout{display:grid;grid-template-columns:66px minmax(0,1fr);grid-template-rows:auto auto;gap:0 12px;width:100%;max-width:1000px;align-items:stretch;margin-top:14px}
+.vocal-performance-layout>.vocal-highway,.vocal-performance-layout>.singing-words{grid-column:2;min-width:0;width:100%}
+.vocal-performance-meter{grid-column:1;grid-row:1/3;display:flex;align-items:center;flex-direction:column;gap:10px;padding:16px 6px;background:#15272a;border:1px solid #3d5757;border-radius:10px;color:#c0d6cd;font-size:10px;text-align:center}
+.vocal-performance-meter>strong{font-size:23px;color:#a7efc0}.vocal-performance-meter>small{font-size:9px;line-height:1.5}.vocal-accuracy-track{position:relative;flex:1;min-height:70px;max-height:300px;width:18px;border:1px solid #516c62;border-radius:8px;background:#0e1c20;overflow:hidden}.vocal-accuracy-track>i{position:absolute;bottom:0;left:0;right:0;background:#71d8a2;height:0;transition:height .2s}
+#b-singing-report{margin:4px 0 0;padding:6px;min-height:32px;color:#a7efc0}
+@media(max-width:600px){.vocal-performance-layout{grid-template-columns:54px minmax(0,1fr);gap:0 7px}.vocal-performance-meter{padding:12px 3px}.vocal-performance-meter>strong{font-size:20px}.vocal-performance-meter>small{font-size:8px}}
+@media(orientation:landscape) and (max-height:600px){
+ .singing-stage.band-expanded .band-lyrics{grid-template-columns:60px minmax(0,1fr)85px}
+ .singing-stage.band-expanded .vocal-performance-layout{display:contents}
+ .singing-stage.band-expanded .vocal-performance-meter{grid-column:1;grid-row:1/-1;padding:8px 3px;gap:5px;margin:0}
+ .singing-stage.band-expanded .singing-quick-controls,.singing-stage.band-expanded .vocal-highway,.singing-stage.band-expanded .band-lyrics[data-view=lyrics] .singing-words,.singing-stage.band-expanded .singing-player{grid-column:2}
+ .singing-stage.band-expanded .vocal-side-meter{grid-column:3}
+ .singing-stage.band-expanded #b-singing-report{display:none}
+}
+
+#vocal-report-chart{display:block;width:100%;height:270px;border:1px solid #3a5657;border-radius:10px}.vocal-report-legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:11px;color:#bdd1cb}.vocal-report-phrase{display:flex;align-items:center;gap:16px;justify-content:space-between;padding:16px 0;border-top:1px solid #395153}.vocal-report-phrase>div{display:grid;gap:7px;min-width:0}.vocal-report-phrase p{margin:0;line-height:1.5}.vocal-report-phrase small{font-size:11px;color:#adc4bd;line-height:1.5}.vocal-report-phrase strong{color:#9ee0b7;font-size:14px}.vocal-report-phrase>.button{min-height:44px;white-space:nowrap}#vocal-report-pan{width:100%;min-height:40px;accent-color:#9ee0b7}#vocal-report-detail>h3{margin-top:24px}
+@media(max-width:600px){#vocal-report-chart{height:230px}.vocal-report-phrase{gap:9px}.vocal-report-phrase>.button{font-size:11px;padding:9px}.vocal-report-phrase p{font-size:14px}.vocal-report-phrase small{font-size:10px}}

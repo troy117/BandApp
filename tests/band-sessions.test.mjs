@@ -1,4 +1,5 @@
 import { arrangementFromBar } from '../dist/session-transport.mjs';
+import { VocalPerformance,vocalSummary } from '../dist/vocal-performance.mjs';
 import { createChart, Judge } from '../dist/engine.mjs';
 import { PitchJudge } from '../dist/instruments.mjs';
 import { createPracticeChart } from '../dist/practice.mjs';
@@ -55,6 +56,22 @@ async function bandFixture(t) {
   return {directory,store,api,server,setup,a,b,other,outsider,request,wire,add,advance:value=>{now=value;},now:()=>now};
 }
 const createRoom=env=>env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'duet-first',assignments:[{userId:env.a.user.id,partId:'drums'},{userId:env.b.user.id,partId:'keyboard'}]});
+
+test('vocal practice reports save privately, reopen, retry idempotently and validate the selected song clock',async t=>{
+ const env=await bandFixture(t),arrangement=arrangementFromBar(builtinArrangement('band-first'),2),chart=arrangement.parts.find(p=>p.instrument==='vocals').chart,tracker=new VocalPerformance(chart);
+ for(let i=0;i<=150;i++){const at=i*.02,note=chart.notes.find(n=>n.time<=at&&n.time+n.duration>at);tracker.observe(at,note?{midi:note.pitch,confidence:.99}:null);}
+ const report=tracker.report(3),id=randomUUID(),input={id,sourceKind:'duet',sourceId:'band-first',partId:'vocals',startBar:2,report};
+ const saved=await env.request(env.b,'/band/runs','POST',input);assert.equal(saved.status,200);assert.equal(saved.data.duplicate,false);
+ assert.equal((await env.request(env.b,'/band/runs','POST',input)).data.duplicate,true);
+ assert.equal((await env.request(env.a,'/band/runs','POST',input)).status,409);
+ const result=await env.request(env.b,'/users/'+env.b.user.id+'/runs/'+id);assert.equal(result.status,200);assert.equal(result.data.record.instrument,'vocals');assert.equal(result.data.record.accuracy,vocalSummary(report).accuracy);assert.deepEqual(result.data.report,report);
+ assert.equal((await env.request(env.setup,'/users/'+env.b.user.id+'/runs/'+id)).status,200);
+ assert.equal((await env.request(env.other,'/users/'+env.b.user.id+'/runs/'+id)).status,404);
+ assert.equal((await env.request(env.a,'/users/'+env.b.user.id+'/runs/'+id)).status,404);
+ assert.equal((await env.request(env.b,'/band/runs','POST',{...input,id:randomUUID(),startBar:1})).status,400);
+ assert.equal((await env.request(env.b,'/band/runs','POST',{...input,id:randomUUID(),report:{...report,elapsed:1}})).status,400);
+ assert.equal(JSON.stringify(result.data.report).includes('audio'),false);
+});
 test('shared take deletion is teacher-owned, recoverable and preserves all student result rows', async t => {
   const env = await bandFixture(t), created = await createRoom(env), ready = await readyRoom(env, created.data.room);
   const started = (await env.request(env.setup,'/band/rooms/'+ready.room.id+'/start','POST',{version:ready.room.version})).data.room;

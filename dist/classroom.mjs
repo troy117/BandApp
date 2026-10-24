@@ -297,6 +297,7 @@ function schoolMarkup() {
 }
 
 function schoolRunMarkup(run) {
+  if(run.instrument==='vocals')return '<article class="school-run"><div class="school-run-heading"><div><h4>'+escapeHtml(run.title)+'</h4><small>'+schoolDate(run.at)+' · Vocals · '+(run.stopped?'Stopped attempt':'Song complete')+'</small></div><button class="button secondary" data-open-run="'+escapeHtml(run.id)+'">'+Math.round(run.accuracy)+'% on pitch · Report</button></div><p>'+run.measuredSeconds.toFixed(1)+'s measured · '+Math.round(run.coverage)+'% of played melody measured · '+run.lowSeconds.toFixed(1)+'s low · '+run.highSeconds.toFixed(1)+'s high · '+(run.quietSeconds+run.unclearSeconds).toFixed(1)+'s quiet / unclear</p></article>';
   const title = escapeHtml(run.title), timing = run.meanAbsMs === null ? '' : ' · ' + Math.round(run.meanAbsMs) + ' ms average error · ' + schoolTiming(run.meanMs);
   const part = run.partName ? ' · ' + escapeHtml(run.partName) : '', take = run.takeId ? ' · Shared take ' + escapeHtml(run.takeId.slice(0,8)) : '';
   const missed = run.misses ?? run.total - run.hits;

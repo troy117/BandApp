@@ -5,11 +5,15 @@ Updated October 24, 2026. This is the starting point for continuing at home.
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.22.0 / Prototype 22**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Browser app, version **0.23.0 / Prototype 23**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Vocal practice reports
+
+Prototype 23 adds vocal-performance.mjs (time-weighted single-note pitch assessment), vocal-report-view.mjs (pitch/phrase review in the existing report dialog), and optional private vocal practice records through /band/runs. Reports are version 2, instrument vocals; existing drum/keyboard reports remain version 1. Server validation matches the report to the chosen backing and optional shared start bar, and computes summaries from the submitted derived pitch cells. Existing history/report access and backups apply, with no schema change. Microphone audio is never recorded or uploaded. Pausing, stopping or completing an attempt with at least 0.1 s of monitored melody opens a report; retries/continues start a fresh attempt. Instrumental rests, ambiguous overlapping pitches, 80 ms note-onset grace, mic-off periods and future notes are excluded. Quiet/unclear monitored input counts against measured-time accuracy. Coverage makes missing measurement visible. See [VOCAL_REPORTS.md](VOCAL_REPORTS.md). Browser QA uses an isolated synthetic student and generated microphone-pitch adapter under ignored artifacts/vocal-performance-qa/, never a real microphone or production result.
 
 ## Recording alignment
 

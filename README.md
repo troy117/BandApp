@@ -23,6 +23,8 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
+Prototype 23 adds vocal accuracy meters, automatic stopped/completed pitch reports and saved phrase review. See [vocal reports](docs/VOCAL_REPORTS.md).
+
 Prototype 22 adds independent, changing-tempo timing maps for each backing and imports analyzed vocal pitch guides. See [recording alignment](docs/RECORDING_ALIGNMENT.md).
 
 Prototype 21 adds named backing versions, student selection and independent calibration per version. The teacher chooses the shared backing for a jam. See [backing versions](docs/BACKING_TRACKS.md).

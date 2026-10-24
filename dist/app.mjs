@@ -551,7 +551,7 @@ function frame() {
 
 async function showReport() { if(!lastReport)return;await scoreScreen.exit();if(lastReport)reportView.open(lastReport.record,lastReport.report); }
 async function openSavedReport(record, userId = school.user?.id) {
-  if(!record)return;
+  if(!record)return;band?.stop('Practice report opened.',true,true);
   try {
     await scoreScreen.exit();let detail=record.report||null;
     if(!detail && userId){const response=await school.request('/users/'+userId+'/runs/'+record.id);record=response.record;detail=response.report;}
@@ -562,6 +562,12 @@ async function practiceReportSection(record, report, selection, options = {}) {
   if(!selection)throw new Error('Select the source bars to practice.');
   if(band.rooms.room)throw new Error('Leave the jam session before starting individual section practice.');
   if(options.next){const ids=Object.keys(GROOVES),next=ids[ids.indexOf(record.sourceId)+1];if(!next)throw new Error('You have reached the last track. Choose another in Tracks.');band.setMode('drums');chooseTrack(next);return;}
+  if(record.instrument==='vocals' && Number.isFinite(options.vocalTime)) {
+    const same=band.arrangement.id===record.sourceId&&band.arrangement.revisionId===record.revisionId&&(band.arrangement.backingId||null)===(record.backingId||null)&&band.part.id===record.partId;
+    if(!same){band.setMode('vocals');if(record.sourceKind==='personal'){if(band.arrangement.id!==record.sourceId)throw new Error('Load the original local arrangement first.');}else await band.loadChoice(record.sourceKind+':'+record.sourceId,record.revisionId,'vocals',record.backingId);const part=band.arrangement.parts.find(p=>p.id===record.partId);if(part&&band.part.id!==part.id)band.selectPart(part.id);}
+    const base=(record.playbackStartBar||1),shift=(band.arrangement.startBar||1)===base?0:(band.part.chart.measures.find(m=>m.bar===base)?.time||0);
+    await band.singing.seek(Math.max(0,options.vocalTime+shift-(options.vocalTime?2:0)),true);return;
+  }
   if(record.instrument || record.sourceKind==='duet') {
     band.setMode(record.instrument||'keyboard');
     if(record.sourceKind==='personal') {if(band.arrangement.id!==record.sourceId)throw new Error('Load the original local arrangement first.');}

@@ -6,6 +6,8 @@ files.splice(files.indexOf('drum-highway.mjs'), 0, 'highway-experience.mjs');
 files.splice(files.indexOf('score-screen.mjs'), 0, 'screen-awake.mjs');
 files.splice(files.indexOf('band-markup.mjs'), 0, 'class-experience.mjs', 'mobile-practice.mjs');
 files.splice(files.indexOf('band-markup.mjs'), 0, 'vocal-pitch.mjs', 'vocal-microphone.mjs', 'vocal-warmup.mjs', 'vocal-highway.mjs', 'singing-practice.mjs');
+files.splice(files.indexOf('vocal-pitch.mjs'),0,'vocal-performance.mjs');
+files.splice(files.indexOf('report-view.mjs'),0,'vocal-report-view.mjs');
 files.splice(files.indexOf('band-practice.mjs'), 0, 'karaoke-view.mjs');
 files.splice(files.indexOf('audio-sync.mjs'), 0, 'audio-sync-markup.mjs');
 files.splice(files.indexOf('audio-sync.mjs'), 0, 'backing-range.mjs', 'timing-map.mjs', 'backing-tracks.mjs');

@@ -1,3 +1,4 @@
+import { VocalPerformance, vocalSummary, vocalPracticeRecord } from './vocal-performance.mjs';
 import { VocalMicrophone } from './vocal-microphone.mjs';
 import { vocalPitchFeedback } from './vocal-pitch.mjs';
 import { vocalTarget } from './vocal-guide.mjs';
@@ -12,14 +13,14 @@ export function singingMarkup() {
     <div class="singing-mic-row" id="b-singing-mic-row"><button id="b-vocal-mic" class="button secondary" aria-pressed="false">Enable microphone</button><span id="b-vocal-mic-badge">MIC OFF</span></div>
     <div id="b-vocal-volume-slot" class="singing-volume-slot"></div><p id="b-vocal-mic-status" class="singing-mic-status" role="status">Optional pitch feedback. Your voice stays on this device.</p>
     <div id="b-vocal-views" class="singing-view-switch" role="group" aria-label="Vocal practice view"><button class="button secondary" data-vocal-view="highway" aria-pressed="true">Pitch highway</button><button class="button secondary" data-vocal-view="lyrics" aria-pressed="false">Large lyrics</button></div>
-    <section id="b-vocal-highway" class="vocal-highway" aria-label="Vocal pitch highway with lyrics"><div class="vocal-highway-legend"><span><i></i>Melody</span><span><i></i>Your voice</span><span>Higher notes ↑</span></div><canvas id="b-vocal-highway-canvas" aria-label="Vocal notes and lyrics move toward the white sing line. Higher bars mean higher pitches; longer bars mean longer holds."></canvas><p>Sing as the bars reach the white line. Word timing is approximate.</p></section>
+    <div class="vocal-performance-layout"><aside id="b-vocal-performance" class="vocal-performance-meter" aria-label="Vocal pitch accuracy for this attempt"><span>On pitch</span><strong id="b-vocal-accuracy">—</strong><div class="vocal-accuracy-track" role="progressbar" aria-label="Time on the correct pitch" aria-valuemin="0" aria-valuemax="100" id="b-vocal-accuracy-bar"><i id="b-vocal-accuracy-fill"></i></div><small id="b-vocal-accuracy-detail">Mic off</small></aside><section id="b-vocal-highway" class="vocal-highway" aria-label="Vocal pitch highway with lyrics"><div class="vocal-highway-legend"><span><i></i>Melody</span><span><i></i>Your voice</span><span>Higher notes ↑</span></div><canvas id="b-vocal-highway-canvas" aria-label="Vocal notes and lyrics move toward the white sing line. Higher bars mean higher pitches; longer bars mean longer holds."></canvas><p>Sing as the bars reach the white line. Word timing is approximate.</p></section>
     <div class="singing-words"><p id="b-vocal-state">READY TO SING</p><div id="b-vocal-line" aria-live="polite"></div><progress id="b-vocal-progress" max="1" value="0" aria-label="Current lyric line progress"></progress><p id="b-vocal-next"></p></div>
-    <section id="b-vocal-pitch" class="singing-pitch" aria-label="Live pitch guide" data-state="off">
+    </div><section id="b-vocal-pitch" class="singing-pitch" aria-label="Live pitch guide" data-state="off">
       <div class="singing-note-pair"><div><span>Target</span><strong id="b-pitch-wanted">—</strong></div><strong id="b-pitch-feedback" role="status" aria-live="polite">Sing with the lyrics</strong><div><span>You</span><strong id="b-pitch-heard">—</strong></div></div>
       <div class="singing-meter" aria-hidden="true"><span class="singing-center"></span><span id="b-pitch-dot" hidden></span></div><div class="singing-meter-labels" aria-hidden="true"><span>Too low</span><span>On pitch</span><span>Too high</span></div><p id="b-pitch-hint">Enable your microphone when you’re ready for pitch feedback.</p>
     </section>
-    <aside id="b-vocal-side-meter" class="vocal-side-meter" aria-label="Live singing pitch"><span>Pitch</span><strong id="b-vocal-side-label" role="status">Mic off</strong><div class="vocal-side-track" aria-hidden="true"><span>High</span><i></i><b id="b-vocal-side-dot" hidden></b><span>Low</span></div><small>Target <b id="b-vocal-side-target">—</b></small><small>You <b id="b-vocal-side-heard">—</b></small></aside><div class="singing-player"><p id="b-singing-error" class="singing-play-error" role="alert" hidden></p><label class="singing-seek-label" for="b-singing-seek">Song position <span id="b-singing-time">0:00 / 0:00</span></label><input id="b-singing-seek" type="range" min="0" max="1" step="0.1" value="0"><div class="singing-player-buttons"><button id="b-singing-back" class="button secondary" aria-label="Practice this lyric line again">↶ Try line again</button><button id="b-singing-play" class="button primary">▶ Play song</button></div><button id="b-singing-next" class="text-button">Skip to next vocal line →</button><p id="b-singing-room" class="band-help" hidden>Your teacher controls playback in this session.</p></div>
-    <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary>${warmupMarkup()}<p class="band-help">Use headphones and keep your phone nearby. One voice works best. Live guidance is for practice; it isn’t saved as a grade.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label" for="b-singing-volume">Background volume <output id="b-singing-volume-value">65%</output><input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Melody guide octave (sound)<select id="b-vocal-guide-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Written octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label><label class="singing-setting">Microphone timing correction <span id="b-vocal-delay-label">80 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="80"></label><p class="band-help">If feedback changes before you reach the next note, increase this slightly. Headphones with a cable usually have less delay than Bluetooth.</p></details>
+    <aside id="b-vocal-side-meter" class="vocal-side-meter" aria-label="Live singing pitch"><span>Pitch</span><strong id="b-vocal-side-label" role="status">Mic off</strong><div class="vocal-side-track" aria-hidden="true"><span>High</span><i></i><b id="b-vocal-side-dot" hidden></b><span>Low</span></div><small>Target <b id="b-vocal-side-target">—</b></small><small>You <b id="b-vocal-side-heard">—</b></small></aside><div class="singing-player"><p id="b-singing-error" class="singing-play-error" role="alert" hidden></p><label class="singing-seek-label" for="b-singing-seek">Song position <span id="b-singing-time">0:00 / 0:00</span></label><input id="b-singing-seek" type="range" min="0" max="1" step="0.1" value="0"><div class="singing-player-buttons"><button id="b-singing-back" class="button secondary" aria-label="Practice this lyric line again">↶ Try line again</button><button id="b-singing-play" class="button primary">▶ Play song</button></div><button id="b-singing-report" class="text-button" hidden>View pitch report</button><button id="b-singing-next" class="text-button">Skip to next vocal line →</button><p id="b-singing-room" class="band-help" hidden>Your teacher controls playback in this session.</p></div>
+    <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary>${warmupMarkup()}<p class="band-help">Use headphones and keep your phone nearby. One voice works best. Pitch reports save to your practice history. Microphone audio stays on this device.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label" for="b-singing-volume">Background volume <output id="b-singing-volume-value">65%</output><input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Melody guide octave (sound)<select id="b-vocal-guide-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Written octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label><label class="singing-setting">Microphone timing correction <span id="b-vocal-delay-label">80 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="80"></label><p class="band-help">If feedback changes before you reach the next note, increase this slightly. Headphones with a cable usually have less delay than Bluetooth.</p></details>
     <details id="b-vocal-melody-panel" class="singing-details" hidden><summary>Melody &amp; sheet music</summary><div class="band-row"><p id="b-vocal-target"></p><label class="band-check"><input id="b-vocal-guide-enabled" type="checkbox">Melody guide</label></div><canvas id="b-vocal-melody" aria-label="Vocal melody on a treble staff with note names and hold lengths"></canvas><p class="band-help">Follow the green line. Shaded tails show how long to hold. Headphones keep the guide out of your microphone.</p></details>
   </div>`;
 }
@@ -42,6 +43,7 @@ export class SingingPractice {
       this.preferredView = button.dataset.vocalView; this.setView(this.preferredView);
       try { localStorage.setItem('groove-vocal-view-v1', this.preferredView); } catch {}
     };
+    q('b-singing-report').onclick=()=>{if(this.lastVocal)this.practice.onReport?.(this.lastVocal.record,this.lastVocal.report);};
     q('b-singing-settings').ontoggle = () => { if (!q('b-singing-settings').open) this.warmup.stop(); };
     q('b-vocal-mic').onclick = () => ['requesting', 'listening'].includes(this.microphone.state) ? this.microphone.stop() : this.microphone.start();
     q('b-singing-play').onclick = () => { if (!practice.session && !practice.expanded && !practice.rooms.room && window.matchMedia('(max-width:600px)').matches) practice.expand(); practice.attempt(() => practice.play()); };
@@ -58,6 +60,7 @@ export class SingingPractice {
     window.addEventListener('pagehide', () => { this.warmup.stop(); this.microphone.stop(); });
   }
   reset() {
+    this.lastVocal=null;this.q('b-singing-report').hidden=true;this.performanceState=null;
     this.generation = (this.generation || 0) + 1; this.position = 0; this.paused = false; this.busy = false;
     this.microphone.stop();
     const p = this.practice, q = this.q, vocals = p.active && p.part.instrument === 'vocals';
@@ -112,12 +115,45 @@ export class SingingPractice {
     if (play) await this.toggle();
   }
   stopped() { this.position = 0; this.paused = false; }
+  startAttempt(session) {
+    if(session.part.instrument!=='vocals'||session.teacher||session.listen)return;
+    session.vocalPerformance=new VocalPerformance(session.judge.chart,{from:session.from||0,anyOctave:this.q('b-vocal-range').value==='any',delayMs:Number(this.q('b-vocal-delay').value)});
+    this.performanceState=null;
+  }
+  finishAttempt(session,time,completed=false) {
+    const tracker=session?.vocalPerformance;if(!tracker)return;
+    tracker.disconnect();const report=tracker.report(time,!completed),summary=vocalSummary(report);
+    this.performanceState={report,summary};
+    if(summary.measuredSeconds<.1||session.accountId!==(this.practice.school.user?.id||null))return;
+    const p=this.practice,record={...vocalPracticeRecord(session.arrangement,{...session.part,chart:session.judge.chart},report,{id:crypto.randomUUID()}),report};
+    session.vocalReport=report;this.lastVocal={record,report};p.lastReport={...session,runRecord:record,detail:report};
+    this.q('b-singing-report').hidden=false;
+    this.q('b-report').hidden=false;this.q('b-report-summary').textContent=Math.round(summary.accuracy)+'% on pitch · '+summary.measuredSeconds.toFixed(1)+' seconds measured';
+    this.q('b-report-notes').textContent='Open your pitch report to see on-pitch phrases, low/high singing and quiet or unclear input.';
+    this.q('b-retry-save').hidden=true;p.collapse();p.onAttempt?.(record,report);
+    if(session.accountId&&p.school.user?.id===session.accountId&&['duet','school'].includes(record.sourceKind)){
+      p.pendingResult={accountId:session.accountId,id:record.id,sourceKind:record.sourceKind,sourceId:record.sourceId,revisionId:record.revisionId,backingId:record.backingId,partId:record.partId,startBar:record.playbackStartBar,report};p.saveResult();
+    }else this.q('b-save-state').textContent='Pitch report kept in this browser. Microphone audio was not recorded.';
+    if(!document.hidden)p.onReport?.(record,report);
+    return report;
+  }
+  drawPerformance(session,time) {
+    const now=performance.now();if(this.performanceDrawAt&&now-this.performanceDrawAt<150)return;this.performanceDrawAt=now;
+    const tracker=session?.vocalPerformance;
+    const state=tracker?{report:tracker.report(time),summary:null}:this.performanceState;
+    const summary=state?(state.summary||vocalSummary(state.report)):null,measured=summary?.measuredSeconds||0,active=this.microphone.state==='listening';
+    this.q('b-vocal-accuracy').textContent=measured>=.1?Math.round(summary.accuracy)+'%':'—';
+    const bar=this.q('b-vocal-accuracy-bar');bar.setAttribute('aria-valuenow',String(Math.round(summary?.accuracy||0)));bar.setAttribute('aria-valuetext',measured>=.1?Math.round(summary.accuracy)+' percent of measured vocal time on pitch':'No vocal time measured yet');
+    this.q('b-vocal-accuracy-fill').style.height=(summary?.accuracy||0)+'%';
+    this.q('b-vocal-accuracy-detail').textContent=measured>=.1?measured.toFixed(1)+'s measured':!this.practice.part.chart.notes.length?'No melody':active?'Sing to begin':'Mic off';
+  }
   syncMicContext() {
     const room = this.practice.rooms.room?.id || '';
     if (this.micRoom === room) return;
     this.micRoom = room; this.micState(this.microphone);
   }
   micState({ state, message }) {
+    if(state!=='listening')this.practice.session?.vocalPerformance?.disconnect();
     const q = this.q, on = state === 'listening', pending = state === 'requesting';
     q('b-vocal-mic').textContent = on ? 'Turn microphone off' : pending ? 'Cancel microphone' : 'Enable microphone';
     q('b-vocal-mic').setAttribute('aria-pressed', String(on)); q('b-vocal-mic-badge').textContent = on ? '● MIC ON' : pending ? 'WAITING' : 'MIC OFF';
@@ -126,7 +162,8 @@ export class SingingPractice {
   }
   draw(chart, time, playing) {
     const p = this.practice, q = this.q, room = !!p.rooms.room;
-    q('b-singing-play').textContent = this.busy ? 'Loading song…' : playing ? 'Ⅱ Pause' : this.paused ? '▶ Continue' : '▶ Play song';
+    q('b-singing-report').hidden=playing||!this.lastVocal;
+    q('b-singing-play').textContent = this.busy ? 'Loading song…' : playing ? (this.microphone.state==='listening'?'Ⅱ Pause & report':'Ⅱ Pause') : this.paused ? '▶ Continue' : '▶ Play song';
     for (const id of ['b-singing-play', 'b-singing-back', 'b-singing-seek']) q(id).disabled = room || this.busy;
     const next = this.nextLine(); q('b-singing-next').disabled = room || this.busy || !next;
     q('b-singing-room').hidden = !room; q('b-singing-volume-label').hidden = room || !(p.backing || p.arrangement.audio);
@@ -146,6 +183,9 @@ export class SingingPractice {
     }
     else if (!playing) feedback = { state: 'ready', label: 'Your mic is ready', hint: 'Press Play and sing along. Your voice stays on this device.', target: '—', heard: '—', cents: null };
     else feedback = vocalPitchFeedback(detected, chart.notes, time < (p.session?.from || 0) ? -1 : time - (detected?.age || 0) - Number(q('b-vocal-delay').value) / 1000, { anyOctave: q('b-vocal-range').value === 'any' });
+    const effectiveTime=time-(detected?.age||0)-Number(q('b-vocal-delay').value)/1000;
+    p.session?.vocalPerformance?.observe(effectiveTime,detected,playing&&this.microphone.state==='listening'&&!this.warmup.running&&!this.warmup.finding&&!this.warmup.busy);
+    this.drawPerformance(p.session,time);
     q('b-vocal-pitch').dataset.state = feedback.state;
     for (const [id, value] of [['b-pitch-feedback', feedback.label], ['b-pitch-hint', feedback.hint], ['b-pitch-wanted', feedback.target], ['b-pitch-heard', feedback.heard]]) if (q(id).textContent !== value) q(id).textContent = value;
     const dot = q('b-pitch-dot'); dot.hidden = feedback.cents === null; if (!dot.hidden) dot.style.left = (50 + Math.max(-1, Math.min(1, feedback.cents / 150)) * 46) + '%';

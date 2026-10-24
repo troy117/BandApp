@@ -1,3 +1,4 @@
+import { vocalCsv } from './vocal-performance.mjs';
 import { vocalTarget, drawVocalStaff } from './vocal-guide.mjs';
 import { drawDrumHighway } from './drum-highway.mjs';
 import { FrettedFullScore } from './fretted-score.mjs';
@@ -75,6 +76,7 @@ export class BandPractice {
     q('b-disconnect').onclick = () => { this.stop('MIDI keyboard disconnected.'); this.rooms.unready('Input changed.'); this.midi.disconnect(); this.clearHeld(); };
     q('b-device').onchange = () => { this.stop('MIDI input changed.'); this.rooms.unready('Input changed.'); this.midi.select(q('b-device').value); };
     q('b-kit').onclick = () => { this.stop('Drum controls opened.'); this.rooms.unready('Drum controls opened.'); openDrumControls(); };
+    for(const id of ['b-vocal-range','b-vocal-delay','b-vocal-guide-octave'])this.q(id).disabled=!!this.session;
     for (const id of ['b-channel', 'b-offset', 'b-octave']) q(id).onchange = () => {
       this.stop('Input settings changed.'); this.rooms.unready('Input settings changed.');
       this.channel = q('b-channel').value; this.offset = Math.max(-200, Math.min(200, Number(q('b-offset').value) || 0)); this.octave = Number(q('b-octave').value);
@@ -96,7 +98,7 @@ export class BandPractice {
     document.addEventListener('keydown', event => this.keyDown(event), true); document.addEventListener('keyup', event => this.keyUp(event), true);
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.active) { this.stop('Tab hidden. Prepare a fresh take when you return.',true,true); this.rooms.unready('Tab hidden.'); this.clearHeld(); } else if(!document.hidden && this.school.user && !this.session)this.attempt(()=>this.refreshCatalog()); });
     window.addEventListener('blur', () => { this.clearHeld(); if (this.active && this.session && !this.session.teacher && this.part.instrument !== 'vocals') this.stop('Window lost focus. Prepare a fresh take when you return.',true,true); });
-    q('b-csv').onclick = () => { if (this.lastReport) this.download('groove-lab-' + this.lastReport.part.instrument + '-timing.csv', partCsv(this.lastReport.judge), 'text/csv'); };
+    q('b-csv').onclick = () => { if (this.lastReport) this.download('groove-lab-' + this.lastReport.part.instrument + '-timing.csv', this.lastReport.detail?.instrument==='vocals'?vocalCsv(this.lastReport.detail):partCsv(this.lastReport.judge), 'text/csv'); };
     q('b-retry-save').onclick = () => this.saveResult();
     q('b-open-report').onclick=()=>{if(this.lastReport?.detail)this.onReport?.(this.lastReport.runRecord,this.lastReport.detail);};
     this.loopOptions={enabled:false,startBar:1,endBar:4,repeats:4,focus:'all'};
@@ -336,6 +338,7 @@ export class BandPractice {
   begin(startAt, options = {}) {
     const chart = this.playChart();
     this.session = { ...options, judge: followInstrument(this.part.instrument) ? new FollowCursor(chart) : this.part.instrument === 'keyboard' ? new PitchJudge(chart) : new Judge(chart), startAt, count: 0, beat: 0, guide: 0, accountId: this.school.user?.id || null, lastProgress: 0, part: this.part, arrangement: this.arrangement };
+    this.singing?.startAttempt(this.session);
     const from = options.from || 0;
     if (from > 0) {
       this.session.beat = chart.beats.findIndex(beat => beat.time >= from); if (this.session.beat < 0) this.session.beat = chart.beats.length;
@@ -347,7 +350,7 @@ export class BandPractice {
       const clip=backingClip(this.backing,from,chart.duration);
       if(clip)this.audio.playBacking(this.backing.buffer,startAt+clip.when,clip.offset,this.backing.volume,clip.duration);
     }
-    this.q('b-report').hidden = true; this.lockControls(); this.q('b-feedback').textContent = options.teacher ? 'The shared count-in is scheduled.' : followInstrument(this.part.instrument) ? 'Follow your part after the count-in. This part is not scored.' : options.listen ? 'Listen first. This run is not scored.' : 'Count in, then meet each note in its hit box.';
+    this.q('b-report').hidden = true; this.lockControls(); this.q('b-feedback').textContent = options.teacher ? 'The shared count-in is scheduled.' : followInstrument(this.part.instrument) ? (this.part.instrument==='vocals'?'Sing with the melody. Mic-on attempts include a pitch report.':'Follow your part after the count-in. This part is not scored.') : options.listen ? 'Listen first. This run is not scored.' : 'Count in, then meet each note in its hit box.';
     if (!options.teacher) { this.q('b-input-controls').open = false; if (!this.expanded) this.q('b-stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   }
   stop(reason = '', announce = true, partial = false) {
@@ -356,6 +359,7 @@ export class BandPractice {
     const played=this.session?this.audio.audibleTime()-this.session.startAt:-1;
     this.token++; const session = this.session; this.session = null; this.clearHeld(); this.audio.silence();
     this.singing?.stopped();
+    if(session?.vocalPerformance)this.singing.finishAttempt(session,session.vocalCompleted?session.judge.chart.duration:Math.max(session.from||0,played),!!session.vocalCompleted);
     if (session?.takeId && announce) {
       if (session.teacher) this.rooms?.unready(reason);
       else this.rooms?.link.send({ type: 'interrupt', takeId: session.takeId, reason });
@@ -370,6 +374,7 @@ export class BandPractice {
     for(const id of ['b-loop-enabled','b-loop-from','b-loop-to','b-loop-repeats'])this.q(id).disabled=locked;
     for (const id of ['b-song', 'b-backing', 'b-part', 'b-open-import']) this.q(id).disabled = locked;
     this.q('b-song').disabled = !!room;
+    for(const id of ['b-vocal-range','b-vocal-delay','b-vocal-guide-octave'])this.q(id).disabled=!!this.session;
     for (const id of ['b-channel', 'b-offset', 'b-octave', 'b-device', 'b-reset-keys', 'b-connect', 'b-kit']) this.q(id).disabled = inputLocked;
     for (const button of this.q('b-bindings').querySelectorAll('button')) button.disabled = inputLocked;
     this.q('b-play').disabled = !!room; this.q('b-listen').disabled = !!room || !!this.session;
@@ -403,6 +408,7 @@ export class BandPractice {
     const session = this.session; if (!session) return;
     if (session.teacher) { this.stop('', false); return; }
     if(session.judge.followAlong) {
+      if(session.part.instrument==='vocals'&&session.vocalPerformance){session.vocalCompleted=true;this.stop('',false);this.singing.microphone.stop();if(session.vocalReport){if(session.takeId)this.rooms.finish({mode:'follow'});return;}}
       if (session.part.instrument === 'vocals') this.singing.microphone.stop();
       this.lastReport={...session};this.stop('',false);this.q('b-feedback').textContent='Finished following '+session.part.name+'. No performance score was recorded.';
       this.q('b-report').hidden=false;this.q('b-report-summary').textContent=session.arrangement.title+' · '+session.part.name+' · Follow-along completed (unscored)';this.q('b-report-notes').textContent='';this.q('b-retry-save').hidden=true;this.collapse();
@@ -429,7 +435,7 @@ export class BandPractice {
     }else this.q('b-save-state').textContent='Attempt kept in this browser. Publish personal arrangements to school to save account reports.';
   }
   async attachTakeReport(takeId) {
-    const last=this.lastReport;if(!last?.detail||!last.detail.notes.length||last.takeId!==takeId||last.detail.stopped)return;
+    const last=this.lastReport;if(last?.detail?.instrument==='vocals')return;if(!last?.detail||!last.detail.notes.length||last.takeId!==takeId||last.detail.stopped)return;
     try{await this.school.request('/band/takes/'+takeId+'/report',{method:'POST',data:{report:last.detail}});await this.school.refreshHistory();}
     catch(error){this.q('b-save-state').textContent='Session result saved; note detail could not save: '+error.message;}
   }

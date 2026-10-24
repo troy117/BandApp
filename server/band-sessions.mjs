@@ -1,3 +1,4 @@
+import { validateVocalReport, vocalPracticeRecord } from '../dist/vocal-performance.mjs';
 import { backingChoices, backingFileKind, withBacking } from '../dist/backing-tracks.mjs';
 import { createPracticeChart } from '../dist/practice.mjs';
 import { validateRunReport } from '../dist/run-report.mjs';
@@ -125,6 +126,20 @@ export class BandSessions {
       const input = await this.api.json(request,8*1024*1024), arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId, input.backingId);
       const part = arrangement.parts.find(part => part.id === input.partId);
       if (!part || !/^[0-9a-f-]{36}$/.test(input.id || '')) throw bandError(400, 'Choose a valid part/result.');
+      if(part.instrument==='vocals') {
+        let report,source=arrangement,vocalPart=part;
+        try {
+          const startBar=input.startBar??1;
+          if(!Number.isInteger(startBar)||startBar<1||startBar>part.chart.bars)throw new Error('Choose a valid vocal start bar.');
+          if(startBar>1){source=arrangementFromBar(arrangement,startBar);vocalPart=source.parts.find(p=>p.id===part.id);}
+          report=validateVocalReport(input.report,vocalPart.chart);
+        } catch(error){throw bandError(400,error.message);}
+        const existing=this.store.db.prepare('SELECT user_id FROM runs WHERE id=?').get(input.id);
+        if(existing&&existing.user_id!==actor.id)throw bandError(409,'Result identifier is already in use.');
+        const record=vocalPracticeRecord(source,vocalPart,report,{id:input.id,at:this.store.now()});
+        if(!existing)this.store.transaction(()=>{this.store.db.prepare('INSERT INTO runs(id,user_id,created_at,record) VALUES (?,?,?,?)').run(record.id,actor.id,record.at,JSON.stringify(record));this.store.writeReport(record.id,report);});
+        send(200,{saved:true,duplicate:Boolean(existing)});return true;
+      }
       if(followInstrument(part.instrument))throw bandError(400,'Follow-along parts do not produce performance scores.');
       let summary,report=null,chart=part.chart;
       try {
