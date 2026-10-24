@@ -44,6 +44,13 @@ test('vocal report validation rejects future detail, a different backing clock a
  const targets=structuredClone(r.targets);targets[0][2]++;assert.throws(()=>validateVocalReport({...r,targets},chart));
 });
 
+test('sub-microsecond pitch transitions serialize as quiet input rather than an invalid saved report',()=>{
+ const p=new VocalPerformance(chart);p.observe(1.1,sample(60));p.observe(1.1000002,null);
+ for(const time of [1.2,1.3,1.4])p.observe(time,null);
+ const report=p.report(1.4);assert.ok(report.frames.every(f=>f[8]===null&&f[9]===null));
+ assert.equal(validateVocalReport(report,chart).frames.length,report.frames.length);
+});
+
 test('stopping creates a replayable vocal report only for the account that sang with the microphone',t=>{
  const previous=globalThis.document;globalThis.document={hidden:false};t.after(()=>{if(previous===undefined)delete globalThis.document;else globalThis.document=previous;});
  const calls=[],fields={},p={school:{},collapse(){},onAttempt:r=>calls.push(r),onReport:(r,detail)=>calls.push(detail)};

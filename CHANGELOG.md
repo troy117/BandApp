@@ -3,7 +3,7 @@
 - A second vocal side meter tracks time on pitch alongside the current-pitch guide in both highway and large-lyric views. Phone landscape focus keeps overall accuracy on the left and live pitch on the right.
 - Mic-on attempts open a pitch report when paused/stopped or completed. Reports show measured-time accuracy, coverage, high/low/quiet/unclear time, a zoomable pitch timeline, phrase summaries, phrase retry, continuation and CSV export. Rests, new-note grace, mic-off gaps and future notes are excluded.
 - Derived pitch reports reopen from the practice journal and school results with existing student/teacher access rules. Shared vocal participation stays separate from the private practice report. Microphone audio is neither recorded nor uploaded. No database schema or hosting-setting changes.
-- Validation: all 211 tests, syntax and standalone export pass. Isolated student browser checks cover live meters, stopped/completed reports, saved-report reopening, phrase retry, CSV and phone portrait/landscape layouts with generated pitch input. Physical microphone accuracy still depends on the device and singing conditions. See [singing reports and calculation details](docs/VOCAL_REPORTS.md).
+- Validation: all 212 tests, syntax and standalone export pass. Isolated student browser checks cover live meters, stopped/completed reports, saved-report reopening, phrase retry, CSV and phone portrait/landscape layouts with generated pitch input. Physical microphone accuracy still depends on the device and singing conditions. See [singing reports and calculation details](docs/VOCAL_REPORTS.md).
 
 # 0.22.0 — Recording timing maps and analyzed vocal guides
 

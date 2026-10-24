@@ -71,8 +71,11 @@ export class VocalPerformance {
   }
   report(elapsed,stopped=true) {
     elapsed=vocalClamp(elapsed,this.from,this.chart.duration);
-    const frames=this.cells.filter(c=>c.time<elapsed&&c.counts.some(n=>n>1e-8)).map(c=>{
-      const voiced=c.counts[0]+c.counts[1]+c.counts[2];return [vocalRound(c.time),vocalRound(Math.min(c.end,elapsed)),c.pitch,...c.counts.map(vocalRound),voiced?vocalRound(c.cents/voiced):null,voiced?vocalRound(c.absolute/voiced):null];
+    const frames=this.cells.filter(c=>c.time<elapsed&&c.counts.some(n=>n>1e-8)).flatMap(c=>{
+      const start=vocalRound(c.time),end=vocalRound(Math.min(c.end,elapsed)),counts=c.counts.map(vocalRound);
+      if(end<=start||!counts.some(n=>n>0))return [];
+      const voiced=c.counts[0]+c.counts[1]+c.counts[2],hasVoice=counts[0]+counts[1]+counts[2]>0;
+      return [[start,end,c.pitch,...counts,hasVoice?vocalRound(c.cents/voiced):null,hasVoice?vocalRound(c.absolute/voiced):null]];
     });
     return {version:2,instrument:'vocals',duration:this.chart.duration,from:this.from,elapsed,stopped,anyOctave:this.anyOctave,delayMs:this.delayMs,tolerance:VOCAL_TOLERANCE,targets:this.targets,frames,phrases:(this.chart.lyrics||[]).filter(c=>c.end>this.from&&c.time<elapsed).map(c=>[Math.max(this.from,c.time),Math.min(elapsed,c.end),c.text])};
   }
