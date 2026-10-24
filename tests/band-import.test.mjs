@@ -48,3 +48,24 @@ test('library practice and part editing never fall through to archiving a song',
   q('library-list').listeners.click({target:{closest:()=>({dataset:{action:'archive',song:'song-a'}})}});
   assert.deepEqual(actions,['load:song-a','archive:song-a']);
 });
+
+test('reopening explicit instrument assignments keeps ignored tracks ignored despite MIDI suggestions', () => {
+  const fields = {}, importer = Object.assign(Object.create(BandImport.prototype), {
+    timing: {reset() {}}, q: id => fields[id] ||= {},
+    draft: {song: {title:'Original ensemble',lyricEvents:[],parts:[
+      {id:'0:9',name:'Drums',track:1,channel:10,drumCandidate:true,notes:[{}]},
+      {id:'1:0',name:'Bass',track:2,channel:1,bassCandidate:true,notes:[{}]},
+      {id:'2:0',name:'Brass with a reused MIDI program channel',track:3,channel:1,bassCandidate:true,notes:[{}]},
+      {id:'3:1',name:'Ignored guitar',track:4,channel:2,guitarCandidate:true,notes:[{}]},
+    ]}},
+  });
+  importer.renderDraft({parts:[{instrument:'drums',selected:['0:9']},{instrument:'bass',selected:['1:0']}]});
+  const html = fields['b-import-tracks'].innerHTML;
+  const options = id => html.match(new RegExp('<select data-band-track="'+id+'">([\\s\\S]*?)</select>'))[1];
+  assert.match(options('0:9'), /value="drums" selected/);
+  assert.match(options('1:0'), /value="bass" selected/);
+  assert.doesNotMatch(options('2:0'), / selected/);
+  assert.doesNotMatch(options('3:1'), / selected/);
+  importer.renderDraft();
+  assert.match(fields['b-import-tracks'].innerHTML, /value="bass" selected/);
+});

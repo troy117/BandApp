@@ -49,7 +49,7 @@ export class BandImport {
     q('b-lyrics-file').value='';
     q('b-import-tracks').innerHTML = song.parts.map(part => {
       const suggestion=part.drumCandidate?'drums':part.bassCandidate?'bass':part.guitarCandidate?'guitar':part.keyboardCandidate?'keyboard':part.vocalCandidate&&embedded.length?'vocals':'';
-      const instrument=assigned?.get(part.id)??(assigned && ['drums','keyboard'].includes(suggestion)?'':suggestion);
+      const instrument=assigned ? assigned.get(part.id) || '' : suggestion;
       return '<div class="band-track"><div>' + escapeHtml(part.name) + '<small>Track ' + part.track + ' · MIDI channel ' + part.channel + ' · ' + part.notes.length + ' notes</small></div><label>Assign to<select data-band-track="' + escapeHtml(part.id) + '"><option value="">Ignore</option>'+Object.entries(BAND_INSTRUMENTS).map(([id,name])=>'<option value="'+id+'"'+(instrument===id?' selected':'')+'>'+name+'</option>').join('')+'</select></label></div>';
     }).join('');
   }

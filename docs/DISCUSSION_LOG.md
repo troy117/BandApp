@@ -14,6 +14,8 @@ This is a concise project discussion log, written at the user's request so work 
 
 ## Development and hosting decisions
 
+- October 23 library expansion: user requested Songsterr MIDI, lyrics and backing for Superstition, Gravity, Are You Even Real and Fly Me to the Moon, then supplied all four lyric texts. They explicitly selected Gravity's standard arrangement with timed lyrics over the 9:48 vocal-enabled version. Published as four new school entries using ordinary Songsterr downloads. Gravity/Teddy lack a scored vocal melody; retain lyrics-only vocal parts. An import-editor patch preserves explicit Ignore choices on read. Private music and lyric preparations remain outside Git.
+
 - October 23, Prototype 18: prioritize student phone practice with header instrument/jam access, in-focus song switching, backing volume near Mic, screen wake locks and landscape vocals with a right-side meter. Teacher Jam uses live per-student cards rather than streamed screens, assigns available default parts and offers recoverable shared-take deletion. Vocal guidance state/cents is ephemeral and teacher-only in an active jam; microphone audio remains on the phone. Existing music, results and mounted storage are retained. See MOBILE_CLASSROOM.md.
 
 - User declined a proposed private Sites project and asked to keep development local initially.

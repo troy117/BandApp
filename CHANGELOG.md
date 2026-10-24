@@ -1,5 +1,11 @@
 # Changes
 
+## 0.18.1 — October 23, 2026 — Preserve ignored arrangement tracks
+
+- Reopening a saved song keeps every explicit track assignment, including Ignore. Instrument suggestions apply only to a new MIDI import. This prevents ignored brass or guitar tracks from being added to the bass part when editing an existing arrangement.
+- No saved song data, schema or hosting configuration changes are required.
+- Validation: 175 tests, module syntax and standalone export pass. The saved Sinatra bass arrangement remains 269 notes; reopening the editor now preserves its explicit selections.
+
 ## 0.18.0 — October 23, 2026 — Phone practice and live class meters
 
 - Mobile instrument selection joins the library/account header. Vocal songs move beside Focus view, backing volume sits beside Mic, and all fullscreen practice views offer song selection. Landscape vocal focus reserves most of the screen for Pitch highway or Large lyrics and keeps a pitch meter on the far right.
