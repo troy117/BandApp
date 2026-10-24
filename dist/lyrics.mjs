@@ -8,6 +8,39 @@ const lyricSeconds = value => {
   if (fields.length < 2 || fields.length > 3 || fields.some(n => !Number.isFinite(n) || n < 0) || fields.at(-1) >= 60 || fields.length === 3 && fields[1] >= 60) throw new Error('Use timestamps such as [00:12.50] or 00:00:12.500.');
   return fields.reduce((sum, n) => sum * 60 + n, 0);
 };
+// Inline WebVTT timestamps retain the score's uneven word rhythms and rests.
+function vttPayload(raw, time, end) {
+  const tags = [...raw.matchAll(/<(\d[\d:]*[.,]\d+)>/g)];
+  const clean = value => value.replace(/<[^>]*>/g, '');
+  if (!tags.length) return { text: clean(raw).trim() };
+  const segments = []; let cursor = 0, at = time, text = '';
+  for (const tag of [...tags, { index: raw.length, 0: '', 1: null }]) {
+    const until = tag[1] === null ? end : lyricSeconds(tag[1]);
+    if (until < at || until > end) throw new Error('Word timestamps must increase within their lyric line.');
+    const chunk = clean(raw.slice(cursor, tag.index));
+    if (chunk.trim() && until <= at) throw new Error('Each timed word must have a positive duration.');
+    segments.push({ start: text.length, stop: text.length + chunk.length, time: at, end: until });
+    text += chunk; cursor = tag.index + tag[0].length; at = until;
+  }
+  const words = [...text.matchAll(/\S+/g)].map(match => {
+    const start = match.index, stop = start + match[0].length;
+    const spans = segments.filter(segment => segment.start < stop && segment.stop > start);
+    return { text: match[0], time: spans[0].time, end: spans.at(-1).end };
+  });
+  return { text: text.trim(), words };
+}
+
+export function lyricWordTimings(cue) {
+  if (cue.words?.length) return cue.words;
+  const tokens = cue.text.split(/\s+/).filter(Boolean);
+  const weights = tokens.map(text => Math.max(1, text.replace(/[^\p{L}\p{N}]/gu, '').length));
+  const total = weights.reduce((sum, value) => sum + value, 0); let offset = 0;
+  return tokens.map((text, index) => {
+    const time = cue.time + (cue.end - cue.time) * offset / total;
+    offset += weights[index];
+    return { text, time, end: cue.time + (cue.end - cue.time) * offset / total };
+  });
+}
 export function parseLyricText(value) {
   const text = lyricText(value), cues = [];
   if (!text.trim()) return cues;
@@ -17,9 +50,10 @@ export function parseLyricText(value) {
       if (index < 0) continue;
       const match = lines[index].match(/^\s*(\d[\d:]*[.,]\d+)\s+-->\s+(\d[\d:]*[.,]\d+)(?:\s.*)?$/);
       if (!match) throw new Error('Invalid VTT/SRT cue timing.');
-      const time = lyricSeconds(match[1]), end = lyricSeconds(match[2]), payload = lines.slice(index + 1).join('\n').replace(/<[^>]*>/g, '').trim();
+      const time = lyricSeconds(match[1]), end = lyricSeconds(match[2]);
       if (end <= time) throw new Error('A lyric cue must end after it starts.');
-      if (payload) cues.push({ time, end, text: payload });
+      const payload = vttPayload(lines.slice(index + 1).join('\n'), time, end);
+      if (payload.text) cues.push({ time, end, ...payload });
     }
   } else {
     for (const line of text.split('\n').filter(line => line.trim())) {
@@ -60,7 +94,11 @@ export function arrangementLyrics(song, metadata = {}) {
   if (!['midi','recording'].includes(clock) || !Number.isFinite(offset) || Math.abs(offset) > 300) throw new Error('Choose the lyric clock and an adjustment within 300 seconds.');
   const cues = metadata.lyricsText === undefined ? midiLyricCues(song) : parseLyricText(metadata.lyricsText);
   const scale = clock === 'midi' ? metadata.timeScale ?? 1 : 1, shift = offset + (clock === 'recording' ? metadata.offset ?? 0 : 0), duration = song.duration * (metadata.timeScale ?? 1);
-  return cues.map((cue,i) => ({ time: cue.time * scale + shift, end: (cue.end ?? cues[i+1]?.time ?? cue.time + 8) * scale + shift, text: cue.text })).filter(cue => cue.end > 0 && cue.time < duration).map(cue => ({...cue,time:Math.max(0,cue.time),end:Math.min(duration,cue.end)})).filter(cue => cue.end > cue.time);
+  return cues.map((cue,i) => ({ time: cue.time * scale + shift, end: (cue.end ?? cues[i+1]?.time ?? cue.time + 8) * scale + shift, text: cue.text,
+    ...(cue.words ? { words: cue.words.map(word => ({ ...word, time: word.time * scale + shift, end: word.end * scale + shift })) } : {})
+  })).filter(cue => cue.end > 0 && cue.time < duration).map(cue => ({...cue,time:Math.max(0,cue.time),end:Math.min(duration,cue.end),
+    ...(cue.words ? { words: cue.words.filter(word => word.end > 0 && word.time < duration).map(word => ({...word,time:Math.max(0,word.time),end:Math.min(duration,word.end)})) } : {})
+  })).filter(cue => cue.end > cue.time);
 }
 export function currentLyric(cues, time) {
   let index = -1;

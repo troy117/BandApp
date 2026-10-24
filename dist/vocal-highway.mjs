@@ -1,18 +1,9 @@
 import { pitchName } from './instruments.mjs';
+import { lyricWordTimings } from './lyrics.mjs';
 
-// These are display positions within saved line cues, not recovered syllable timings.
+// Prefer saved score word timestamps; older line-only cues keep their approximate spacing.
 export function vocalHighwayWords(cues = []) {
-  return cues.flatMap(cue => {
-    const tokens = cue.text.split(/\s+/).filter(Boolean);
-    const weights = tokens.map(text => Math.max(1, text.replace(/[^\p{L}\p{N}]/gu, '').length));
-    const total = weights.reduce((sum, value) => sum + value, 0);
-    let offset = 0;
-    return tokens.map((text, index) => {
-      const time = cue.time + (cue.end - cue.time) * offset / total;
-      offset += weights[index];
-      return { text, time, end: cue.time + (cue.end - cue.time) * offset / total };
-    });
-  });
+  return cues.flatMap(lyricWordTimings);
 }
 
 export function vocalHighwayRange(notes, shift = 0) {

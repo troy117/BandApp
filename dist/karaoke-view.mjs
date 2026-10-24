@@ -1,4 +1,4 @@
-import { currentLyric } from './lyrics.mjs';
+import { currentLyric, lyricWordTimings } from './lyrics.mjs';
 
 const clampKaraoke = value => Math.max(0, Math.min(1, value));
 function karaokeBarPosition(chart, time) {
@@ -21,7 +21,8 @@ export function karaokeFrame(chart, time, playing = true, paused = false) {
     return { phase: 'ready', label: 'PAUSED · TAKE YOUR TIME', line: cue?.text || 'No lyrics', next: cues[index + 1]?.text || '', progress: 0 };
   }
   if (!playing) return { phase: 'ready', label: 'READY TO SING', line: cues[0]?.text || 'No lyrics', next: cues[1]?.text || '', progress: 0 };
-  if (current) return { phase: 'singing', label: 'SING', line: current.text, next: next?.text || '', progress: clampKaraoke((time - current.time) / (current.end - current.time)) };
+  if (current) return { phase: 'singing', label: 'SING', line: current.text, next: next?.text || '', progress: clampKaraoke((time - current.time) / (current.end - current.time)),
+    fills: lyricWordTimings(current).map(word => clampKaraoke((time - word.time) / (word.end - word.time))) };
   if (!next) return { phase: 'ended', label: 'VOCALS COMPLETE', line: 'End of vocals', next: '', progress: 0 };
   const remaining = Math.max(0, next.time - time), barsAway = karaokeBarPosition(chart, next.time) - karaokeBarPosition(chart, time);
   if (barsAway <= 2 + 1e-8) return { phase: 'preview', label: 'GET READY · ' + Math.ceil(remaining) + 's', line: next.text, next: cues[cues.indexOf(next) + 1]?.text || '', progress: 0 };
@@ -52,7 +53,7 @@ export class KaraokeLyrics {
         else { const word = document.createElement('span'); word.className = 'karaoke-word'; word.textContent = token; line.append(word); this.words.push(word); }
       }
     }
-    const fills = karaokeWordFills(frame.line, frame.progress);
+    const fills = frame.fills || karaokeWordFills(frame.line, frame.progress);
     this.words.forEach((word, index) => word.style.setProperty('--lyric-fill', (fills[index] * 100).toFixed(2) + '%'));
     const upcoming = frame.phase === 'instrumental' ? frame.next : frame.next ? 'Next · ' + frame.next : '';
     if (this.q('b-vocal-next').textContent !== upcoming) this.q('b-vocal-next').textContent = upcoming;

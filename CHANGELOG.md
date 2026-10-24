@@ -1,5 +1,11 @@
 # Changes
 
+## 0.18.2 — October 23, 2026 — Score-timed vocal words
+
+- Inline WebVTT word timestamps now drive both large-lyric highlighting and horizontal highway word positions. Held words and gaps follow their saved times, including recording offsets and speed changes. Existing line-only cues retain their approximate sweep.
+- Reviewed the four new school songs against their Songsterr arrangements. Superstition and Fly Me to the Moon receive score-based word timing. The estimated final Superstition refrain overlapped the score's extended preceding word; that unsupported refrain is retained privately as untimed text. A few unscored ad-libs remain approximate. Standard Gravity and Are You Even Real have no vocal/lyric track in their scores, so their reference-assisted line timing remains unverified at word level.
+- Validation: 179 automated tests, module syntax and standalone export pass. Private music, lyrics and review maps remain outside Git. No schema, volume, account or grading changes.
+
 ## 0.18.1 — October 23, 2026 — Preserve ignored arrangement tracks
 
 - Reopening a saved song keeps every explicit track assignment, including Ignore. Instrument suggestions apply only to a new MIDI import. This prevents ignored brass or guitar tracks from being added to the bass part when editing an existing arrangement.
