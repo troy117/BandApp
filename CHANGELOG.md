@@ -1,5 +1,13 @@
 # Changes
 
+## 0.20.0 — October 23, 2026 — Piano score and dedicated sync workspace
+
+- Instrument pages select their own part, filter compatible songs and refresh the catalog automatically. Removed the introductory banner, redundant part picker and manual song-refresh button from individual practice.
+- Keyboard adds a full MIDI-generated piano grand staff with chords, rests, cross-bar ties, accidentals, size/note-name controls and a following playhead. The highway remains available. MIDI pitches/judging clocks are retained; rhythm engraving and the middle-C staff split are approximate.
+- Teachers have a separate MIDI & audio sync sidebar/account section. Its song picker and audio/parts tabs replace the editor under practice areas. Waveforms support scrolling, dragging, wheel navigation, zoom and reference-part changes without losing the viewed location.
+- Optional start/end cuts save alongside alignment, retaining original audio bytes. Preview, solo/shared playback, seeks, loops and setup/device-library round trips honor the cuts. No schema, production song revisions or hosting-variable changes are required. See [usage and limitations](docs/PIANO_AND_SYNC.md).
+- Validation: 194 tests, syntax and standalone export pass. Isolated student/teacher browser trials verify part selection, full piano score, hidden editor on practice/Jam pages, waveform navigation/reference switching, responsive layout, and publish/reopen of recording cuts with byte comparisons.
+
 ## 0.19.1 — October 23, 2026 — Focus sound controls
 
 - Vocal focus toolbars include Metronome and Melody guide checkboxes for teachers and students in both vocal views. Existing controls move into focus and return to their settings panels without losing state. Songs without vocal notes show an unavailable melody guide.

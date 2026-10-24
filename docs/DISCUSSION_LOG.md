@@ -14,6 +14,8 @@ This is a concise project discussion log, written at the user's request so work 
 
 ## Development and hosting decisions
 
+- October 23, Prototype 20: user requested cleaner student Keyboard/Guitar/Bass pages, a piano full score, automatic song lists, and a teacher-only MIDI/audio workspace with waveform navigation and start/end controls. Keep individual instruments fixed by the sidebar, generate a readable MIDI grand staff, and store reversible recording cuts independently of global alignment. No production-song changes are implied by this UI release.
+
 - October 23 focus controls: user requested easily accessible Metronome and Melody guide checkboxes for student and teacher focus views. Move the existing controls into focus rather than duplicating their state; retain phone landscape space and the right-side pitch meter. Include drum fullscreen metronome/guide controls with live changes. No school-song revision is needed.
 
 - October 23 backing-track editor: user wants teacher audio settings and replacement backing import with a way to match higher-quality recordings to MIDI. Reused the existing sync engine in the shared-song editor, with a teacher menu/library shortcut, audio/parts tabs, selectable drum or pitched references, waveform matching, automatic candidates, two-point drift correction and bounded previews. A user's Sinatra backing is longer than the score; retain it as an unpublished production preview for a listening/section check rather than assuming a full-song alignment. Local QA publication is confined to a separate test school. No production song replacement is automatic.

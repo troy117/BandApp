@@ -45,7 +45,7 @@ export class BandSessions {
     const meta = { ...JSON.parse(row.metadata), id, revisionId: revision };
     const midi = parseMidiSong(await readFile(this.store.musicPath(revision, 'midi')), meta.fileName);
     const arrangement = importedArrangement(midi, meta);
-    arrangement.audio = meta.audioName ? { route: '/library/' + id + '/revisions/' + revision + '/audio', offset: meta.offset, volume: meta.volume, name: meta.audioName } : null;
+    arrangement.audio = meta.audioName ? { route: '/library/' + id + '/revisions/' + revision + '/audio', offset: meta.offset, volume: meta.volume, name: meta.audioName, audioStart:meta.audioStart, audioEnd:meta.audioEnd } : null;
     this.cache.set(key, arrangement);
     if (this.cache.size > 12) this.cache.delete(this.cache.keys().next().value);
     return arrangement;

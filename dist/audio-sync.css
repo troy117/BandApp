@@ -31,3 +31,8 @@
 .sync-transfer { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 18px 0; align-items: center; }
 .sync-transfer small { flex-basis: 100%; color: #aabcae; font-size: 11px; line-height: 1.6; }
 @media(max-width:600px) { .audio-settings { grid-template-columns: 1fr; } .sync-fields, .sync-second-fields .sync-fields { grid-template-columns: 1fr 1fr; } .sync-candidates { grid-template-columns: 1fr; } .audio-sync summary span { display: block; margin: 5px 0 0 15px; } .sync-body { padding: 0 12px 12px; } }
+.wave-navigation { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:16px 0; }
+.wave-navigation>label { display:grid; gap:5px; flex:1 1 240px; color:#bbd0c5; font-size:12px; }
+.wave-navigation input { width:100%; accent-color:#e8c17b; min-height:30px; }
+.wave-navigation output { color:#e8c17b; font-size:12px; min-width:120px; }
+.sync-waveform { touch-action:pan-y; cursor:crosshair; }

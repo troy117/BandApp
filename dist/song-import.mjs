@@ -5,6 +5,7 @@ import { SongLibrary } from './song-library.mjs';
 import { AudioSync } from './audio-sync.mjs';
 import { audioSyncMarkup } from './audio-sync-markup.mjs';
 import { alignMidiChart, validateAlignment } from './sync.mjs';
+import { validateAudioRange } from './backing-range.mjs';
 
 export function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char])); }
 export function formatDuration(seconds) { return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`; }
@@ -64,7 +65,6 @@ export class SongImporter {
     this.el('library-dialog').addEventListener('close', () => { this.libraryToken++; this.libraryBusy = false; });
     this.dialog.addEventListener('close', () => { this.token++; this.busy = false; this.publishController?.abort(); });
     this.sync = new AudioSync(this);
-    window.addEventListener('school-audio-library', () => { if (this.school?.staff) { this.libraryScope = 'school'; this.openLibrary(); } });
   }
   copyDraft(draft) { return draft ? { ...draft, selected: [...draft.selected], mapping: { ...draft.mapping } } : null; }
   setSchool(school) {
@@ -121,6 +121,7 @@ export class SongImporter {
       if (token !== this.token) return;
       if (buffer.duration > 1200) throw new Error('Choose a backing recording shorter than 20 minutes.');
       this.draft.buffer = buffer; this.draft.audioName = file.name; this.draft.audioBytes = bytes;
+      this.draft.audioStart=0;this.draft.audioEnd=null;
       this.sync.reset(); this.el('audio-sync').open = true;
       this.message('Backing audio ready. Open Sync audio & MIDI for a suggested match or a manual beat match.');
     } catch (error) { if (token === this.token) this.message(error.message, true); }
@@ -184,7 +185,7 @@ export class SongImporter {
     try {
       const d = this.draft;
       validateAlignment(d.offset, d.timeScale ?? 1); alignMidiChart(makeMidiChart(d.song, d.selected, d.mapping), d.timeScale ?? 1);
-      const setup = { format: 'groove-lab-song-setup', version: 1, fingerprint: d.song.fingerprint, midiFile: d.song.fileName, audioFile: d.audioName, selected: d.selected, mapping: d.mapping, offset: d.offset, timeScale: d.timeScale ?? 1, volume: d.volume };
+      const setup = { format: 'groove-lab-song-setup', version: 1, fingerprint: d.song.fingerprint, midiFile: d.song.fileName, audioFile: d.audioName, selected: d.selected, mapping: d.mapping, offset: d.offset, timeScale: d.timeScale ?? 1, volume: d.volume, ...validateAudioRange(d) };
       const url = URL.createObjectURL(new Blob([JSON.stringify(setup, null, 2)], { type: 'application/json' }));
       const link = document.createElement('a'); link.href = url; link.download = `${d.song.title.replace(/[^a-z0-9_-]/gi, '_').slice(0, 80)}-setup.json`; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -203,7 +204,7 @@ export class SongImporter {
       if (!Array.isArray(setup.selected) || !setup.selected.every(id => this.draft.song.parts.some(part => part.id === id)) || !setup.mapping || typeof setup.mapping !== 'object' || Array.isArray(setup.mapping) || !Object.entries(setup.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && (drum === 'ignore' || DRUMS.some(item => item.id === drum))) || !Number.isFinite(setup.volume) || setup.volume < 0 || setup.volume > 1) throw new Error('This setup has invalid drum assignments or volume.');
       alignMidiChart(makeMidiChart(this.draft.song, setup.selected, setup.mapping), setup.timeScale);
       if (this.draft.buffer) backingSchedule(0, setup.offset, this.draft.buffer.duration);
-      this.sync.stop(); Object.assign(this.draft, { selected: [...setup.selected], mapping: { ...setup.mapping }, offset: setup.offset, timeScale: setup.timeScale, volume: setup.volume });
+      this.sync.stop(); Object.assign(this.draft, { selected: [...setup.selected], mapping: { ...setup.mapping }, offset: setup.offset, timeScale: setup.timeScale, volume: setup.volume, audioStart:0, audioEnd:null, ...validateAudioRange(setup,this.draft.buffer?.duration) });
       this.sync.reset(); this.render();
       this.message(`Song setup restored. Use the matching recording${setup.audioFile ? ` (${setup.audioFile})` : ''}, then preview the alignment.`);
     } catch (error) { if (token === this.token) this.message(`Could not load setup: ${error.message}`, true); }
@@ -292,7 +293,7 @@ export class SongImporter {
       if (token !== this.libraryToken) return;
       if (!savedSong) throw new Error('That song is no longer available. Reimport its files.');
       const draft = this.makeDraft(parseMidiSong(savedSong.midiBytes, savedSong.fileName)); draft.arrangementParts=savedSong.parts;draft.lyricSettings={lyricsText:savedSong.lyricsText,lyricsClock:savedSong.lyricsClock,lyricsOffset:savedSong.lyricsOffset};
-      Object.assign(draft, { midiBytes: savedSong.midiBytes, audioBytes: savedSong.audioBytes, audioName: savedSong.audioName, selected: savedSong.selected, mapping: savedSong.mapping, offset: savedSong.offset, timeScale: savedSong.timeScale ?? 1, volume: savedSong.volume, libraryId: id });
+      Object.assign(draft, { midiBytes: savedSong.midiBytes, audioBytes: savedSong.audioBytes, audioName: savedSong.audioName, selected: savedSong.selected, mapping: savedSong.mapping, offset: savedSong.offset, timeScale: savedSong.timeScale ?? 1, volume: savedSong.volume, libraryId: id, ...validateAudioRange(savedSong) });
       const linked = this.school?.staff && savedSong.schoolLinks?.[`${this.school.schoolId}:${this.school.user.id}`];
       if (linked) draft.schoolSource = { ...linked, canManage: true };
       if (draft.audioBytes) draft.buffer = await this.audio.decodeBacking(draft.audioBytes.slice(0));
@@ -326,7 +327,7 @@ export class SongImporter {
       if (token !== this.libraryToken) return;
       const draft = this.makeDraft(parseMidiSong(midiBytes, meta.fileName)); draft.song.title = meta.title;
       draft.arrangementParts = meta.parts || null; draft.lyricSettings = { lyricsText:meta.lyricsText, lyricsClock:meta.lyricsClock, lyricsOffset:meta.lyricsOffset };
-      Object.assign(draft, { midiBytes, audioBytes, audioName: meta.audioName, selected: meta.selected, mapping: meta.mapping, offset: meta.offset, timeScale: meta.timeScale, volume: meta.volume, schoolTitle: meta.title, schoolSource: { schoolId: this.school.schoolId, songId: id, revisionId: meta.revisionId, canManage: meta.canManage } });
+      Object.assign(draft, { midiBytes, audioBytes, audioName: meta.audioName, selected: meta.selected, mapping: meta.mapping, offset: meta.offset, timeScale: meta.timeScale, volume: meta.volume, ...validateAudioRange(meta), schoolTitle: meta.title, schoolSource: { schoolId: this.school.schoolId, songId: id, revisionId: meta.revisionId, canManage: meta.canManage } });
       if (audioBytes) draft.buffer = await this.audio.decodeBacking(audioBytes.slice(0));
       if (token !== this.libraryToken) return;
       alignMidiChart(makeMidiChart(draft.song, draft.selected, draft.mapping), draft.timeScale);
@@ -344,7 +345,7 @@ export class SongImporter {
       const saved = await this.library.get(id); if (!saved) throw new Error('That device song is unavailable.');
       if (token !== this.libraryToken) return;
       const draft = this.makeDraft(parseMidiSong(saved.midiBytes, saved.fileName)); draft.arrangementParts=saved.parts;draft.lyricSettings={lyricsText:saved.lyricsText,lyricsClock:saved.lyricsClock,lyricsOffset:saved.lyricsOffset};
-      Object.assign(draft, { midiBytes: saved.midiBytes, audioBytes: saved.audioBytes, audioName: saved.audioName, selected: saved.selected, mapping: saved.mapping, offset: saved.offset, timeScale: saved.timeScale ?? 1, volume: saved.volume });
+      Object.assign(draft, { midiBytes: saved.midiBytes, audioBytes: saved.audioBytes, audioName: saved.audioName, selected: saved.selected, mapping: saved.mapping, offset: saved.offset, timeScale: saved.timeScale ?? 1, volume: saved.volume, ...validateAudioRange(saved) });
       const key = `${this.school.schoolId}:${this.school.user.id}`, linked = saved.schoolLinks?.[key]; if (linked) draft.schoolSource = { ...linked, canManage: true };
       const song = await this.school.saveSong(draft, message => { if (token === this.libraryToken) this.el('library-status').textContent = message; });
       if (token !== this.libraryToken) return;
@@ -386,7 +387,7 @@ export class SongImporter {
         profiles[this.draft.song.fingerprint] = { selected: this.draft.selected, mapping: this.draft.mapping, offset: this.draft.offset, timeScale: this.draft.timeScale ?? 1, volume: this.draft.volume };
         localStorage.setItem('groove-lab-song-preferences', JSON.stringify(Object.fromEntries(Object.entries(profiles).slice(-10))));
       } catch { /* Song files remain usable when browser storage is unavailable. */ }
-      this.onApply({ chart, song: this.draft.song, schoolSource: this.draft.schoolSource || null, backing: this.draft.buffer ? { buffer: this.draft.buffer, name: this.draft.audioName, offset: this.draft.offset, volume: this.draft.volume } : null });
+      this.onApply({ chart, song: this.draft.song, schoolSource: this.draft.schoolSource || null, backing: this.draft.buffer ? { buffer: this.draft.buffer, name: this.draft.audioName, offset: this.draft.offset, volume: this.draft.volume, ...validateAudioRange(this.draft,this.draft.buffer.duration) } : null });
       this.dialog.close();
       return true;
     } catch (error) { this.message(error.message, true); if (this.el('library-dialog').open) this.el('library-status').textContent = error.message; return false; }

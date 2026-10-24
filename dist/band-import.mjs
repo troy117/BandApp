@@ -4,6 +4,7 @@ import { parseMidiSong } from './midi.mjs';
 import { DEFAULT_MIDI_MAPPING } from './midi-input.mjs';
 import { arrangementParts, importedArrangement } from './arrangements.mjs';
 import { validateAlignment } from './sync.mjs';
+import { validateAudioRange } from './backing-range.mjs';
 import { escapeHtml } from './song-import.mjs';
 import { BAND_INSTRUMENTS } from './follow-along.mjs';
 import { lyricText, midiLyricCues, formatLyricCues, parseLyricText } from './lyrics.mjs';
@@ -14,7 +15,7 @@ export class BandImport {
     const q = this.q;
     this.timing = new LyricTiming(this);
     this.backing = new BandBacking(this);
-    q('b-open-import').onclick = () => { if (practice.rooms.room) { practice.message('Leave the session before preparing a different arrangement.'); return; } practice.stop(); q('b-import-panel').hidden = false; q('b-import-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    q('b-open-import').onclick = () => practice.setMode('sync');
     q('b-import-close').onclick = () => { this.timing.pause(); this.backing.cancel(); q('b-import-panel').hidden = true; };
     for (const tab of ['audio','parts']) {
       q('b-import-'+tab+'-button').onclick = () => this.tab(tab);
@@ -55,6 +56,8 @@ export class BandImport {
     const assigned = metadata.parts ? new Map(metadata.parts.flatMap(part => part.selected.map(id => [id, part.instrument]))) : null;
     q('b-import-title').value = metadata.title || song.title;
     q('b-import-offset').value = metadata.offset ?? 0; q('b-import-speed').value = 100 / (metadata.timeScale ?? 1); q('b-import-volume').value = (metadata.volume ?? 0.65) * 100;
+    Object.assign(this.draft, {audioStart:metadata.audioStart ?? 0, audioEnd:metadata.audioEnd ?? null});
+    q('b-audio-start').value = this.draft.audioStart; q('b-audio-end').value = this.draft.audioEnd ?? '';
     q('b-publish').textContent = this.draft.schoolSource ? 'Publish school song update' : 'Publish new school song';
     const embedded=midiLyricCues(song);q('b-lyrics-text').value=metadata.lyricsText??formatLyricCues(embedded);q('b-lyrics-clock').value=metadata.lyricsClock||'midi';q('b-lyrics-offset').value=metadata.lyricsOffset||0;
     q('b-lyric-detected').textContent=embedded.length?embedded.length+' embedded MIDI lyric lines found. Check their words and timing before publishing.':'No embedded lyric text found. Melody notes do not include words; load or enter timed lyrics below.';
@@ -75,6 +78,7 @@ export class BandImport {
     const { song: meta } = await school.request('/library/' + id);
     if (token !== this.token) return;
     if (!meta.canManage) throw new Error('Only the publishing teacher or school owner can update this song.');
+    this.q('b-editor-song').value=id;
     const bytes = await school.download('/library/' + id + '/revisions/' + meta.revisionId + '/midi');
     if (token !== this.token) return;
     const audioBytes = meta.audioName ? await school.download('/library/' + id + '/revisions/' + meta.revisionId + '/audio') : null;
@@ -107,7 +111,8 @@ export class BandImport {
     try {
     const bytes = await file.arrayBuffer(), buffer = await this.practice.audio.decodeBacking(bytes.slice(0));
     if (token !== this.token || audioToken !== this.audioToken || draft !== this.draft) return;
-    Object.assign(draft, { audioBytes: bytes, buffer, audioName: file.name });
+    Object.assign(draft, { audioBytes: bytes, buffer, audioName: file.name, audioStart:0, audioEnd:null });
+    this.q('b-audio-start').value=0; this.q('b-audio-end').value='';
     this.q('b-import-state').textContent = 'Backing recording decoded. Offset and speed apply to every instrument part.';
     } catch (error) { if (token === this.token && audioToken === this.audioToken) draft.audioFailed = true; throw error; }
     finally { if (audioToken === this.audioToken) { draft.pendingAudio = false; if(token===this.token && draft===this.draft)this.backing.reset(); } }
@@ -123,13 +128,15 @@ export class BandImport {
     if (!title || title.length > 120 || /[\u0000-\u001f]/.test(title)) throw new Error('Enter a song title of 1–120 characters.');
     const alignment = validateAlignment(Number(q('b-import-offset').value), 100 / Number(q('b-import-speed').value)), volume = Number(q('b-import-volume').value) / 100;
     if (!Number.isFinite(volume) || volume < 0 || volume > 1) throw new Error('Choose a backing volume.');
-    return { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset };
+    const range = this.draft.buffer ? validateAudioRange({audioStart:Number(q('b-audio-start').value || 0), audioEnd:q('b-audio-end').value === '' || q('b-audio-end').value === undefined ? null : Number(q('b-audio-end').value)}, this.draft.buffer.duration) : {};
+    return { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, ...range, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset };
   }
   async apply() {
     this.timing.pause(); this.backing.cancel();
     const meta = this.metadata(), arrangement = importedArrangement(this.draft.song, meta);
-    if (this.draft.buffer) arrangement.backing = { buffer: this.draft.buffer, offset: meta.offset, volume: meta.volume, name: meta.audioName };
+    if (this.draft.buffer) arrangement.backing = { buffer: this.draft.buffer, offset: meta.offset, volume: meta.volume, name: meta.audioName, ...validateAudioRange(meta) };
     this.practice.stop(); this.practice.useArrangement(arrangement); this.q('b-import-state').textContent = 'Ready for local practice. Publish to school for other computers and saved account results.';
+    if(this.practice.mode==='sync')this.practice.setMode(arrangement.parts.find(part=>part.instrument==='keyboard')?.instrument || arrangement.parts[0].instrument);
   }
   async publish() {
     this.timing.pause(); this.backing.cancel();
@@ -167,6 +174,7 @@ export class BandImport {
     if (setup.format !== 'groove-lab-arrangement' || setup.version !== 1 || setup.fingerprint !== this.draft.song.fingerprint) throw new Error('This setup must match the exact MIDI file.');
     const parts = arrangementParts(setup.parts), assignment = new Map(parts.flatMap(part => part.selected.map(id => [id, part.instrument])));
     importedArrangement(this.draft.song, setup); validateAlignment(setup.offset, setup.timeScale);
+    const range=validateAudioRange(setup, this.draft.buffer?.duration);
     if (!Number.isFinite(setup.volume) || setup.volume < 0 || setup.volume > 1 || typeof setup.title !== 'string' || !setup.title.trim() || setup.title.length > 120) throw new Error('Invalid arrangement setup.');
     for (const select of this.q('b-import-tracks').querySelectorAll('[data-band-track]')) select.value = assignment.get(select.dataset.bandTrack) || '';
     if (setup.mapping !== undefined) {
@@ -175,6 +183,8 @@ export class BandImport {
     }
     this.q('b-import-title').value = setup.title; this.q('b-import-offset').value = setup.offset; this.q('b-import-speed').value = 100 / setup.timeScale; this.q('b-import-volume').value = setup.volume * 100;
     this.q('b-lyrics-text').value=setup.lyricsText??'';this.q('b-lyrics-clock').value=setup.lyricsClock||'midi';this.q('b-lyrics-offset').value=setup.lyricsOffset||0;
+    Object.assign(this.draft, {audioStart:range.audioStart ?? 0, audioEnd:range.audioEnd ?? null});
+    this.q('b-audio-start').value=this.draft.audioStart; this.q('b-audio-end').value=this.draft.audioEnd ?? '';
     this.backing.reset();
     this.q('b-import-state').textContent = 'Arrangement settings restored. Add the matching backing recording, then use or publish.';
   }

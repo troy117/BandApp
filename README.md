@@ -23,7 +23,7 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
-Version 0.19.1 puts Metronome and Melody guide checkboxes in vocal Focus view for teachers and students, in both Pitch highway and Large lyrics. Drum fullscreen includes Metronome and Guide drums, adjustable during playback. The existing controls move back to their settings panels on exit.
+Prototype 20 simplifies instrument pages, automatically refreshes compatible school songs, and adds a full piano grand staff. Teachers have a separate **MIDI & audio sync** workspace with waveform scrolling/zoom, instrument comparisons and reversible backing start/end cuts. See [piano and sync controls](docs/PIANO_AND_SYNC.md).
 
 Prototype 19 adds a teacher **Song audio & backing** menu and per-song editor: replace audio, compare its waveform with assigned MIDI notes, try suggested alignment, match two beats for steady drift, and preview with a metronome/guide before publishing. See [teacher backing-track setup](docs/BACKING_TRACKS.md).
 

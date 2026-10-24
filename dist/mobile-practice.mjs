@@ -32,7 +32,7 @@ export class MobilePractice {
     const vocal = p.part.instrument === 'vocals', destination = p.expanded ? this.q('b-full-song-slot') : mobile && vocal ? this.q('b-vocal-song-slot') : this.q('b-song-choices');
     if (this.song.parentElement !== destination) destination.prepend(this.song);
     this.q('b-lyrics-screen').classList.toggle('has-vocal-song-picker', mobile && vocal && !p.expanded);
-    this.q('b-full-title').hidden = p.expanded; this.q('b-catalog-refresh').hidden = mobile && vocal || p.expanded;
+    this.q('b-full-title').hidden = p.expanded;
     const soloFull = this.q('practice-stage').classList.contains('score-expanded');
     if (soloFull && this.solo.parentElement !== this.soloSlot) this.soloSlot.append(this.solo);
     else if (!soloFull && this.solo.parentElement !== this.soloHome) this.soloHome.append(this.solo);

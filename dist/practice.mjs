@@ -1,4 +1,5 @@
 import { DRUMS } from './engine.mjs';
+import { backingClip } from './backing-range.mjs';
 
 export const FOCUS_OPTIONS = { all: 'All drums', kick: 'Kick only', snare: 'Snare only', cymbals: 'Cymbals only', toms: 'Toms only' };
 const focusIds = focus => focus === 'all' ? DRUMS.map(drum => drum.id) : focus === 'cymbals' ? ['hihat', 'crash', 'ride'] : focus === 'toms' ? ['tom1', 'tom2', 'tom3'] : [focus];
@@ -58,11 +59,8 @@ export function practicePassAt(chart, time) {
 // A positive recording offset is silence before the recording starts on the MIDI timeline.
 export function backingSegments(chart, backing) {
   return chart.passes.flatMap(pass => {
-    const fileStart = pass.from - backing.offset;
-    const delay = Math.max(0, -fileStart);
-    const offset = Math.max(0, fileStart);
-    const duration = Math.min(pass.to - pass.from - delay, backing.buffer.duration - offset);
-    return duration > 0 ? [{ when: pass.time + delay, offset, duration }] : [];
+    const clip = backingClip(backing, pass.from, pass.to);
+    return clip ? [{...clip, when:pass.time + clip.when - pass.from}] : [];
   });
 }
 

@@ -1,6 +1,6 @@
 # Teacher backing tracks and audio alignment
 
-Open your teacher account menu and choose **Song audio & backing**, then **Audio & backing** beside a song. The same shortcut is available in the school library for songs you can manage. The editor also has a **Parts & lyrics** tab.
+Open **MIDI & audio sync** in the teacher sidebar or account menu and choose a school song. The **Audio & backing** shortcut in the library opens the same workspace. The editor also has a **Parts & lyrics** tab. See [piano and sync controls](PIANO_AND_SYNC.md) for waveform scrolling/zoom and reversible recording start/end cuts.
 
 1. Import the replacement MP3 or other browser-supported audio file. The current file name and recording/MIDI lengths appear above the tools.
 2. Choose the instrument to compare against. Drums are a useful starting point for music with clear attacks; pitched parts and vocal melodies also offer waveform markers and guide notes.

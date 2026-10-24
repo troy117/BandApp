@@ -15,6 +15,8 @@ import { BandRooms } from './band-rooms.mjs';
 import { BandImport } from './band-import.mjs';
 import { createNotation, drawSheet } from './notation.mjs';
 import { FullScoreView } from './full-score.mjs';
+import { KeyboardFullScore } from './keyboard-score.mjs';
+import { backingClip } from './backing-range.mjs';
 import { escapeHtml } from './song-import.mjs';
 import { backingSchedule } from './midi.mjs';
 import { followInstrument, FollowCursor } from './follow-along.mjs';
@@ -35,7 +37,7 @@ export class BandPractice {
     this.channel = preferences.channel === 'all' || Number.isInteger(Number(preferences.channel)) && Number(preferences.channel) >= 1 && Number(preferences.channel) <= 16 ? preferences.channel : 'all';
     this.audio = new DrumAudio(); this.piano = new PianoVoices(this.audio);
     const nav = document.createElement('nav'); nav.className = 'instrument-nav'; document.body.classList.add('has-instrument-menu'); nav.setAttribute('aria-label', 'Practice area');
-    nav.innerHTML = '<button id="instrument-menu-toggle" aria-expanded="true" aria-label="Collapse instrument menu"><span aria-hidden="true">☰</span><span class="instrument-label">Instruments</span></button><div class="instrument-choices">'+[['drums','Drums','Dr'],['keyboard','Keyboard','♬'],['guitar','Guitar','Gt'],['bass','Bass','Bs'],['vocals','Vocals','♪'],['jam','Jam session','♫']].map(([id,label,icon])=>'<button data-band-mode="'+id+'" aria-label="'+label+'" title="'+label+'" aria-pressed="'+(id==='drums')+'"><span class="instrument-icon" aria-hidden="true">'+icon+'</span><span class="instrument-label">'+label+'</span></button>').join('')+'</div>';
+    nav.innerHTML = '<button id="instrument-menu-toggle" aria-expanded="true" aria-label="Collapse instrument menu"><span aria-hidden="true">☰</span><span class="instrument-label">Instruments</span></button><div class="instrument-choices">'+[['drums','Drums','Dr'],['keyboard','Keyboard','♬'],['guitar','Guitar','Gt'],['bass','Bass','Bs'],['vocals','Vocals','♪'],['jam','Jam session','♫'],['sync','MIDI & audio sync','↔']].map(([id,label,icon])=>'<button data-band-mode="'+id+'"'+(id==='sync'&&!school.staff?' hidden':'')+' aria-label="'+label+'" title="'+label+'" aria-pressed="'+(id==='drums')+'"><span class="instrument-icon" aria-hidden="true">'+icon+'</span><span class="instrument-label">'+label+'</span></button>').join('')+'</div>';
     const toggle=nav.querySelector('#instrument-menu-toggle');
     const collapseMenu=collapsed=>{document.body.classList.toggle('instrument-menu-collapsed',collapsed);toggle.setAttribute('aria-expanded',String(!collapsed));toggle.setAttribute('aria-label',(collapsed?'Expand':'Collapse')+' instrument menu');window.dispatchEvent(new Event('resize'));};
     let menuCollapsed=window.matchMedia('(max-width:800px), (orientation:landscape) and (max-height:600px)').matches;
@@ -48,6 +50,12 @@ export class BandPractice {
     this.rooms = new BandRooms(this); this.importer = new BandImport(this);
     this.midi = new MidiDrumInput({ instrument: 'keyboard', parseMessage: pitchedMidiMessage, preferred: preferences.device || {}, onNote: note => this.midiNote(note), onState: state => this.renderMidi(state), onLost: () => { this.clearHeld(); if (this.active && !this.rooms.teacher && this.part.instrument === 'keyboard') { this.stop('Keyboard disconnected. Reconnect or use computer keys, then prepare a fresh run.',true,true); this.rooms.unready('Keyboard disconnected.'); } } });
     this.fullScore = new FullScoreView(this.q('b-full-scroll'), this.q('b-full-page'), this.q('b-full-canvas'));
+    this.keyboardScore = new KeyboardFullScore(this.q('b-full-scroll'), this.q('b-full-page'), this.q('b-full-canvas'));
+    const pianoTools=document.createElement('div');pianoTools.id='b-piano-tools';pianoTools.className='piano-score-tools';pianoTools.hidden=true;
+    pianoTools.innerHTML='<span>Treble &amp; bass · MIDI score</span><label>Size<select id="b-piano-size"><option value=".85">85%</option><option value="1" selected>100%</option><option value="1.25">125%</option><option value="1.5">150%</option></select></label><label><input id="b-piano-names" type="checkbox">Note names</label><small>Rhythms rounded for reading · split at middle C</small>';
+    this.q('b-full-scroll').before(pianoTools);
+    this.q('b-piano-size').onchange=()=>{this.keyboardScore.zoom=Number(this.q('b-piano-size').value);};
+    this.q('b-piano-names').onchange=()=>{this.keyboardScore.noteNames=this.q('b-piano-names').checked;};
     this.frettedScore=new FrettedFullScore(this.q('b-full-scroll'),this.q('b-full-page'),this.q('b-full-canvas'));
     const q = this.q;
     this.highwayExperience = new HighwayExperience(q('b-stage'), 'b-highway-meter');
@@ -56,10 +64,12 @@ export class BandPractice {
     this.awake = new ScreenAwake({ onState: state => { q('b-awake-state').textContent = awakeLabel(state); } });
     this.mobile = new MobilePractice(this);
     q('b-publish').hidden = !school.staff;
+    q('b-open-import').hidden = !school.staff;
     q('b-octave').value = this.octave; q('b-offset').value = this.offset; q('b-channel').value = this.channel; q('b-sound').checked = preferences.sound !== false;
     q('b-song').onchange = () => this.attempt(() => this.loadChoice(q('b-song').value));
     q('b-part').onchange = () => this.selectPart(q('b-part').value);
-    q('b-catalog-refresh').onclick = () => this.attempt(() => this.refreshCatalog());
+    q('b-editor-song').onchange = () => { const id=q('b-editor-song').value; if(id)this.importer.attempt(()=>this.importer.editSchoolSong(id,'audio')); };
+    q('b-editor-new').onclick = () => { this.importer.reset(); q('b-editor-song').value=''; q('b-import-panel').hidden=false; this.importer.tab('audio'); };
     q('b-connect').onclick = () => { this.rooms.unready('Input changed.'); this.midi.connect(); };
     q('b-disconnect').onclick = () => { this.stop('MIDI keyboard disconnected.'); this.rooms.unready('Input changed.'); this.midi.disconnect(); this.clearHeld(); };
     q('b-device').onchange = () => { this.stop('MIDI input changed.'); this.rooms.unready('Input changed.'); this.midi.select(q('b-device').value); };
@@ -76,14 +86,14 @@ export class BandPractice {
     q('b-play').onclick = () => this.attempt(() => this.play());
     q('b-full-play').onclick = () => this.attempt(() => this.play());
     q('b-listen').onclick = () => this.attempt(() => this.play(true));
-    q('b-view').onchange = () => this.renderView();
+    q('b-view').onchange = () => { (this.viewChoices ||= {})[this.part.instrument]=q('b-view').value; this.renderView(); };
     q('b-volume').oninput = () => { const volume = Number(q('b-volume').value) / 100; if (this.backing) this.backing.volume = volume; this.audio.setBackingVolume(volume); };
     q('b-reset-keys').onclick = () => { this.bindings = { ...DEFAULT_PIANO_BINDINGS }; this.capture = null; this.persist(); this.renderKeys(); };
     q('b-bindings').onclick = event => { const button = event.target.closest('[data-pitch-bind]'); if (button) { this.stop('Controls opened.'); this.rooms.unready('Controls changed.'); this.capture = Number(button.dataset.pitchBind); this.renderKeys(); this.message('Press a new key for ' + pitchName(this.capture + this.octave) + '. Esc cancels.'); } };
     q('b-fullscreen').onclick = () => this.expand(); q('b-full-exit').onclick = () => this.collapse();
     document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement !== q('b-stage') && this.nativeFull) { this.nativeFull = false; this.finishCollapse(); } });
     document.addEventListener('keydown', event => this.keyDown(event), true); document.addEventListener('keyup', event => this.keyUp(event), true);
-    document.addEventListener('visibilitychange', () => { if (document.hidden && this.active) { this.stop('Tab hidden. Prepare a fresh take when you return.',true,true); this.rooms.unready('Tab hidden.'); this.clearHeld(); } });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.active) { this.stop('Tab hidden. Prepare a fresh take when you return.',true,true); this.rooms.unready('Tab hidden.'); this.clearHeld(); } else if(!document.hidden && this.school.user && !this.session)this.attempt(()=>this.refreshCatalog()); });
     window.addEventListener('blur', () => { this.clearHeld(); if (this.active && this.session && !this.session.teacher && this.part.instrument !== 'vocals') this.stop('Window lost focus. Prepare a fresh take when you return.',true,true); });
     q('b-csv').onclick = () => { if (this.lastReport) this.download('groove-lab-' + this.lastReport.part.instrument + '-timing.csv', partCsv(this.lastReport.judge), 'text/csv'); };
     q('b-retry-save').onclick = () => this.saveResult();
@@ -96,7 +106,9 @@ export class BandPractice {
     this.renderCatalog(); this.renderPart(); this.renderMidi(this.midi.snapshot());
     this.timer = setInterval(() => this.tick(), 25); requestAnimationFrame(() => this.frame());
     window.addEventListener('band-load-school', event => { const instrument=event.detail.instrument||(['guitar','bass','vocals'].includes(this.mode)?this.mode:'keyboard');this.setMode(instrument); this.attempt(() => this.loadChoice('school:' + event.detail.id, undefined, instrument)); });
-    window.addEventListener('band-edit-school', event => { this.setMode('keyboard'); this.importer.attempt(() => this.importer.editSchoolSong(event.detail.id, event.detail.tab)); });
+    window.addEventListener('band-edit-school', event => { this.setMode('sync'); this.importer.attempt(() => this.importer.editSchoolSong(event.detail.id, event.detail.tab)); });
+    window.addEventListener('school-audio-library', () => this.setMode('sync'));
+    window.addEventListener('focus', () => { if(this.school.user && !this.session)this.attempt(()=>this.refreshCatalog()); });
   }
   get active() { return this.mode !== 'drums'; }
   message(text) { this.q('b-message').textContent = text; }
@@ -106,9 +118,10 @@ export class BandPractice {
     catch { this.message('Device storage is unavailable. Controls last for this visit.'); }
   }
   setMode(mode) {
+    if(mode==='sync' && !this.school.staff)return;
     if (this.mode !== mode) { this.singing.microphone.stop(); this.importer.timing.pause(); this.importer.backing.cancel(); this.stop('Practice area changed.'); this.rooms.unready('Practice area changed.'); this.beforeEnter(); this.clearHeld(); this.collapse(); }
     this.mode = mode; document.body.classList.toggle('band-active', this.active); this.q('band-workspace').hidden = !this.active;
-    document.querySelector('main h1').textContent = mode === 'drums' ? 'Drum practice' : mode === 'keyboard' ? 'Keyboard practice' : mode === 'jam' ? 'Jam session' : mode === 'vocals' ? 'Singing practice' : mode[0].toUpperCase()+mode.slice(1)+' · follow along';
+    document.querySelector('main h1').textContent = mode === 'sync' ? 'MIDI & audio sync' : mode === 'drums' ? 'Drum practice' : mode === 'keyboard' ? 'Keyboard practice' : mode === 'jam' ? 'Jam session' : mode === 'vocals' ? 'Singing practice' : mode[0].toUpperCase()+mode.slice(1)+' · follow along';
     for (const button of document.querySelectorAll('[data-band-mode]')) button.setAttribute('aria-pressed', String(button.dataset.bandMode === mode));
     this.q('b-room-panel').hidden = mode !== 'jam';
     this.q('b-title').textContent = mode === 'jam' ? 'Play together. Follow your part.' : followInstrument(mode) ? 'Follow the song. Play your part.' : 'A melody, one note at a time.';
@@ -117,10 +130,12 @@ export class BandPractice {
     if (mode === 'jam') this.attempt(() => this.rooms.refresh());
     if (mode !== 'jam' && this.rooms.room) this.rooms.leave();
     if (followInstrument(mode)) { if(!this.arrangement.parts.some(part=>part.instrument===mode))this.useArrangement(builtinArrangement('band-first'),mode);else this.selectPart(this.arrangement.parts.find(part=>part.instrument===mode).id); }
-    if(mode==='keyboard' && followInstrument(this.part.instrument)) { const part=this.arrangement.parts.find(part=>part.instrument==='keyboard');if(part)this.selectPart(part.id);else this.useArrangement(builtinArrangement(),'keyboard'); }
+    if(mode==='keyboard' && this.part.instrument!=='keyboard') { const part=this.arrangement.parts.find(part=>part.instrument==='keyboard');if(part)this.selectPart(part.id);else this.useArrangement(builtinArrangement(),'keyboard'); }
     this.renderKeys();
-    document.body.classList.toggle('singing-mode', this.active && this.part.instrument === 'vocals');
-    this.q('b-practice').hidden = mode === 'jam' && !!this.school.staff;
+    document.body.classList.toggle('singing-mode', this.active && mode!=='sync' && this.part.instrument === 'vocals');
+    this.q('b-practice').hidden = mode === 'sync' || mode === 'jam' && !!this.school.staff;
+    this.q('b-editor-workspace').hidden=mode!=='sync'; this.q('b-part-picker').hidden=mode!=='jam';
+    this.renderCatalog(); this.attempt(()=>this.refreshCatalog());
     document.body.classList.toggle('teacher-jam-mode', mode === 'jam' && !!this.school.staff);
     this.mobile?.layout(); this.mobile?.poll();
   }
@@ -130,14 +145,15 @@ export class BandPractice {
     this.q('b-report').hidden = true; this.q('b-performers').textContent = ''; this.q('b-rooms').textContent = ''; this.q('b-takes').textContent = ''; this.q('b-student-a').textContent = ''; this.q('b-student-b').textContent = ''; this.q('b-account').textContent = this.school.user ? this.school.user.name : 'Guest practice';
     for (const id of ['b-report-summary', 'b-report-notes', 'b-save-state', 'b-room-title', 'b-sync']) this.q(id).textContent = '';
     this.q('b-feedback').textContent = 'Listen to the pattern, then try it yourself.';
-    this.q('b-publish').hidden = !this.school.staff;this.q('b-open-import').hidden=this.school.user?.role==='student';
+    this.q('b-publish').hidden = !this.school.staff;this.q('b-open-import').hidden=!this.school.staff;
+    document.querySelector('[data-band-mode="sync"]').hidden=!this.school.staff;
     this.useArrangement(builtinArrangement()); this.attempt(() => this.refreshCatalog()); if (this.mode === 'jam') this.attempt(() => this.rooms.refresh());
     this.collapse(); this.mobile?.reset(); this.mobile?.poll(); this.mobile?.layout();
   }
   async refreshCatalog() {
     this.catalog = DUETS.map(song => { const arr = builtinArrangement(song.id); return { ...arr, parts: arr.parts.map(({ id, instrument, name }) => ({ id, instrument, name })) }; });
     if (this.school.user && !this.school.user.mustChangePassword) {
-      const { songs } = await this.school.request('/band/catalog'); this.catalog = songs;
+      const userId=this.school.user.id, { songs } = await this.school.request('/band/catalog'); if(this.school.user?.id!==userId)return; this.catalog = songs;
     }
     const current = this.arrangement.sourceKind + ':' + this.arrangement.id;
     this.renderCatalog(); if (this.catalog.some(song => song.sourceKind + ':' + song.id === current)) this.q('b-song').value = current;
@@ -145,7 +161,13 @@ export class BandPractice {
     this.mobile?.soloSongs();
   }
   renderCatalog() {
-    this.q('b-song').innerHTML = this.catalog.map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + (song.sourceKind === 'school' ? ' · School' : '') + '</option>').join('');
+    const previous=this.q('b-song').value, instrument=['keyboard','guitar','bass','vocals'].includes(this.mode)?this.mode:null;
+    const songs=this.catalog.filter(song=>!instrument||song.parts.some(part=>part.instrument===instrument));
+    this.q('b-song').innerHTML = songs.map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + (song.sourceKind === 'school' ? ' · School' : '') + '</option>').join('');
+    const current=this.arrangement.sourceKind+':'+this.arrangement.id;
+    if(songs.some(song=>song.sourceKind+':'+song.id===current))this.q('b-song').value=current;
+    else if(songs.some(song=>song.sourceKind+':'+song.id===previous))this.q('b-song').value=previous;
+    const selected=this.q('b-editor-song').value; this.q('b-editor-song').innerHTML='<option value="">Choose a school song…</option>'+this.catalog.filter(song=>song.sourceKind==='school').map(song=>'<option value="'+escapeHtml(song.id)+'">'+escapeHtml(song.title)+'</option>').join(''); this.q('b-editor-song').value=selected;
   }
   async loadChoice(value, revision, instrument) {
     if (this.rooms.room) throw new Error('Leave the session before changing songs.');
@@ -157,6 +179,8 @@ export class BandPractice {
       const response = await this.school.request('/band/arrangements/school/' + id + '?revision=' + encodeURIComponent(revision || song?.revisionId || '')); arrangement = response.arrangement;
     }
     if (token !== this.loadToken) return;
+    instrument=instrument||(['keyboard','guitar','bass','vocals'].includes(this.mode)?this.mode:undefined);
+    if(instrument && !arrangement.parts.some(part=>part.instrument===instrument))throw new Error('This song has no '+instrument+' part. Choose another song.');
     this.useArrangement(arrangement, instrument); this.message('Song ready. Listen first to check the selected part.');
   }
   useArrangement(arrangement, instrument = this.part?.instrument) {
@@ -189,9 +213,9 @@ export class BandPractice {
     q('b-midi-state').textContent = keys ? this.midi?.message || 'Computer keys are ready.' : 'Use saved drum keys, or Connect / map drumkit. Kit sound is controlled there.';
     for (const id of ['b-connect', 'b-disconnect', 'b-device-label', 'b-channel-label', 'b-key-controls']) q(id).hidden = !keys;
     q('b-kit').hidden = keys;
-    for (const option of q('b-view').options) { const allowed=this.part.instrument==='vocals'?option.value==='lyrics':strings?['highway','tab','full'].includes(option.value):keys?option.value==='highway':['highway','sheet','full'].includes(option.value);option.hidden=!allowed;option.disabled=!allowed; }
-    q('b-view').querySelector('option[value=full]').textContent=strings?'Full sheet · tablature':'Full sheet · drums';
-    if (keys) q('b-view').value = 'highway';
+    for (const option of q('b-view').options) { const allowed=this.part.instrument==='vocals'?option.value==='lyrics':strings?['highway','tab','full'].includes(option.value):keys?['highway','full'].includes(option.value):['highway','sheet','full'].includes(option.value);option.hidden=!allowed;option.disabled=!allowed; }
+    q('b-view').querySelector('option[value=full]').textContent=keys?'Full sheet · piano':strings?'Full sheet · tablature':'Full sheet · drums';
+    q('b-view').value=this.viewChoices?.[this.part.instrument] || (keys?'full':this.part.instrument==='vocals'?'lyrics':'highway');
     if(this.part.instrument==='vocals')q('b-view').value='lyrics';else if([...q('b-view').options].find(option=>option.value===q('b-view').value)?.disabled)q('b-view').value='highway';
     this.notation = null; this.renderKeys(); this.renderView(); this.stats(null); this.lockControls();
     this.mobile?.layout();
@@ -229,7 +253,7 @@ export class BandPractice {
   }
   onKitHit(note) { if (this.active && this.part.instrument === 'drums' && !document.querySelector('dialog[open]')) this.input(note.drum, note.timestamp, 'midi', note.velocity, 'kit:' + note.drum, note.sound); }
   keyDown(event) {
-    if (!this.active || document.querySelector('dialog[open]')) return;
+    if (!this.active || this.mode==='sync' || document.querySelector('dialog[open]')) return;
     if (this.capture !== null) {
       event.preventDefault(); event.stopImmediatePropagation();
       if (event.code === 'Escape') { this.capture = null; this.renderKeys(); return; }
@@ -318,9 +342,8 @@ export class BandPractice {
     if (options.skipCountIn) this.session.count = chart.countInBeats;
     if (this.backing && chart.passes && (!this.rooms.room || options.teacher)) { for(const segment of backingSegments(chart,this.backing))this.audio.playBacking(this.backing.buffer,startAt+segment.when,segment.offset,this.backing.volume,segment.duration); }
     else if (this.backing && (!this.rooms.room || options.teacher)) {
-      const position = Math.max(from, this.backing.offset), offset = Math.max(0, from - this.backing.offset);
-      const duration = Math.min(this.backing.buffer.duration - offset, chart.duration - position);
-      if (duration > 0) this.audio.playBacking(this.backing.buffer, startAt + position, offset, this.backing.volume, duration);
+      const clip=backingClip(this.backing,from,chart.duration);
+      if(clip)this.audio.playBacking(this.backing.buffer,startAt+clip.when,clip.offset,this.backing.volume,clip.duration);
     }
     this.q('b-report').hidden = true; this.lockControls(); this.q('b-feedback').textContent = options.teacher ? 'The shared count-in is scheduled.' : followInstrument(this.part.instrument) ? 'Follow your part after the count-in. This part is not scored.' : options.listen ? 'Listen first. This run is not scored.' : 'Count in, then meet each note in its hit box.';
     if (!options.teacher) { this.q('b-input-controls').open = false; if (!this.expanded) this.q('b-stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
@@ -426,6 +449,8 @@ export class BandPractice {
   }
   renderView() {
     const full = this.q('b-view').value === 'full';
+    this.q('b-piano-tools').hidden=!(full && this.part.instrument==='keyboard');
+    if(this.part.instrument!=='keyboard')this.q('b-full-page').style.width='';
     this.highwayExperience?.setVisible(this.q('b-view').value === 'highway' && this.part.instrument !== 'vocals');
     this.q('b-canvas').hidden = full || this.part.instrument==='vocals'; this.q('b-full-scroll').hidden = !full;this.q('b-lyrics-screen').hidden=this.part.instrument!=='vocals';
     this.q('b-canvas').setAttribute('aria-label', ['guitar','bass'].includes(this.part.instrument) ? 'Suggested string and fret '+(this.q('b-view').value==='tab'?'tablature. Follow the moving gold bar.':'highway. Play each fret when it reaches the gold box.') : this.q('b-view').value === 'highway' ? 'Instrument note highway. Play when the note enters its hit box.' : 'Drum sheet music. Follow the moving gold playhead.');
@@ -462,6 +487,7 @@ export class BandPractice {
       return;
     }
     if(['guitar','bass'].includes(this.part.instrument) && this.q('b-view').value==='full'){this.frettedScore.draw(chart,time,!!this.session);return;}
+    if(this.part.instrument==='keyboard' && this.q('b-view').value==='full'){this.keyboardScore.draw(chart,time,!!this.session);return;}
     const canvas = this.q('b-canvas'), context = canvas.getContext('2d');
     if (this.part.instrument === 'drums' && this.q('b-view').value !== 'highway') {
       if (this.notation?.chart !== chart) this.notation = { chart, model: createNotation(chart) };

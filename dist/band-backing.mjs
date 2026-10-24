@@ -1,7 +1,8 @@
 import { AudioSync } from './audio-sync.mjs';
 import { makeMidiChart, midiTimeGrid } from './midi.mjs';
 import { vocalMelody } from './vocal-guide.mjs';
-import { validateAlignment } from './sync.mjs';
+import { validateAlignment, midiPositionTime } from './sync.mjs';
+import { validateAudioRange } from './backing-range.mjs';
 import { BAND_INSTRUMENTS } from './follow-along.mjs';
 
 export function backingReferences(song, assignments, mapping = {}) {
@@ -42,7 +43,7 @@ export class BandBacking {
       },
     };
     this.sync = new AudioSync(this.owner);
-    q('b-sync-reference').onchange = () => { this.cancel(); this.sync.reset(); this.render(); };
+    q('b-sync-reference').onchange = () => { this.cancel(); this.render(); };
     q('b-import-tracks').addEventListener('change', () => this.reset());
     for (const id of ['b-import-offset','b-import-speed']) q(id).addEventListener('input', () => {
       this.cancel();
@@ -53,6 +54,20 @@ export class BandBacking {
       importer.practice.audio.setBackingVolume?.(importer.draft?.volume ?? .65); this.caption();
     });
     q('b-lyrics-clock').addEventListener('change', () => this.caption());
+    for(const id of ['b-audio-start','b-audio-end'])q(id).addEventListener('change',()=>this.range());
+    for(const [id,field] of [['b-trim-start','b-audio-start'],['b-trim-end','b-audio-end']])q(id).onclick=()=>{q(field).value=q('b-sync-audio').value;this.range();};
+    q('b-trim-reset').onclick=()=>{q('b-audio-start').value=0;q('b-audio-end').value='';this.range();};
+    q('b-trim-align').onclick=()=>{
+      try {if(!this.range())return;const draft=this.importer.draft;const midi=midiPositionTime(this.reference(),Number(q('b-sync-bar').value),Number(q('b-sync-beat').value));this.sync.set({offset:midi*(draft.timeScale||1)-(draft.audioStart||0),timeScale:draft.timeScale||1});}
+      catch(error){q('b-range-state').textContent=error.message;}
+    };
+  }
+  range() {
+    if(!this.importer.draft?.buffer)return false; this.cancel();
+    try {
+      const range=validateAudioRange({audioStart:Number(this.q('b-audio-start').value || 0),audioEnd:this.q('b-audio-end').value===''?null:Number(this.q('b-audio-end').value)},this.importer.draft.buffer.duration);
+      Object.assign(this.importer.draft,{audioStart:range.audioStart ?? 0,audioEnd:range.audioEnd ?? null});this.render();return true;
+    } catch(error){this.q('b-range-state').textContent=error.message;return false;}
   }
   cancel() { this.owner.token++; this.analysisBusy = false; this.sync.stop(); }
   stop() { this.sync.stop(); }
@@ -96,12 +111,15 @@ export class BandBacking {
     q('b-backing-length-state').textContent = audioLength ? 'Recording '+duration(audioLength)+' · MIDI '+duration(midiLength)+(different?'. Check that both versions contain the same sections. Offset and speed cannot fix added or missing bars.':'. Check the beginning and a later section before publishing.') : '';
     q('b-backing-volume-value').textContent = q('b-import-volume').value + '%';
     q('b-backing-lyrics-state').textContent = !q('b-lyrics-text').value?.trim() ? '' : q('b-lyrics-clock').value === 'recording' ? 'These lyrics follow recording timestamps. Review their timing when replacing the backing track.' : 'The lyrics follow MIDI time and move with this alignment.';
+    q('b-range-state').textContent=draft?.buffer ? 'Keep '+(draft.audioStart || 0).toFixed(3)+'–'+(draft.audioEnd ?? audioLength).toFixed(3)+' s. Cuts are reversible; the original recording and alignment are preserved.' : 'Load a recording to choose its start and end.';
+    for(const id of ['b-audio-start','b-audio-end'])if(audioLength)q(id).max=String(audioLength);
   }
   render() {
     this.references(); this.sync.render(); this.caption();
     const busy = this.owner.busy;
     for (const id of ['b-midi-file','b-audio-file','b-clear-audio','b-import-offset','b-import-speed','b-import-apply','b-publish','b-setup-file','b-setup-save','b-sync-reference']) this.q(id).disabled = busy || id!=='b-midi-file'&&!this.importer.draft || ['b-import-apply','b-publish','b-setup-save'].includes(id)&&!!this.importer.draft?.audioFailed;
     this.q('b-import-volume').disabled = !!this.importer.publishing || !this.importer.draft;
+    for(const id of ['b-audio-start','b-audio-end','b-trim-start','b-trim-end','b-trim-reset','b-trim-align'])this.q(id).disabled=busy||!this.importer.draft?.buffer;
     for (const select of this.q('b-import-tracks').querySelectorAll('select')) select.disabled = busy;
   }
 }

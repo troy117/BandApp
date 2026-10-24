@@ -9,6 +9,14 @@ function bandDocument(t, document) {
   const previous=globalThis.document;globalThis.document=document;
   t.after(()=>{if(previous===undefined)delete globalThis.document;else globalThis.document=previous;});
 }
+test('instrument pages load their selected instrument and reject songs without that part',async()=>{
+ const loaded=[],p=Object.assign(Object.create(BandPractice.prototype),{mode:'keyboard',loadToken:0,rooms:{},catalog:[],stop(){},useArrangement:(song,instrument)=>loaded.push(instrument),message(){}});
+ await p.loadChoice('duet:band-first');assert.deepEqual(loaded,['keyboard']);
+ p.mode='guitar';await assert.rejects(()=>p.loadChoice('duet:duet-first'),/no guitar part/);assert.equal(loaded.length,1);
+});
+test('teacher sync workspace cannot be opened from a student or guest practice session',()=>{
+ for(const user of [null,{role:'student'}]){const p=Object.assign(Object.create(BandPractice.prototype),{mode:'keyboard',school:{user,staff:false}});p.setMode('sync');assert.equal(p.mode,'keyboard');}
+});
 
 test('a delayed school catalog refresh keeps the song chosen while it was loading', async () => {
   let resolve; const select = { value: 'duet:duet-first' };

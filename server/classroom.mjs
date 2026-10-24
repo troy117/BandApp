@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseMidiSong } from '../dist/midi.mjs';
 import { validateAlignment } from '../dist/sync.mjs';
+import { validateAudioRange } from '../dist/backing-range.mjs';
 import { DRUMS, GROOVES } from '../dist/engine.mjs';
 import { arrangementParts, importedArrangement } from '../dist/arrangements.mjs';
 import { BAND_SCHEMA, migrateBandStorage } from './band-results.mjs';
@@ -235,7 +236,7 @@ export class ClassroomStore {
     const audioName = input.audioBytes ? cleanText(input.audioName, 180, 'recording filename') : '';
     if (!Array.isArray(input.selected) || !input.selected.length && !(Array.isArray(input.parts) && input.parts.length && input.parts.every(part=>part?.instrument==='vocals')) || input.selected.length > 512 || !input.selected.every(id => typeof id === 'string' && /^\d{1,3}:\d{1,2}$/.test(id))) throw new SchoolError(400, 'Choose the instrument parts to publish.');
     if (!input.mapping || typeof input.mapping !== 'object' || Array.isArray(input.mapping) || Object.keys(input.mapping).length > 128 || !Object.entries(input.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && Number(pitch) <= 127 && (drum === 'ignore' || DRUMS.some(item => item.id === drum)))) throw new SchoolError(400, 'Invalid drum assignments.');
-    let alignment; try { alignment = validateAlignment(input.offset, input.timeScale); } catch (error) { throw new SchoolError(400, error.message); }
+    let alignment; try { alignment = {...validateAlignment(input.offset, input.timeScale), ...(input.audioBytes ? validateAudioRange(input) : {})}; } catch (error) { throw new SchoolError(400, error.message); }
     if (!Number.isFinite(input.volume) || input.volume < 0 || input.volume > 1) throw new SchoolError(400, 'Invalid recording volume.');
     let parts;
     try { parts = arrangementParts(input.parts, input.selected); } catch (error) { throw new SchoolError(400, error.message); }

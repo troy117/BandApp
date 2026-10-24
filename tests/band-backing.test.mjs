@@ -33,6 +33,11 @@ test('stopping or closing during audio initialization prevents a late backing pr
     assert.equal(calls.includes('backing'),false);assert.equal(sync.preview,false);
   }
 });
+test('recording preview honors saved cuts without altering the audio clock',async t=>{
+  const {sync,owner}=previewFixture(),played=[];t.after(()=>sync.stop());
+  Object.assign(owner.draft,{audioStart:.2,audioEnd:.8});owner.audio.playBacking=(...args)=>played.push(args);
+  await sync.play(false);assert.equal(played.length,1);assert.ok(Math.abs(played[0][1]-.28)<1e-8);assert.equal(played[0][2],.2);assert.ok(Math.abs(played[0][4]-.6)<1e-8);
+});
 test('the waveform draws selectable pitched attacks with finite geometry', () => {
   const {sync,owner,el}=previewFixture();
   const ctx=new Proxy({}, {get:()=> (...args)=>assert.ok(args.every(v=>typeof v!=='number'||Number.isFinite(v)))});

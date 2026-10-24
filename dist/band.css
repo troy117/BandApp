@@ -143,6 +143,26 @@ body .instrument-nav{position:fixed;left:0;top:0;bottom:0;z-index:35;width:var(-
 
 
 .band-backing-check:not(:empty) { border-left:3px solid #e7c67e; padding:10px 14px; background:#e7c67e08; border-radius:3px; }
+.sync-workspace-heading { margin:22px 0; }
+.sync-workspace-heading h2 { margin:0 0 8px; font-size:28px; }
+.sync-workspace-heading p { color:#afc5bc; font-size:14px; line-height:1.7; }
+.sync-song-choices { background:#17292b; border:1px solid #49605b; border-radius:12px; padding:18px; }
+.sync-song-choices label { max-width:700px; }
+.backing-range { border:1px solid #4c6961; border-radius:10px; margin:18px 0; padding:14px 18px; color:#d5e2d8; }
+.backing-range legend { padding:0 8px; font-size:14px; }
+.backing-range { min-inline-size:0; }
+.band-fields input[type=file] { width:100%; min-width:0; }
+#b-backing-current { overflow-wrap:anywhere; }
+.backing-range .sync-buttons { flex-wrap:wrap; }
+#b-full-canvas { left:0; }
+.piano-score-tools { display:flex; align-items:center; gap:14px; flex-wrap:wrap; flex-shrink:0; padding:10px 4px; color:#b4cbbf; font-size:12px; }
+.piano-score-tools label { display:flex; align-items:center; gap:7px; }
+.piano-score-tools select { background:#203532; color:#e6ead8; border:1px solid #58756b; padding:7px; border-radius:6px; }
+.piano-score-tools small { font-size:10px; }
+.singing-mode #b-song-choices:not(:has(>.practice-song-picker)) { display:none; }
+.band-row:has(>#b-song-info:empty):has(>#b-open-import[hidden]) { display:none; }
+.band-transport label[hidden] { display:none!important; }
+@media(max-width:800px) { .sync-workspace-heading h2 { font-size:23px; }.sync-song-choices { padding:12px; }.piano-score-tools { gap:8px; font-size:11px; }.piano-score-tools small { display:none; } }
 
 /* Move the existing sound controls into focus so playback and checkbox state stay together. */
 .focus-sound-options { display:flex; align-items:center; gap:8px; flex-shrink:0; }
