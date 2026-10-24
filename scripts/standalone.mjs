@@ -8,7 +8,7 @@ files.splice(files.indexOf('band-markup.mjs'), 0, 'class-experience.mjs', 'mobil
 files.splice(files.indexOf('band-markup.mjs'), 0, 'vocal-pitch.mjs', 'vocal-microphone.mjs', 'vocal-warmup.mjs', 'vocal-highway.mjs', 'singing-practice.mjs');
 files.splice(files.indexOf('band-practice.mjs'), 0, 'karaoke-view.mjs');
 files.splice(files.indexOf('audio-sync.mjs'), 0, 'audio-sync-markup.mjs');
-files.splice(files.indexOf('audio-sync.mjs'), 0, 'backing-range.mjs', 'backing-tracks.mjs');
+files.splice(files.indexOf('audio-sync.mjs'), 0, 'backing-range.mjs', 'timing-map.mjs', 'backing-tracks.mjs');
 files.splice(files.indexOf('band-practice.mjs'), 0, 'keyboard-score.mjs');
 files.splice(files.indexOf('band-import.mjs'), 0, 'band-backing.mjs');
 const modules = await Promise.all(files.map(file => readFile(new URL(`dist/${file}`, root), 'utf8')));

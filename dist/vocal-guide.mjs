@@ -1,4 +1,21 @@
 import { pitchName } from './instruments.mjs';
+import { chartQuarterAt } from './timing-map.mjs';
+
+export function validateVocalNotes(value) {
+  if(value===undefined)return undefined;
+  if(!Array.isArray(value)||value.length>12000)throw new Error('Choose a vocal guide with at most 12,000 notes.');
+  let previous=-1;
+  return value.map(note=>{
+    if(!note || !Number.isFinite(note.time)||note.time<0||note.time>1200||note.time<previous||!Number.isFinite(note.duration)||note.duration<.025||note.duration>30||note.time+note.duration>1200||!Number.isInteger(note.pitch)||note.pitch<24||note.pitch>108||note.velocity!==undefined&&(!Number.isFinite(note.velocity)||note.velocity<0||note.velocity>1))throw new Error('Vocal notes must be ordered and include valid time, duration and pitch.');
+    previous=note.time;return {time:note.time,duration:note.duration,pitch:note.pitch,velocity:note.velocity ?? .7};
+  });
+}
+export function analyzedVocalMelody(chart,notes) {
+  return validateVocalNotes(notes).filter(note=>note.time<chart.duration).map((note,i)=>{
+    const quarter=chartQuarterAt(chart,note.time),measure=chart.measures.findLast(item=>item.startQuarter<=quarter)||chart.measures[0];
+    return {...note,duration:Math.min(note.duration,chart.duration-note.time),id:'vocal-analysis-'+i,quarter,bar:measure.bar,beat:1+(quarter-measure.startQuarter)*measure.denominator/4,status:'pending'};
+  });
+}
 
 export function vocalMelody(song, selected = []) {
   const notes = [], seen = new Set();

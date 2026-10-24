@@ -1,3 +1,5 @@
+import { validateTimingMap } from '../dist/timing-map.mjs';
+import { validateVocalNotes } from '../dist/vocal-guide.mjs';
 import { validateRunReport } from '../dist/run-report.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, randomUUID, createHash, timingSafeEqual, scrypt } from 'node:crypto';
@@ -250,10 +252,14 @@ export class ClassroomStore {
       if(input.lyricsOffset !== undefined) {if(!Number.isFinite(input.lyricsOffset)||Math.abs(input.lyricsOffset)>300)throw new Error('Choose a lyric adjustment within 300 seconds.');lyrics.lyricsOffset=input.lyricsOffset;}
     } catch(error){throw new SchoolError(400,error.message);}
     let lyricsAlignment;
-    try { if(input.lyricsAlignment)lyricsAlignment=validateAlignment(input.lyricsAlignment.offset,input.lyricsAlignment.timeScale); } catch(error){throw new SchoolError(400,error.message);}
+    try { if(input.lyricsAlignment)lyricsAlignment={...validateAlignment(input.lyricsAlignment.offset,input.lyricsAlignment.timeScale),...(input.lyricsAlignment.timingMap?{timingMap:validateTimingMap(input.lyricsAlignment.timingMap)}:{})}; } catch(error){throw new SchoolError(400,error.message);}
+    let timingMap,vocalNotes;try{timingMap=validateTimingMap(input.timingMap);vocalNotes=validateVocalNotes(input.vocalNotes);}catch(error){throw new SchoolError(400,error.message);}
     const extra = backings ? {backingTracks:backings,defaultBackingId:input.defaultBackingId} : {};
-    const result = { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...lyrics, ...(input.parts ? { arrangementVersion: 1, parts } : {}),...extra,...(lyricsAlignment?{lyricsAlignment}:{}) };
-    return backings?.length ? {...result,...withBacking(result,input.defaultBackingId),audioName:backings.find(b=>b.id===input.defaultBackingId).audioName} : result;
+    const result = { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...lyrics, ...(input.parts ? { arrangementVersion: 1, parts } : {}),...extra,...(lyricsAlignment?{lyricsAlignment}:{}),...(timingMap?{timingMap}:{}),...(vocalNotes!==undefined?{vocalNotes}:{}) };
+    if(!backings?.length)return result;
+    const chosen=withBacking(result,input.defaultBackingId);
+    for(const key of ['baseLyrics','lyricsText','lyricsClock','lyricsOffset'])delete chosen[key];
+    return {...chosen,...lyrics,audioName:backings.find(b=>b.id===input.defaultBackingId).audioName};
   }
   canManageSong(actor, song) { return isStaff(actor) && (actor.role === 'owner' || song.teacher_id === actor.id); }
   beginUpload(actor, input) {
@@ -454,7 +460,7 @@ export class ClassroomApi {
         const resolved = []; for (const song of songs) resolved.push(this.band ? await this.band.librarySong(actor, song) : song);
         send(200, { songs: resolved }); return true;
       }
-      if (pathname === '/api/library/uploads' && method === 'POST') { this.limit(`uploads:${actor.id}`, 100, 60 * 60 * 1000); this.store.requireStaff(actor); await this.store.cleanDrafts(); send(201, this.store.beginUpload(actor, await this.json(request))); return true; }
+      if (pathname === '/api/library/uploads' && method === 'POST') { this.limit(`uploads:${actor.id}`, 100, 60 * 60 * 1000); this.store.requireStaff(actor); await this.store.cleanDrafts(); send(201, this.store.beginUpload(actor, await this.json(request,2*1024*1024))); return true; }
       match = pathname.match(/^\/api\/library\/uploads\/([0-9a-f-]+)(?:\/(midi|audio(?:-[a-z0-9][a-z0-9-]{0,39})?|publish))?$/);
       if (match) {
         const [, id, action] = match;

@@ -3,7 +3,7 @@ import { makeMidiChart, midiTimeGrid } from './midi.mjs';
 import { alignMidiChart } from './sync.mjs';
 import { BAND_INSTRUMENTS, followInstrument, frettedChart } from './follow-along.mjs';
 import { arrangementLyrics } from './lyrics.mjs';
-import { vocalMelody } from './vocal-guide.mjs';
+import { vocalMelody, analyzedVocalMelody } from './vocal-guide.mjs';
 
 export const DUETS = [
   { id: 'duet-first', title: 'Together on one · Level 1', bpm: 80, bars: 8, groove: 'rock', melody: [60, 60, 64, 64, 67, 67, 64, 60], step: 1, length: 0.7 },
@@ -64,9 +64,10 @@ export function importedArrangement(song, metadata = {}) {
     if (part.instrument === 'vocals') {
       const lyrics = arrangementLyrics(song,metadata);
       if(!lyrics.length)throw new Error('Add timed lyrics for the vocals part. This MIDI may contain melody notes without words.');
-      chart = { ...alignMidiChart({ ...midiTimeGrid(song), notes: vocalMelody(song, part.selected) }, timeScale), kind: 'vocals', lyrics };
-      chart.notes.forEach(note => { note.duration *= timeScale; });
-    } else if (part.instrument === 'drums') chart = alignMidiChart(makeMidiChart(song, part.selected, metadata.mapping || {}), timeScale);
+      const grid=midiTimeGrid(song),notes=metadata.vocalNotes===undefined?vocalMelody(song,part.selected):analyzedVocalMelody(grid,metadata.vocalNotes);
+      chart = { ...alignMidiChart({ ...grid, notes }, timeScale,metadata.timingMap), kind: 'vocals', lyrics };
+      if(!metadata.timingMap)chart.notes.forEach(note => { note.duration *= timeScale; });
+    } else if (part.instrument === 'drums') chart = alignMidiChart(makeMidiChart(song, part.selected, metadata.mapping || {}), timeScale,metadata.timingMap);
     else {
       const all = song.parts.filter(item => part.selected.includes(item.id)).flatMap(item => item.notes).sort((a, b) => a.tick - b.tick);
       const seen = new Set(), notes = [];
@@ -78,8 +79,8 @@ export function importedArrangement(song, metadata = {}) {
       }
       if (!notes.length || notes.length > 50000) throw new Error('Choose an instrument part with 1–50,000 notes.');
       // Reuse the exact tempo/meter construction, without converting pitched notes into drum identities.
-      chart = alignMidiChart({ ...midiTimeGrid(song), kind: part.instrument, notes }, timeScale);
-      chart.notes.forEach(note => { note.duration *= timeScale; });
+      chart = alignMidiChart({ ...midiTimeGrid(song), kind: part.instrument, notes }, timeScale,metadata.timingMap);
+      if(!metadata.timingMap)chart.notes.forEach(note => { note.duration *= timeScale; });
       if(['guitar','bass'].includes(part.instrument))chart=frettedChart(chart,part.instrument);
     }
     chart.title = metadata.title || song.title;

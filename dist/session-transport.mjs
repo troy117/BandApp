@@ -9,7 +9,7 @@ export function arrangementFromBar(arrangement, startBar = 1) {
     const chart = createPracticeChart(part.chart, { enabled: true, startBar, endBar: bars, repeats: 1, focus: 'all' }, { allowEmpty: true });
     chart.sourceBars = bars;
     const from = chart.passes[0].from;
-    if (part.chart.lyrics) chart.lyrics = part.chart.lyrics.filter(cue => cue.end > from).map(cue => ({ ...cue, time: Math.max(0, cue.time - from), end: Math.min(chart.duration, cue.end - from) })).filter(cue => cue.end > cue.time);
+    if (part.chart.lyrics) chart.lyrics = part.chart.lyrics.filter(cue => cue.end > from).map(cue => ({ ...cue, time: Math.max(0, cue.time - from), end: Math.min(chart.duration, cue.end - from),...(cue.words?{words:cue.words.filter(word=>word.end>from).map(word=>({...word,time:Math.max(0,word.time-from),end:Math.min(chart.duration,word.end-from)})).filter(word=>word.end>word.time)}:{}) })).filter(cue => cue.end > cue.time);
     return { ...part, chart };
   });
   return { ...arrangement, startBar, sourceBars: bars, duration: parts[0].chart.duration, bpm: parts[0].chart.bpm, parts };

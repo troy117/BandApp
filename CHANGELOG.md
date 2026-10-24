@@ -1,3 +1,10 @@
+# 0.22.0 — Recording timing maps and analyzed vocal guides
+
+- Each backing can use a piecewise MIDI-to-recording timing map. Notes, releases, beats, tempo, lyrics/words, previews, loops and shared starts follow the selected recording; audio speed and pitch stay unchanged. Simple Songsterr calibration remains supported.
+- Teachers can import/export maps, refine beat anchors and return to simple alignment in MIDI & audio sync. Imports check the exact MIDI fingerprint and backing filename/size.
+- Optional vocal-guide imports add canonical pitch notes and backing-specific word timing while preserving base lyrics and existing MIDI assignments. Shared seeks now shift word timestamps as well as lyric lines.
+- Local Python tools use SyncToolbox for recording alignment and optional CREPE for vocal-stem pitch extraction. No Python, models or source media are added to Railway. See [workflow and limits](docs/RECORDING_ALIGNMENT.md).
+
 # 0.21.0 — Multiple backing choices
 
 - Named backing versions with student/focus selection and teacher-controlled jam choice.

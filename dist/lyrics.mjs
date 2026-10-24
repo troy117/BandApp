@@ -1,3 +1,4 @@
+import { timingFunctions } from './timing-map.mjs';
 export const MAX_LYRIC_BYTES = 10000;
 export function lyricText(value = '') {
   if (typeof value !== 'string' || new TextEncoder().encode(value).length > MAX_LYRIC_BYTES || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value)) throw new Error('Choose lyric text smaller than 10 KB.');
@@ -93,10 +94,11 @@ export function arrangementLyrics(song, metadata = {}) {
   const clock = metadata.lyricsClock ?? 'midi', offset = metadata.lyricsOffset ?? 0;
   if (!['midi','recording'].includes(clock) || !Number.isFinite(offset) || Math.abs(offset) > 300) throw new Error('Choose the lyric clock and an adjustment within 300 seconds.');
   const cues = metadata.lyricsText === undefined ? midiLyricCues(song) : parseLyricText(metadata.lyricsText);
-  const reference = metadata.lyricsAlignment || metadata, ratio = (metadata.timeScale ?? 1) / (reference.timeScale ?? 1);
-  const scale = clock === 'midi' ? metadata.timeScale ?? 1 : ratio, shift = clock === 'recording' ? (offset + (reference.offset ?? 0)) * ratio : offset, duration = song.duration * (metadata.timeScale ?? 1);
-  return cues.map((cue,i) => ({ time: cue.time * scale + shift, end: (cue.end ?? cues[i+1]?.time ?? cue.time + 8) * scale + shift, text: cue.text,
-    ...(cue.words ? { words: cue.words.map(word => ({ ...word, time: word.time * scale + shift, end: word.end * scale + shift })) } : {})
+  const reference = metadata.lyricsAlignment || metadata, timing=timingFunctions(metadata), original=timingFunctions(reference);
+  const at=clock==='midi' ? time=>timing.forward(time)+offset : time=>timing.forward(original.inverse(time+offset+(reference.offset??0)));
+  const duration=timing.forward(song.duration);
+  return cues.map((cue,i) => ({ time: at(cue.time), end: at(cue.end ?? cues[i+1]?.time ?? cue.time + 8), text: cue.text,
+    ...(cue.words ? { words: cue.words.map(word => ({ ...word, time: at(word.time), end: at(word.end) })) } : {})
   })).filter(cue => cue.end > 0 && cue.time < duration).map(cue => ({...cue,time:Math.max(0,cue.time),end:Math.min(duration,cue.end),
     ...(cue.words ? { words: cue.words.filter(word => word.end > 0 && word.time < duration).map(word => ({...word,time:Math.max(0,word.time),end:Math.min(duration,word.end)})) } : {})
   })).filter(cue => cue.end > cue.time);

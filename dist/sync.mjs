@@ -1,3 +1,4 @@
+import { timingFunctions, mapMidiChart } from './timing-map.mjs';
 // Alignment is audioTime = midiTime * timeScale - offset. Audio stays at 1x;
 // the MIDI clock follows the recording, preserving its internal tempo changes.
 export function validateAlignment(offset = 0, timeScale = 1) {
@@ -10,17 +11,19 @@ export function validateAlignment(offset = 0, timeScale = 1) {
 // bounds are also used by the waveform and pointer input; glyph width is visual.
 export function waveformNotes(chart, alignment, view) {
   const { offset, timeScale } = validateAlignment(alignment.offset, alignment.timeScale);
+  const timing=timingFunctions(alignment);
   const { start, duration, left, width } = view;
   if (![start, duration, left, width].every(Number.isFinite) || start < 0 || duration <= 0 || width <= 0) throw new Error('Invalid waveform window.');
   return chart.notes.flatMap(note => {
-    const audioTime = note.time * timeScale - offset;
+    const audioTime = timing.forward(note.time) - offset;
     if (audioTime < start || audioTime >= start + duration) return [];
     return [{ note, audioTime, x: left + (audioTime - start) / duration * width }];
   });
 }
 
-export function alignMidiChart(chart, timeScale = 1) {
+export function alignMidiChart(chart, timeScale = 1, timingMap = null) {
   validateAlignment(0, timeScale);
+  if(timingMap)return mapMidiChart(chart,{timeScale,timingMap});
   if (chart.duration * timeScale > 1200) throw new Error('The adjusted MIDI would exceed 20 minutes. Choose a faster MIDI speed.');
   return { ...chart, timeScale, duration: chart.duration * timeScale, bpm: chart.bpm / timeScale, countInBeatSeconds: chart.countInBeatSeconds * timeScale,
     notes: chart.notes.map(note => ({ ...note, time: note.time * timeScale })), beats: chart.beats.map(beat => ({ ...beat, time: beat.time * timeScale })),

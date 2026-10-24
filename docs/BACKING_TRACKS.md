@@ -6,7 +6,7 @@ Students: choose **Backing** beside the song. The same selector travels into pho
 
 Up to six recordings, 100 MB each and 300 MB combined. Every file uploads before a revision is published. Older revisions and original files remain available. School backups include every backing file. Legacy single-recording songs remain readable.
 
-Calibration uses an offset and a steady tempo adjustment. Added/missing bars or changing live tempo still require a matching edit of the recording or MIDI; a global adjustment cannot repair a different arrangement. Student performance reports use the selected backing's timeline. Microphone recordings remain local and are not uploaded.
+Simple calibration uses an offset and a steady tempo adjustment. Prototype 22 also supports an independent timing map for changing tempo in each backing. See [recording alignment](RECORDING_ALIGNMENT.md). Added/missing bars still need arrangement review; a map cannot invent or remove MIDI notes. Student performance reports use the selected backing's timeline. Microphone recordings remain local and are not uploaded.
 
 Lyrics normally follow MIDI time. Recording-clock lyrics retain a reference alignment when versions change, including existing word timestamps. Arrangement setup export/import applies to the selected backing; publish saves all backing versions and their calibrations.
 

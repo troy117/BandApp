@@ -23,6 +23,8 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
+Prototype 22 adds independent, changing-tempo timing maps for each backing and imports analyzed vocal pitch guides. See [recording alignment](docs/RECORDING_ALIGNMENT.md).
+
 Prototype 21 adds named backing versions, student selection and independent calibration per version. The teacher chooses the shared backing for a jam. See [backing versions](docs/BACKING_TRACKS.md).
 
 Prototype 20 simplifies instrument pages, automatically refreshes compatible school songs, and adds a full piano grand staff. Teachers have a separate **MIDI & audio sync** workspace with waveform scrolling/zoom, instrument comparisons and reversible backing start/end cuts. See [piano and sync controls](docs/PIANO_AND_SYNC.md).
@@ -175,7 +177,7 @@ Included: built-in drum sheet music with a scrolling playhead and live view togg
 
 Version 0.10 adds fullscreen in every practice view, school storage/mount/identity checks and private database recovery copies before version updates. Use the same Railway volume across deployments and enable independent backups; GitHub does not hold school data. See [storage and recovery](docs/CLASSROOMS.md#preserve-data-through-every-update). Prototype 11 implements the solo keyboard and teacher-led drum-and-keyboard pilot. See [milestone status](docs/JAM_SESSIONS.md) and the [hardware test guide](docs/BAND_TESTING.md).
 
-Version 0.8 adds the full-sheet view, direct library loading, live backing-volume controls and a smaller page header. Version 0.7 adds teacher/student accounts, a shared school song library and saved account progress. Classroom features require the [persistent Railway storage setup](docs/CLASSROOMS.md). Version 0.6 added local audio alignment suggestions, waveform previews, one/two-point manual alignment, portable song setups, and sheet music for imported MIDI. Version 0.9 adds USB MIDI drumkit input, a device picker, live pad feedback, pad learning and reconnection. Next: verify the real TD-17 pads/latency and the current school’s backup/redeploy behavior, then validate the drum-and-keyboard pilot with the actual instruments. See [the milestone plan](docs/HANDOFF.md). This version does not yet install as a PWA or warp changing drift. Cymbal chokes, continuous hi-hat openness and hit strength are not graded.
+Version 0.8 adds the full-sheet view, direct library loading, live backing-volume controls and a smaller page header. Version 0.7 adds teacher/student accounts, a shared school song library and saved account progress. Classroom features require the [persistent Railway storage setup](docs/CLASSROOMS.md). Version 0.6 added local audio alignment suggestions, waveform previews, one/two-point manual alignment, portable song setups, and sheet music for imported MIDI. Version 0.9 adds USB MIDI drumkit input, a device picker, live pad feedback, pad learning and reconnection. Next: verify the real TD-17 pads/latency and the current school’s backup/redeploy behavior, then validate the drum-and-keyboard pilot with the actual instruments. See [the milestone plan](docs/HANDOFF.md). This version does not yet install as a PWA. Cymbal chokes, continuous hi-hat openness and hit strength are not graded.
 
 See THIRD_PARTY_NOTICES.md for the SightKick reuse assessment and license.
 

@@ -392,3 +392,25 @@ test('multiple recordings publish atomically, download separately, and use one t
  await readyRoom(env,created.data.room);
  const staleClient=await env.request(env.setup,'/library/uploads','POST',{...metadata,backingTracks:undefined,defaultBackingId:undefined,songId:song.id,revisionId:song.revisionId});assert.equal(staleClient.status,409);
 });
+
+test('a school timing map and analyzed vocal guide retain one clock through publication and teacher-led sessions',async t=>{
+ const env=await bandFixture(t),midi=duetMidi(),audio=new Uint8Array([1,2,3]);
+ const timingMap={version:1,source:'Synthetic changing tempo',points:[[0,2],[.5,2.5],[1,3.25],[2,4.25]]};
+ // Include enough legitimate notes to exercise the larger metadata request bound.
+ const vocalNotes=Array.from({length:800},(_,i)=>({time:i/1000,duration:.05,pitch:60,velocity:.7}));
+ const metadata={title:'Mapped school duet',fileName:'duet.mid',midiBytes:midi.length,audioBytes:audio.length,audioName:'original.wav',selected:['0:9'],parts:[{id:'drums',name:'Drums',instrument:'drums',selected:['0:9']},{id:'vocals',name:'Vocals',instrument:'vocals',selected:[]}],mapping:{},offset:-2,timeScale:1,volume:.5,backingTracks:[{id:'original',label:'Original',audioName:'original.wav',audioBytes:audio.length,offset:-2,timeScale:1,volume:.5,timingMap,lyricsText:'[00:00.500]Recording words'}],defaultBackingId:'original',lyricsText:'[00:00.100]Base words',lyricsClock:'midi',vocalNotes};
+ assert.ok(JSON.stringify(metadata).length>32768);
+ const begin=await env.request(env.setup,'/library/uploads','POST',metadata);assert.equal(begin.status,201);const upload=begin.data.uploadId;
+ await env.request(env.setup,'/library/uploads/'+upload+'/midi','PUT',midi);
+ await env.request(env.setup,'/library/uploads/'+upload+'/audio-original','PUT',audio);
+ const saved=await env.request(env.setup,'/library/uploads/'+upload+'/publish','POST',{});assert.equal(saved.status,200);const song=saved.data.song;
+ const reopened=(await env.request(env.setup,'/library/'+song.id)).data.song;
+ assert.deepEqual(reopened.backingTracks[0].timingMap,timingMap);assert.equal(reopened.vocalNotes.length,800);assert.equal(reopened.lyricsText,metadata.lyricsText);
+ const arrangement=(await env.request(env.a,'/band/arrangements/school/'+song.id+'?backing=original')).data.arrangement;
+ assert.equal(arrangement.parts[1].chart.notes.length,800);assert.equal(arrangement.parts[1].chart.lyrics[0].text,'Recording words');
+ assert.equal(arrangement.parts[1].chart.lyrics[0].time,.5);assert.equal(arrangement.parts[0].chart.duration,arrangement.parts[1].chart.duration);
+ const room=await env.request(env.setup,'/band/rooms','POST',{sourceKind:'school',sourceId:song.id,revisionId:song.revisionId,backingId:'original',assignments:[{userId:env.a.user.id,partId:'drums'},{userId:env.b.user.id,partId:'vocals'}]});
+ assert.equal(room.status,201);assert.equal(room.data.room.arrangement.backingId,'original');
+ const shared=env.server.bandSessions.rooms.get(room.data.room.id).arrangement;
+ assert.equal(shared.parts[1].chart.notes.length,800);assert.equal(shared.parts[0].chart.duration,arrangement.parts[0].chart.duration);
+});

@@ -1,15 +1,19 @@
 # Groove Lab — development handoff
 
-Updated October 23, 2026. This is the starting point for continuing at home.
+Updated October 24, 2026. This is the starting point for continuing at home.
 
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.21.0 / Prototype 21**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Browser app, version **0.22.0 / Prototype 22**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Recording alignment
+
+Prototype 22 adds timing-map.mjs with validated, invertible piecewise MIDI-second → recording-second anchors, normalized to chart time zero. Offset handles the recording origin; audio remains unchanged at normal speed. Every instrument uses the same mapped clock, including releases, measure/tempo metadata, word cues, loops and shared bar starts. Each backing retains its own map. Vocal notes are optional canonical MIDI-time notes, independent of backing choice; per-backing lyricsText overrides keep recording-specific word timing separate from the base Songsterr lyrics. Upload JSON bound is 2 MB; map/guide imports check fingerprints and maps check audio filename/size. No schema or hosting changes. Offline scripts and requirements are documented in [RECORDING_ALIGNMENT.md](RECORDING_ALIGNMENT.md). Private media, models and reports remain ignored under artifacts/timing-map-update/.
 
 ## Phone practice and teacher dashboard
 

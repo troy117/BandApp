@@ -1,3 +1,5 @@
+import { validateTimingMap } from './timing-map.mjs';
+import { validateVocalNotes } from './vocal-guide.mjs';
 import { backingChoices, backingFileKind, validateBackingTracks, withBacking } from './backing-tracks.mjs';
 import { LyricTiming, plainLyricLines } from './lyric-timing.mjs';
 import { BandBacking } from './band-backing.mjs';
@@ -29,6 +31,8 @@ export class BandImport {
     q('b-edit-backing').onchange=()=>this.attempt(()=>this.chooseBacking(q('b-edit-backing').value));
     q('b-backing-label').oninput=()=>{const track=this.currentBacking();if(track){track.label=q('b-backing-label').value;this.renderBackingChoices();}};
     q('b-backing-default').onchange=()=>{if(this.draft && q('b-backing-default').checked)this.draft.defaultBackingId=this.draft.backingId;this.renderBackingChoices();};
+    q('b-backing-lyrics-clear').onclick=()=>{const track=this.currentBacking();if(track)for(const key of ['lyricsText','lyricsClock','lyricsOffset'])delete track[key];this.renderVocalState();};
+    q('b-vocal-notes-file').onchange=()=>this.attempt(()=>this.readVocalNotes());
     q('b-import-apply').onclick = () => this.attempt(() => this.apply());
     q('b-publish').onclick = () => this.attempt(() => this.publish());
     q('b-setup-save').onclick = () => this.attempt(() => this.downloadSetup());
@@ -61,7 +65,7 @@ export class BandImport {
     const track=this.currentBacking();if(!track)return;
     if(this.draft.pendingAudio || this.draft.audioFailed)throw new Error('Choose a supported audio file before switching backings.');
     const q=this.q, range=this.draft.buffer ? validateAudioRange({audioStart:Number(q('b-audio-start').value || 0),audioEnd:q('b-audio-end').value===''?null:Number(q('b-audio-end').value)},this.draft.buffer.duration) : {};
-    Object.assign(track,{bytes:this.draft.audioBytes,audioBytes:this.draft.audioBytes?.byteLength || 0,audioName:this.draft.audioName,label:q('b-backing-label').value || track.label,...validateAlignment(Number(q('b-import-offset').value),100/Number(q('b-import-speed').value)),volume:Number(q('b-import-volume').value)/100,audioStart:range.audioStart ?? 0,audioEnd:range.audioEnd ?? null});
+    Object.assign(track,{bytes:this.draft.audioBytes,audioBytes:this.draft.audioBytes?.byteLength || 0,audioName:this.draft.audioName,label:q('b-backing-label').value || track.label,...validateAlignment(Number(q('b-import-offset').value),100/Number(q('b-import-speed').value)),volume:Number(q('b-import-volume').value)/100,audioStart:range.audioStart ?? 0,audioEnd:range.audioEnd ?? null,timingMap:this.draft.timingMap || undefined});
   }
   renderBackingChoices() {
     const q=this.q, tracks=this.draft?.backingTracks || [], selected=this.currentBacking();
@@ -79,7 +83,7 @@ export class BandImport {
     this.activateBacking(track,null);this.q('b-import-state').textContent='Choose an audio file for the new version. Existing versions are retained.';
   }
   activateBacking(track,buffer) {
-    Object.assign(this.draft,{backingId:track?.id || null,audioBytes:track?.bytes || null,buffer,audioName:track?.audioName || '',audioStart:track?.audioStart ?? 0,audioEnd:track?.audioEnd ?? null,audioFailed:false,pendingAudio:false});
+    Object.assign(this.draft,{backingId:track?.id || null,audioBytes:track?.bytes || null,buffer,audioName:track?.audioName || '',audioStart:track?.audioStart ?? 0,audioEnd:track?.audioEnd ?? null,timingMap:track?.timingMap || null,audioFailed:false,pendingAudio:false});
     const q=this.q;q('b-import-offset').value=track?.offset ?? 0;q('b-import-speed').value=100/(track?.timeScale ?? 1);q('b-import-volume').value=(track?.volume ?? .65)*100;q('b-audio-start').value=track?.audioStart ?? 0;q('b-audio-end').value=track?.audioEnd ?? '';q('b-audio-file').value='';
     this.renderBackingChoices();this.backing.reset();
   }
@@ -103,7 +107,7 @@ export class BandImport {
     const assigned = metadata.parts ? new Map(metadata.parts.flatMap(part => part.selected.map(id => [id, part.instrument]))) : null;
     q('b-import-title').value = metadata.title || song.title;
     q('b-import-offset').value = metadata.offset ?? 0; q('b-import-speed').value = 100 / (metadata.timeScale ?? 1); q('b-import-volume').value = (metadata.volume ?? 0.65) * 100;
-    Object.assign(this.draft, {audioStart:metadata.audioStart ?? 0, audioEnd:metadata.audioEnd ?? null});
+    Object.assign(this.draft, {audioStart:metadata.audioStart ?? 0, audioEnd:metadata.audioEnd ?? null,timingMap:metadata.timingMap || null,vocalNotes:metadata.vocalNotes});
     q('b-audio-start').value = this.draft.audioStart; q('b-audio-end').value = this.draft.audioEnd ?? '';
     q('b-publish').textContent = this.draft.schoolSource ? 'Publish school song update' : 'Publish new school song';
     const embedded=midiLyricCues(song);q('b-lyrics-text').value=metadata.lyricsText??formatLyricCues(embedded);q('b-lyrics-clock').value=metadata.lyricsClock||'midi';q('b-lyrics-offset').value=metadata.lyricsOffset||0;
@@ -114,6 +118,7 @@ export class BandImport {
       const instrument=assigned ? assigned.get(part.id) || '' : suggestion;
       return '<div class="band-track"><div>' + escapeHtml(part.name) + '<small>Track ' + part.track + ' · MIDI channel ' + part.channel + ' · ' + part.notes.length + ' notes</small></div><label>Assign to<select data-band-track="' + escapeHtml(part.id) + '"><option value="">Ignore</option>'+Object.entries(BAND_INSTRUMENTS).map(([id,name])=>'<option value="'+id+'"'+(instrument===id?' selected':'')+'>'+name+'</option>').join('')+'</select></label></div>';
     }).join('');
+    q('b-vocal-notes-state').textContent=this.draft.vocalNotes?.length ? this.draft.vocalNotes.length+' analyzed vocal notes retained on the MIDI timeline.' : 'No imported vocal pitch guide. Existing MIDI vocal assignments are retained.';
     this.renderBackingChoices(); this.backing?.reset(); if(this.backing)this.tab(this.requestedTab || 'parts');
   }
   async editSchoolSong(id, tab = 'parts') {
@@ -140,6 +145,25 @@ export class BandImport {
     this.renderDraft(meta);
     this.q('b-import-state').textContent = 'Existing backing and alignment retained' + (meta.audioName ? ' · ' + meta.audioName : '') + '. Check the instrument assignments and lyrics, then publish the update.';
   }
+  renderVocalState() {
+    const count=this.draft?.vocalNotes?.length || 0,own=this.currentBacking()?.lyricsText!==undefined;
+    this.q('b-vocal-notes-state').textContent=(count ? count+' analyzed vocal notes retained on the MIDI timeline.' : 'No imported vocal pitch guide. Existing MIDI vocal assignments are retained.')+(own?' This backing uses its own imported word timing; the editor below contains the base lyrics.':'');
+    this.q('b-backing-lyrics-clear').hidden=!own;
+  }
+  async readVocalNotes() {
+    if(!this.draft)throw new Error('Choose the matching MIDI first.');
+    const file=this.q('b-vocal-notes-file').files[0];if(!file)return;
+    if(file.size>2*1024*1024)throw new Error('Choose a vocal guide smaller than 2 MB.');
+    const token=this.token,input=JSON.parse(await file.text());if(token!==this.token)return;
+    if(input.format!=='bandapp-vocal-guide'||input.version!==1||!Array.isArray(input.notes)||input.fingerprint!==this.draft.song.fingerprint)throw new Error('This vocal guide must match the exact MIDI arrangement.');
+    const notes=validateVocalNotes(input.notes);if(notes.some(note=>note.time+note.duration>this.draft.song.duration+.001))throw new Error('Vocal notes must fit inside the MIDI arrangement.');
+    const lyrics=input.lyricsText===undefined?undefined:lyricText(input.lyricsText);
+    if(lyrics!==undefined){parseLyricText(lyrics);if(!this.currentBacking())throw new Error('Choose the original backing before importing its timed lyrics.');}
+    this.practice.stop();this.draft.vocalNotes=notes;
+    if(lyrics!==undefined)Object.assign(this.currentBacking(),{lyricsText:lyrics,lyricsClock:'midi',lyricsOffset:0});
+    this.q('b-vocal-notes-file').value='';this.renderVocalState();
+    this.q('b-vocal-notes-state').textContent=notes.length+' analyzed vocal notes prepared.'+(lyrics!==undefined?' Timed lyrics apply to this backing; other versions retain their text.':'')+' Publish to save the guide.';
+  }
   async readMidi() {
     const file = this.q('b-midi-file').files[0]; if (!file) return;
     if (file.size > 10 * 1024 * 1024) throw new Error('Choose a MIDI smaller than 10 MB.');
@@ -163,7 +187,8 @@ export class BandImport {
     try {
     const bytes = await file.arrayBuffer(), buffer = await this.practice.audio.decodeBacking(bytes.slice(0));
     if (token !== this.token || audioToken !== this.audioToken || draft !== this.draft) return;
-    Object.assign(draft, { audioBytes: bytes, buffer, audioName: file.name, audioStart:0, audioEnd:null });
+    Object.assign(draft, { audioBytes: bytes, buffer, audioName: file.name, audioStart:0, audioEnd:null,timingMap:null });
+    if(this.currentBacking())for(const key of ['lyricsText','lyricsClock','lyricsOffset'])delete this.currentBacking()[key];
     if(this.currentBacking()?.label==='New backing')this.q('b-backing-label').value=file.name.replace(/\.[^.]+$/,'').slice(0,80);
     this.q('b-audio-start').value=0; this.q('b-audio-end').value='';
     this.q('b-import-state').textContent = 'Backing recording decoded. Offset and speed apply to every instrument part.';
@@ -185,8 +210,8 @@ export class BandImport {
     this.flushBacking();
     const tracks=(this.draft.backingTracks || []).map(({bytes,...track})=>track);
     validateBackingTracks(tracks,this.draft.defaultBackingId || null);
-    const result = { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, ...range, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset,backingTracks:tracks,defaultBackingId:this.draft.defaultBackingId || null,lyricsAlignment:this.draft.lyricsAlignment || alignment };
-    return withBacking(result,result.defaultBackingId);
+    const result = { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, ...range, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset,backingTracks:tracks,defaultBackingId:this.draft.defaultBackingId || null,lyricsAlignment:this.draft.lyricsAlignment || {...alignment,timingMap:this.draft.timingMap || null},...(this.draft.vocalNotes!==undefined?{vocalNotes:validateVocalNotes(this.draft.vocalNotes)}:{}) };
+    return {...withBacking(result,result.defaultBackingId),lyricsText,lyricsClock,lyricsOffset};
   }
   async apply() {
     this.timing.pause(); this.backing.cancel();
@@ -226,11 +251,15 @@ export class BandImport {
   async loadSetup() {
     if (!this.draft) throw new Error('Load the matching MIDI first.');
     const file = this.q('b-setup-file').files[0]; if (!file) return;
-    if (file.size > 65536) throw new Error('Choose a small arrangement setup JSON.');
+    if (file.size > 2*1024*1024) throw new Error('Choose an arrangement setup smaller than 2 MB.');
     const token = this.token, setup = JSON.parse(await file.text()); if (token !== this.token) return;
     if (setup.format !== 'groove-lab-arrangement' || setup.version !== 1 || setup.fingerprint !== this.draft.song.fingerprint) throw new Error('This setup must match the exact MIDI file.');
     const parts = arrangementParts(setup.parts), assignment = new Map(parts.flatMap(part => part.selected.map(id => [id, part.instrument])));
     importedArrangement(this.draft.song, setup); validateAlignment(setup.offset, setup.timeScale);
+    const loadedMap=validateTimingMap(setup.timingMap);const loadedNotes=validateVocalNotes(setup.vocalNotes);
+    if(loadedMap && setup.audioName!==this.draft.audioName)throw new Error('Load the matching backing file before restoring its timing map.');
+    const base=setup.baseLyrics || setup,selected=setup.backingTracks?.find(track=>track.id===setup.backingId);
+    if(base.lyricsText!==undefined)lyricText(base.lyricsText);
     const range=validateAudioRange(setup, this.draft.buffer?.duration);
     if (!Number.isFinite(setup.volume) || setup.volume < 0 || setup.volume > 1 || typeof setup.title !== 'string' || !setup.title.trim() || setup.title.length > 120) throw new Error('Invalid arrangement setup.');
     for (const select of this.q('b-import-tracks').querySelectorAll('[data-band-track]')) select.value = assignment.get(select.dataset.bandTrack) || '';
@@ -239,8 +268,9 @@ export class BandImport {
       this.draft.mapping = { ...setup.mapping };
     }
     this.q('b-import-title').value = setup.title; this.q('b-import-offset').value = setup.offset; this.q('b-import-speed').value = 100 / setup.timeScale; this.q('b-import-volume').value = setup.volume * 100;
-    this.q('b-lyrics-text').value=setup.lyricsText??'';this.q('b-lyrics-clock').value=setup.lyricsClock||'midi';this.q('b-lyrics-offset').value=setup.lyricsOffset||0;
-    Object.assign(this.draft, {audioStart:range.audioStart ?? 0, audioEnd:range.audioEnd ?? null});
+    this.q('b-lyrics-text').value=base.lyricsText??'';this.q('b-lyrics-clock').value=base.lyricsClock||'midi';this.q('b-lyrics-offset').value=base.lyricsOffset||0;
+    if(this.currentBacking()){for(const key of ['lyricsText','lyricsClock','lyricsOffset'])delete this.currentBacking()[key];if(selected?.lyricsText!==undefined)Object.assign(this.currentBacking(),{lyricsText:lyricText(selected.lyricsText),lyricsClock:'midi',lyricsOffset:0});}
+    Object.assign(this.draft, {audioStart:range.audioStart ?? 0, audioEnd:range.audioEnd ?? null,timingMap:loadedMap,...(loadedNotes!==undefined?{vocalNotes:loadedNotes}:{}),...(setup.lyricsAlignment?{lyricsAlignment:setup.lyricsAlignment}:{})});
     this.q('b-audio-start').value=this.draft.audioStart; this.q('b-audio-end').value=this.draft.audioEnd ?? '';
     this.flushBacking();this.renderBackingChoices();this.backing.reset();
     this.q('b-import-state').textContent = 'Selected backing settings restored. Add the matching backing recording, then use or publish.';

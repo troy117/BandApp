@@ -1,3 +1,4 @@
+import { timingFunctions } from './timing-map.mjs';
 import { alignMidiChart, fitAlignment, midiPositionTime, audioOnsets, suggestAlignment, validateAlignment, waveformNotes } from './sync.mjs';
 import { makeMidiChart } from './midi.mjs';
 import { DRUMS } from './engine.mjs';
@@ -79,7 +80,7 @@ export class AudioSync {
     try {
       const chart = this.base(), first = chart.notes[0];
       this.el('sync-bar').value = first.bar; this.el('sync-beat').value = Number(first.beat.toFixed(4));
-      this.el('sync-audio').value = Math.max(0, first.time * (d.timeScale ?? 1) - d.offset).toFixed(3);
+      this.el('sync-audio').value = Math.max(0, timingFunctions(d).forward(first.time) - d.offset).toFixed(3);
       this.el('sync-bar-2').value = Math.min(chart.bars, Math.max(first.bar + 4, Math.floor(chart.bars * 0.7))); this.el('sync-beat-2').value = 1; this.el('sync-audio-2').value = '';
     } catch { /* Mapping may still need a selection. */ }
   }
@@ -87,10 +88,11 @@ export class AudioSync {
     const d = this.owner.draft, disabled = !d?.buffer || this.owner.busy;
     this.el('audio-sync').hidden = !d?.buffer;
     for (const element of this.el('audio-sync').querySelectorAll('button,input,select')) element.disabled = disabled;
-    this.el('midi-speed').disabled = !d || this.owner.busy;
+    this.el('midi-speed').disabled = !d || this.owner.busy || !!d.timingMap;
+    if(d?.timingMap)for(const id of ['suggest-sync','match-sync','sync-second','sync-drift'])this.el(id).disabled=true;
     this.el('midi-speed').value = Number((100 / (d?.timeScale ?? 1)).toFixed(3));
     this.el('stop-sync').disabled = !this.preview;
-    this.el('sync-summary').textContent = d ? `Current match: ${d.offset.toFixed(3)} s offset · ${(100 / (d.timeScale ?? 1)).toFixed(2)}% MIDI speed. Recording pitch and speed stay unchanged.` : '';
+    this.el('sync-summary').textContent = d ? `${d.timingMap ? d.timingMap.points.length+' timing anchors · ' : 'Current match: '}${d.offset.toFixed(3)} s offset · ${(100 / (d.timeScale ?? 1)).toFixed(2)}% MIDI speed. Recording pitch and speed stay unchanged.` : '';
     for (const id of ['sync-bar', 'sync-bar-2']) this.el(id).max = d ? this.baseSafeBars() : 1;
     if (d?.buffer) for (const id of ['sync-audio', 'sync-audio-2']) this.el(id).max = d.buffer.duration.toFixed(3);
     this.draw();
@@ -99,12 +101,13 @@ export class AudioSync {
   set(alignment) {
     if (!this.owner.draft) return;
     validateAlignment(alignment.offset, alignment.timeScale);
-    alignMidiChart(this.base(), alignment.timeScale);
+    if(this.owner.draft.timingMap && alignment.timeScale!==this.owner.draft.timeScale)throw new Error('Use simple alignment to change the overall MIDI speed.');
+    alignMidiChart(this.base(), alignment.timeScale,this.owner.draft.timingMap);
     if (this.owner.draft.buffer && alignment.offset <= -this.owner.draft.buffer.duration) throw new Error('That offset skips the whole recording.');
     this.stop(); this.centerView(); Object.assign(this.owner.draft, { offset: alignment.offset, timeScale: alignment.timeScale });
     try {
       const midi = midiPositionTime(this.base(), Number(this.el('sync-bar').value), Number(this.el('sync-beat').value));
-      this.el('sync-audio').value = Math.max(0, midi * alignment.timeScale - alignment.offset).toFixed(3);
+      this.el('sync-audio').value = Math.max(0, timingFunctions(this.owner.draft).forward(midi) - alignment.offset).toFixed(3);
     } catch { /* Keep the waveform usable while the beat fields are being edited. */ }
     this.owner.render(); this.status('Match updated. Preview together near the start, then check a later bar before saving.');
   }
@@ -121,6 +124,7 @@ export class AudioSync {
   }
   async analyze() {
     if (this.owner.busy || !this.owner.draft?.buffer) return;
+    if(this.owner.draft.timingMap){this.status('This backing already has a timing map. Refine anchors or use simple alignment for a new suggestion.');return;}
     this.stop(); const owner = this.owner, token = ++owner.token, d = owner.draft;
     owner.busy = true; owner.render(); this.candidates = []; this.el('sync-candidates').innerHTML = '';
     const options = { offset: d.offset, timeScale: d.timeScale ?? 1, drift: this.el('sync-drift').checked, window: Number(this.el('sync-window').value), cancelled: () => token !== owner.token, progress: message => { if (token === owner.token) this.status(message); } };
@@ -146,8 +150,8 @@ export class AudioSync {
     this.owner.beforePreview?.();
     this.stop(); const token = this.owner.token, previewToken = this.previewToken, d = this.owner.draft;
     try {
-      const chart = alignMidiChart(this.base(), d.timeScale ?? 1);
-      const midi = together ? midiPositionTime(this.base(), Number(this.el('sync-bar').value), Number(this.el('sync-beat').value)) * (d.timeScale ?? 1) : 0;
+      const chart = alignMidiChart(this.base(), d.timeScale ?? 1,d.timingMap);
+      const midi = together ? timingFunctions(d).forward(midiPositionTime(this.base(), Number(this.el('sync-bar').value), Number(this.el('sync-beat').value))) : 0;
       const position = together ? midi - d.offset : Number(this.el('sync-audio').value);
       if (!Number.isFinite(position) || (!together && (position < 0 || position >= d.buffer.duration))) throw new Error('Choose a position inside the recording.');
       await this.owner.audio.ready();
@@ -208,7 +212,7 @@ export class AudioSync {
     }
     this.el('sync-note-selection').textContent = 'Choose a MIDI hit in a colored row, or enter a bar and beat above.';
     try {
-      const chart = alignMidiChart(source || this.base(), d.timeScale ?? 1);
+      const chart = alignMidiChart(source || this.base(), d.timeScale ?? 1,d.timingMap);
       let lastLabel = -100;
       for (const beat of chart.beats) {
         const time = beat.time - d.offset;
@@ -218,7 +222,7 @@ export class AudioSync {
         if (beat.downbeat && x - lastLabel > 54 && x < width - 37) { context.fillStyle = '#e8c17b'; context.font = '10px Segoe UI'; context.fillText(`BAR ${beat.bar}`, x + 3, 15); lastLabel = x; }
       }
       if (drums.length) {
-        const hits = waveformNotes(source, { offset: d.offset, timeScale: d.timeScale ?? 1 }, { start, duration: length, left, width: plotWidth });
+        const hits = waveformNotes(source, { offset: d.offset, timeScale: d.timeScale ?? 1,timingMap:d.timingMap }, { start, duration: length, left, width: plotWidth });
         const onsets = new Map();
         for (const hit of hits) {
           const key = hit.audioTime.toFixed(6);
