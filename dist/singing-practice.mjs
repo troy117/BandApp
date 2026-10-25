@@ -5,12 +5,13 @@ import { vocalTarget } from './vocal-guide.mjs';
 import { pitchName } from './instruments.mjs';
 import { warmupMarkup, VocalWarmup } from './vocal-warmup.mjs';
 import { VocalHighway } from './vocal-highway.mjs';
+import { VocalCalibration, calibrationMarkup } from './vocal-calibration.mjs';
 import { voiceStatusLabel } from './class-experience.mjs';
 
 export function singingMarkup() {
   return `<div id="b-lyrics-screen" class="band-lyrics" hidden>
     <header class="singing-heading"><div><p class="eyebrow">YOUR VOICE. YOUR PACE.</p><h3 id="b-singing-title">Singing practice</h3><div id="b-vocal-song-slot"></div></div><button id="b-singing-expand" class="button secondary" aria-label="Expand singing practice" title="Full screen">Focus view</button></header>
-    <div class="singing-mic-row" id="b-singing-mic-row"><button id="b-vocal-mic" class="button secondary" aria-pressed="false">Enable microphone</button><span id="b-vocal-mic-badge">MIC OFF</span></div>
+    <div class="singing-mic-row" id="b-singing-mic-row"><button id="b-vocal-mic" class="button secondary" aria-pressed="false">Enable microphone</button><span id="b-vocal-mic-badge">MIC OFF</span><button id="b-vocal-calibrate" class="text-button">Check timing</button></div>${calibrationMarkup()}
     <div id="b-vocal-volume-slot" class="singing-volume-slot"></div><p id="b-vocal-mic-status" class="singing-mic-status" role="status">Optional pitch feedback. Your voice stays on this device.</p>
     <div id="b-vocal-views" class="singing-view-switch" role="group" aria-label="Vocal practice view"><button class="button secondary" data-vocal-view="highway" aria-pressed="true">Pitch highway</button><button class="button secondary" data-vocal-view="lyrics" aria-pressed="false">Large lyrics</button></div>
     <div class="vocal-performance-layout"><aside id="b-vocal-performance" class="vocal-performance-meter" aria-label="Vocal pitch accuracy for this attempt"><span>On pitch</span><strong id="b-vocal-accuracy">—</strong><div class="vocal-accuracy-track" role="progressbar" aria-label="Time on the correct pitch" aria-valuemin="0" aria-valuemax="100" id="b-vocal-accuracy-bar"><i id="b-vocal-accuracy-fill"></i></div><small id="b-vocal-accuracy-detail">Mic off</small></aside><section id="b-vocal-highway" class="vocal-highway" aria-label="Vocal pitch highway with lyrics"><div class="vocal-highway-legend"><span><i></i>Melody</span><span><i></i>Your voice</span><span>Higher notes ↑</span></div><canvas id="b-vocal-highway-canvas" aria-label="Vocal notes and lyrics move toward the white sing line. Higher bars mean higher pitches; longer bars mean longer holds."></canvas><p>Sing as the bars reach the white line. Word timing is approximate.</p></section>
@@ -20,7 +21,7 @@ export function singingMarkup() {
       <div class="singing-meter" aria-hidden="true"><span class="singing-center"></span><span id="b-pitch-dot" hidden></span></div><div class="singing-meter-labels" aria-hidden="true"><span>Too low</span><span>On pitch</span><span>Too high</span></div><p id="b-pitch-hint">Enable your microphone when you’re ready for pitch feedback.</p>
     </section>
     <aside id="b-vocal-side-meter" class="vocal-side-meter" aria-label="Live singing pitch"><span>Pitch</span><strong id="b-vocal-side-label" role="status">Mic off</strong><div class="vocal-side-track" aria-hidden="true"><span>High</span><i></i><b id="b-vocal-side-dot" hidden></b><span>Low</span></div><small>Target <b id="b-vocal-side-target">—</b></small><small>You <b id="b-vocal-side-heard">—</b></small></aside><div class="singing-player"><p id="b-singing-error" class="singing-play-error" role="alert" hidden></p><label class="singing-seek-label" for="b-singing-seek">Song position <span id="b-singing-time">0:00 / 0:00</span></label><input id="b-singing-seek" type="range" min="0" max="1" step="0.1" value="0"><div class="singing-player-buttons"><button id="b-singing-back" class="button secondary" aria-label="Practice this lyric line again">↶ Try line again</button><button id="b-singing-play" class="button primary">▶ Play song</button></div><button id="b-singing-report" class="text-button" hidden>View pitch report</button><button id="b-singing-next" class="text-button">Skip to next vocal line →</button><p id="b-singing-room" class="band-help" hidden>Your teacher controls playback in this session.</p></div>
-    <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary>${warmupMarkup()}<p class="band-help">Use headphones and keep your phone nearby. One voice works best. Pitch reports save to your practice history. Microphone audio stays on this device.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label" for="b-singing-volume">Background volume <output id="b-singing-volume-value">65%</output><input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Melody guide octave (sound)<select id="b-vocal-guide-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Written octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label><label class="singing-setting">Extra microphone delay <span id="b-vocal-delay-label">0 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="0"></label><button id="b-vocal-delay-reset" class="text-button">Reset extra delay</button><p id="b-vocal-latency" class="band-help">Enable the mic to check its input delay.</p><p class="band-help">If your recorded voice trail lands late, pause and increase extra delay. If it lands early, reduce it. This is saved on this device; recheck after changing headsets. The live dot stays on the sing line. Wired headphones usually respond faster than Bluetooth.</p></details>
+    <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary>${warmupMarkup()}<p class="band-help">Use headphones and keep your phone nearby. One voice works best. Pitch reports save to your practice history. Microphone audio stays on this device.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label" for="b-singing-volume">Background volume <output id="b-singing-volume-value">65%</output><input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Melody guide octave (sound)<select id="b-vocal-guide-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Written octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label><label class="singing-setting">Extra microphone delay <span id="b-vocal-delay-label">0 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="0"></label><button id="b-vocal-delay-reset" class="text-button">Reset extra delay</button><p id="b-vocal-latency" class="band-help">Enable the mic to check its input delay.</p><p class="band-help">Use Check timing beside the mic to set the delay automatically. To fine-tune it, pause and increase extra delay if your voice trail lands late. If it lands early, reduce it. This is saved on this device; recheck after changing headsets. The live dot stays on the sing line. Wired headphones usually respond faster than Bluetooth.</p></details>
     <details id="b-vocal-melody-panel" class="singing-details" hidden><summary>Melody &amp; sheet music</summary><div class="band-row"><p id="b-vocal-target"></p><label class="band-check"><input id="b-vocal-guide-enabled" type="checkbox">Melody guide</label></div><canvas id="b-vocal-melody" aria-label="Vocal melody on a treble staff with note names and hold lengths"></canvas><p class="band-help">Follow the green line. Shaded tails show how long to hold. Headphones keep the guide out of your microphone.</p></details>
   </div>`;
 }
@@ -34,6 +35,7 @@ export class SingingPractice {
     this.practice = practice; this.q = practice.q; this.position = 0; this.paused = false; this.busy = false;
     this.microphone = new VocalMicrophone({ onState: state => this.micState(state) });
     this.warmup = new VocalWarmup(this);
+    this.calibration = new VocalCalibration(this);
     const q = this.q;
     const quick = document.createElement('div'); quick.className = 'singing-quick-controls';
     q('b-singing-mic-row').before(quick);
@@ -48,7 +50,7 @@ export class SingingPractice {
     };
     q('b-singing-report').onclick=()=>{if(this.lastVocal)this.practice.onReport?.(this.lastVocal.record,this.lastVocal.report);};
     q('b-singing-settings').ontoggle = () => { if (!q('b-singing-settings').open) this.warmup.stop(); };
-    q('b-vocal-mic').onclick = () => ['requesting', 'listening'].includes(this.microphone.state) ? this.microphone.stop() : this.microphone.start();
+    q('b-vocal-mic').onclick = () => ['requesting', 'listening'].includes(this.microphone.state) ? this.microphone.stop() : practice.attempt(async () => { await Promise.all([practice.audio.ready(), this.microphone.start()]); if (this.microphone.state === 'listening') { await practice.audio.ready(); await this.calibration.microphoneChanged('listening'); } });
     q('b-singing-play').onclick = () => { if (!practice.session && !practice.expanded && !practice.rooms.room && window.matchMedia('(max-width:600px)').matches) practice.expand(); practice.attempt(() => practice.play()); };
     q('b-singing-back').onclick = () => practice.attempt(() => this.seek(this.lineStart(), true));
     q('b-singing-next').onclick = () => { const next = this.nextLine(); if (next) practice.attempt(() => this.seek(Math.max(0, next.time - 2), true)); };
@@ -72,6 +74,7 @@ export class SingingPractice {
   reset() {
     this.lastVocal=null;this.q('b-singing-report').hidden=true;this.performanceState=null;
     this.generation = (this.generation || 0) + 1; this.position = 0; this.paused = false; this.busy = false;
+    this.calibration.stop(); this.q('b-vocal-calibration').close();
     this.microphone.stop();
     const p = this.practice, q = this.q, vocals = p.active && p.part.instrument === 'vocals';
     document.body.classList.toggle('singing-mode', vocals); q('b-stage').classList.toggle('singing-stage', vocals);
@@ -103,7 +106,7 @@ export class SingingPractice {
   nextLine() { return this.practice.part.chart.lyrics?.find(cue => cue.time > Math.max(0, this.time()) + .1); }
   async toggle() {
     const p = this.practice;
-    this.warmup?.stop();
+    this.warmup?.stop(); this.calibration?.stop();
     if (p.session) { const time = this.time(); p.stop('Paused. Take a breath, then continue.'); this.position = Math.max(0, time); this.paused = true; return; }
     if (this.busy) return;
     if (p.school.user?.mustChangePassword) { p.school.openPassword(); return; }
@@ -162,10 +165,16 @@ export class SingingPractice {
     if (this.micRoom === room) return;
     this.micRoom = room; this.micState(this.microphone);
   }
+  renderLatency() {
+    const mic=this.microphone,node=this.q('b-vocal-latency');
+    const text=mic.state!=='listening'?'Enable the mic to use its timing check.':Number.isFinite(mic.calibratedLatency)?'Automatic timing check: '+Math.round(mic.calibratedLatency*1000)+' ms applied. Extra delay is optional.':'Input delay: '+Math.round(mic.inputLatency*1000)+' ms ('+(mic.latencyReported?'browser reported':'estimate')+'). Use Check timing beside the mic for an automatic measurement.';
+    if(node.textContent!==text)node.textContent=text;
+  }
   micState({ state, message }) {
     if(state!=='listening')this.practice.session?.vocalPerformance?.disconnect();
     const q = this.q, on = state === 'listening', pending = state === 'requesting';
-    q('b-vocal-latency').textContent = on ? 'Input delay: ' + Math.round(this.microphone.inputLatency * 1000) + ' ms (' + (this.microphone.latencyReported ? 'browser reported' : 'estimate; this browser does not report it') + '). Extra delay is added for scoring and the recorded trail.' : 'Enable the mic to check its input delay.';
+    this.renderLatency();
+    this.calibration?.microphoneChanged(state).catch(() => {});
     q('b-vocal-mic').textContent = on ? 'Turn microphone off' : pending ? 'Cancel microphone' : 'Enable microphone';
     q('b-vocal-mic').setAttribute('aria-pressed', String(on)); q('b-vocal-mic-badge').textContent = on ? '● MIC ON' : pending ? 'WAITING' : 'MIC OFF';
     q('b-vocal-mic-badge').dataset.on = String(on); q('b-vocal-mic-status').textContent = state === 'off' && message === 'Your microphone is off.' ? 'Optional pitch feedback. Your voice stays on this device.' : message;
@@ -175,7 +184,7 @@ export class SingingPractice {
     const p = this.practice, q = this.q, room = !!p.rooms.room;
     q('b-singing-report').hidden=playing||!this.lastVocal;
     q('b-singing-play').textContent = this.busy ? 'Loading song…' : playing ? (this.microphone.state==='listening'?'Ⅱ Pause & report':'Ⅱ Pause') : this.paused ? '▶ Continue' : '▶ Play song';
-    for (const id of ['b-singing-play', 'b-singing-back', 'b-singing-seek']) q(id).disabled = room || this.busy;
+    for (const id of ['b-singing-play', 'b-singing-back', 'b-singing-seek']) q(id).disabled = room || this.busy || !!this.calibration?.busy;
     const next = this.nextLine(); q('b-singing-next').disabled = room || this.busy || !next;
     q('b-singing-room').hidden = !room; q('b-singing-volume-label').hidden = room || !(p.backing || p.arrangement.audio);
     q('b-singing-click').checked = q('b-click').checked;
@@ -183,13 +192,17 @@ export class SingingPractice {
     q('b-singing-seek').max = chart.duration;
     if (!this.scrubbing) q('b-singing-seek').value = position;
     q('b-singing-time').textContent = singingTime(this.scrubbing ? Number(q('b-singing-seek').value) : position) + ' / ' + singingTime(chart.duration);
-    const detected = this.microphone.sample();
+    this.calibration?.draw();
+    const calibrating=!!this.calibration?.busy;
+    const detected = calibrating ? null : this.microphone.sample();
     this.warmup.draw(detected);
+    if (calibrating) { q('b-warmup-start').disabled=true; q('b-warmup-find').disabled=true; }
     const age = detected?.age ?? this.microphone.sampleAge?.() ?? 0;
     const correction = Number(q('b-vocal-delay').value) / 1000;
     const effectiveTime = playing && p.session ? vocalCaptureTime(p.audio, p.session.startAt, age, correction * 1000) : time - age - correction;
     let feedback;
-    if (!chart.notes.length) feedback = vocalPitchFeedback(null, [], time);
+    if (calibrating) feedback = { state: 'ready', label: 'Checking timing', hint: 'Stay quiet while the test sounds play.', target: '—', heard: '—', cents: null };
+    else if (!chart.notes.length) feedback = vocalPitchFeedback(null, [], time);
     else if (this.warmup.running || this.warmup.finding || this.warmup.busy) feedback = { state: 'ready', label: 'Warming up', hint: 'Follow the Listen / Your turn exercise below.', target: '—', heard: '—', cents: null };
     else if (this.microphone.state !== 'listening') {
       const target = vocalTarget(chart.notes, time), note = target.active[0] || target.next;
@@ -197,7 +210,7 @@ export class SingingPractice {
     }
     else if (!playing) feedback = { state: 'ready', label: 'Your mic is ready', hint: 'Press Play and sing along. Your voice stays on this device.', target: '—', heard: '—', cents: null };
     else feedback = vocalPitchFeedback(detected, chart.notes, time < (p.session?.from || 0) ? -1 : effectiveTime, { anyOctave: q('b-vocal-range').value === 'any' });
-    p.session?.vocalPerformance?.observe(effectiveTime,detected,playing&&this.microphone.state==='listening'&&!this.warmup.running&&!this.warmup.finding&&!this.warmup.busy);
+    p.session?.vocalPerformance?.observe(effectiveTime,detected,playing&&this.microphone.state==='listening'&&!calibrating&&!this.warmup.running&&!this.warmup.finding&&!this.warmup.busy);
     this.drawPerformance(p.session,time);
     q('b-vocal-pitch').dataset.state = feedback.state;
     for (const [id, value] of [['b-pitch-feedback', feedback.label], ['b-pitch-hint', feedback.hint], ['b-pitch-wanted', feedback.target], ['b-pitch-heard', feedback.heard]]) if (q(id).textContent !== value) q(id).textContent = value;

@@ -34,6 +34,7 @@ export class VocalMicrophone {
       const reported = stream.getAudioTracks()[0]?.getSettings?.().latency;
       this.latencyReported = Number.isFinite(reported) && reported >= 0 && reported <= 1;
       this.inputLatency = this.latencyReported ? reported : .08;
+      this.calibratedLatency = null;
       this.source.connect(this.analyser); // Never monitor the microphone through the speakers.
       for (const track of stream.getAudioTracks()) track.addEventListener('ended', () => { if (generation === this.generation) this.stop('interrupted', 'Microphone disconnected. Tap Enable microphone to try again.'); });
       for (const track of stream.getAudioTracks()) track.addEventListener('mute', () => { if (generation === this.generation) this.stop('interrupted', 'Your phone muted the microphone. Tap Enable microphone to reconnect.'); });
@@ -53,13 +54,17 @@ export class VocalMicrophone {
   sampleAge() {
     return this.capturedAt === null || this.capturedAt === undefined ? 0 : Math.max(0, this.environment.performance.now() / 1000 - this.capturedAt);
   }
+  setCalibration(seconds) {
+    this.calibratedLatency = Number.isFinite(seconds) && seconds >= 0 && seconds <= 1 ? seconds : null;
+    this.capturedAt = null; this.lastSample = -Infinity; this.latest = null; this.history = [];
+  }
   sample() {
     if (this.state !== 'listening' || !this.analyser) return null;
     const now = this.environment.performance.now() / 1000;
     if (now - this.lastSample < .032) return this.latest ? { ...this.latest, age: this.sampleAge() } : null;
     this.lastSample = now; this.analyser.getFloatTimeDomainData(this.buffer);
     // Timestamp silence too: a lost vowel must not move the scoring clock ahead.
-    this.capturedAt = now - this.inputLatency - this.buffer.length / (2 * this.context.sampleRate);
+    this.capturedAt = now - (this.calibratedLatency ?? this.inputLatency) - this.buffer.length / (2 * this.context.sampleRate);
     const detected = detectVocalPitch(this.buffer, this.context.sampleRate);
     if (!detected) { this.history = []; this.latest = null; return null; }
     this.history = this.history.filter(item => now - item.at < .09 && Math.abs(item.midi - detected.midi) < .8);
@@ -76,7 +81,7 @@ export class VocalMicrophone {
     const context = this.context; this.context = null;
     this.stream?.getTracks().forEach(track => track.stop()); this.stream = null;
     this.source?.disconnect(); this.analyser?.disconnect(); this.source = this.analyser = this.buffer = this.latest = null;
-    this.history = []; this.capturedAt = null; context?.close().catch(() => {});
+    this.history = []; this.capturedAt = null; this.calibratedLatency = null; context?.close().catch(() => {});
     this.notify(state, message);
   }
 }

@@ -1,3 +1,15 @@
+# 0.27.0 — Automatic headphone timing check
+
+- Check timing beside the vocal microphone guides students through a short five-chirp acoustic check, measures the delay and applies it automatically. No singing, reaction-time tapping or numeric adjustment is needed. The microphone must be able to hear an earpiece.
+- Require at least four clear, consistent matches; missed/ambiguous/unstable signals leave previous timing unchanged. Cancel, permission denial, navigation, hidden pages and audio/device changes have explicit handling; calibration cannot mix with a song or teacher-led jam.
+- Measured timing replaces the estimated input delay rather than adding it twice. Extra delay resets to zero. Known audio profiles save on this device with expiry and a clear action; unidentified headphone outputs are reused for the current visit only. Raw audio is never stored or uploaded.
+- No backend, database schema, dependency or Railway setting changes. Automated signal/lifecycle tests and silent synthetic browser loopback cover matching, noise rejection, output-clock compensation, persistence, cancellation and phone layouts. Physical Bluetooth phone testing remains necessary. See [microphone timing](docs/MICROPHONE_TIMING.md).
+
+# 0.26.0 — Faster vocal feedback
+
+- Shorter microphone analysis windows, 32 ms updates and current confirmed pitch reduce software delay. The live cursor stays on the sing line; its historical trace and reports preserve capture-time alignment.
+- Capture timestamps include reported input latency (80 ms fallback), consistent quiet-frame timing and saved optional extra correction. All 223 tests, syntax and standalone export passed.
+
 # 0.25.0 — Organized song library and teacher-only songs
 
 - The desktop song library uses compact rows, sticky headings, title/file search, instrument and student-access filters, sorting and a single part picker/Practice action. Editing, audio/backing and recoverable archive tools sit under Manage. Phone layouts use stacked rows and retain the student’s default part when available.

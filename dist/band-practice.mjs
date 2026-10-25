@@ -357,6 +357,7 @@ export class BandPractice {
   stop(reason = '', announce = true, partial = false) {
     this.importer?.backing?.stop();
     this.singing?.warmup.stop();
+    this.singing?.calibration?.stop();
     const played=this.session?this.audio.audibleTime()-this.session.startAt:-1;
     this.token++; const session = this.session; this.session = null; this.clearHeld(); this.audio.silence();
     this.singing?.stopped();

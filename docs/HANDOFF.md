@@ -5,11 +5,15 @@ Updated October 25, 2026. This is the starting point for continuing at home.
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.26.0 / Prototype 26**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Browser app, version **0.27.0 / Prototype 27**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Automatic headphone timing check
+
+Prototype 27 adds vocal-calibration.mjs and Check timing beside the microphone. Five locally generated 60 ms chirps are matched against a temporary analyser on the existing opt-in microphone stream. Matching uses normalized quadrature correlation, sample position within the buffer and the audible output clock. Four consistent matches are required; silence, uncertain/ambiguous matches or variable timing keep the previous setting. Effective measured timing replaces estimated input delay, and resets manual extra delay to zero. Known input/output profiles stay only in device-local storage (up to eight, seven-day expiry); unknown output routes remain session-only. Device-change events invalidate the active profile. Checks cannot run during playback/jams; pending permission cancellation, hidden pages, navigation and audio interruption cancel scheduled probes and release analysis nodes. No microphone audio or calibration sample buffers are stored/uploaded. No backend/schema/dependency/volume changes. See [MICROPHONE_TIMING.md](MICROPHONE_TIMING.md). Local browser QA uses a silent synthetic Web Audio loopback under ignored artifacts/vocal-calibration-qa/, never a physical microphone. Phone/headset hardware trials remain necessary.
 
 ## Vocal feedback timing
 

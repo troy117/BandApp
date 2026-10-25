@@ -49,6 +49,14 @@ test('browser-reported input latency replaces the fallback estimate', async () =
   env.microphone.sample(); env.advance(32); assert.ok(Math.abs(env.microphone.sample().age - .15 - 2048 / 96000) < 1e-8);
   env.microphone.stop();
 });
+test('measured calibration replaces estimated input delay without adding it twice and clears when the mic stops', async () => {
+  const env = microphoneEnvironment(); await env.microphone.start();
+  env.microphone.setCalibration(.23); env.microphone.sample(); env.advance(32);
+  assert.ok(Math.abs(env.microphone.sample().age - .23 - 2048 / 96000) < 1e-8);
+  env.microphone.setCalibration(null); env.microphone.sample(); env.advance(32);
+  assert.ok(Math.abs(env.microphone.sample().age - .08 - 2048 / 96000) < 1e-8);
+  env.microphone.setCalibration(.2); env.microphone.stop(); assert.equal(env.microphone.calibratedLatency, null);
+});
 test('cancelling a pending permission request stops a late stream without reviving the mic', async () => {
   let resolveRequest, makeStream;
   const env = microphoneEnvironment((_args, make) => { makeStream = make; return new Promise(resolve => { resolveRequest = resolve; }); });

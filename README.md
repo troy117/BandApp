@@ -6,6 +6,8 @@ Source repository: [troy117/BandApp](https://github.com/troy117/BandApp). Prepar
 
 Continuing development on another computer: start with [the handoff and next steps](docs/HANDOFF.md), [discussion and decisions](docs/DISCUSSION_LOG.md), [release changes](CHANGELOG.md), the [conversation record](docs/CONVERSATION.md), and the [shared jam-session plan](docs/JAM_SESSIONS.md).
 
+Singing practice runs pitch detection locally on the student’s phone. The optional **Check timing** beside Mic measures headphone delay with a short acoustic test and applies it automatically. See [how to use it and how recognition works](docs/MICROPHONE_TIMING.md).
+
 ## Run locally
 
 To generate a standalone copy from a fresh source checkout, run `npm run standalone`. On Windows, double-click **Open Groove Lab.cmd**, or open **artifacts/Groove Lab.html** in Chrome. The standalone copy includes all code, styles, and synthesized audio and needs no server or internet connection. Regenerate it after source changes. Generated files are excluded from Git.
