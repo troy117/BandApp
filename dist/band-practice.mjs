@@ -76,7 +76,7 @@ export class BandPractice {
     q('b-disconnect').onclick = () => { this.stop('MIDI keyboard disconnected.'); this.rooms.unready('Input changed.'); this.midi.disconnect(); this.clearHeld(); };
     q('b-device').onchange = () => { this.stop('MIDI input changed.'); this.rooms.unready('Input changed.'); this.midi.select(q('b-device').value); };
     q('b-kit').onclick = () => { this.stop('Drum controls opened.'); this.rooms.unready('Drum controls opened.'); openDrumControls(); };
-    for(const id of ['b-vocal-range','b-vocal-delay','b-vocal-guide-octave'])this.q(id).disabled=!!this.session;
+    for(const id of ['b-vocal-range','b-vocal-delay','b-vocal-delay-reset','b-vocal-guide-octave'])this.q(id).disabled=!!this.session;
     for (const id of ['b-channel', 'b-offset', 'b-octave']) q(id).onchange = () => {
       this.stop('Input settings changed.'); this.rooms.unready('Input settings changed.');
       this.channel = q('b-channel').value; this.offset = Math.max(-200, Math.min(200, Number(q('b-offset').value) || 0)); this.octave = Number(q('b-octave').value);
@@ -375,7 +375,7 @@ export class BandPractice {
     for(const id of ['b-loop-enabled','b-loop-from','b-loop-to','b-loop-repeats'])this.q(id).disabled=locked;
     for (const id of ['b-song', 'b-backing', 'b-part', 'b-open-import']) this.q(id).disabled = locked;
     this.q('b-song').disabled = !!room;
-    for(const id of ['b-vocal-range','b-vocal-delay','b-vocal-guide-octave'])this.q(id).disabled=!!this.session;
+    for(const id of ['b-vocal-range','b-vocal-delay','b-vocal-delay-reset','b-vocal-guide-octave'])this.q(id).disabled=!!this.session;
     for (const id of ['b-channel', 'b-offset', 'b-octave', 'b-device', 'b-reset-keys', 'b-connect', 'b-kit']) this.q(id).disabled = inputLocked;
     for (const button of this.q('b-bindings').querySelectorAll('button')) button.disabled = inputLocked;
     this.q('b-play').disabled = !!room; this.q('b-listen').disabled = !!room || !!this.session;

@@ -1,8 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SingingPractice } from '../dist/singing-practice.mjs';
+import { SingingPractice, vocalCaptureTime } from '../dist/singing-practice.mjs';
 import { BandPractice } from '../dist/band-practice.mjs';
 import { builtinArrangement } from '../dist/arrangements.mjs';
+
+test('pitch comparison uses audible output at the capture timestamp, including input and extra delay', () => {
+  const audio = { audibleTime: stamp => stamp / 1000 - .2 };
+  assert.ok(Math.abs(vocalCaptureTime(audio, 1, .12, 50, 3000) - 1.63) < 1e-9);
+  // Reusing a frame 10 ms later must compare to the same target note.
+  assert.equal(vocalCaptureTime(audio, 1, .13, 50, 3010), vocalCaptureTime(audio, 1, .12, 50, 3000));
+});
 
 test('joining and leaving a jam updates microphone disclosure before capture without hiding permission errors', () => {
   const fields = {}, practice = { rooms: {} }, microphone = { state: 'off', message: 'Your microphone is off.' };

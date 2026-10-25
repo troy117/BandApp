@@ -1,15 +1,19 @@
 # Groove Lab — development handoff
 
-Updated October 24, 2026. This is the starting point for continuing at home.
+Updated October 25, 2026. This is the starting point for continuing at home.
 
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.25.0 / Prototype 25**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Browser app, version **0.26.0 / Prototype 26**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Vocal feedback timing
+
+Prototype 26 uses a roughly 40 ms analyser window, 32 ms pitch updates and current confirmed pitch instead of a trailing median. Mic capture time includes the half-window and reported input latency (80 ms fallback), including silence; comparison uses the audible output clock at capture time. The live cursor sits on the sing line while the historical trail remains timestamped. Extra microphone delay is device-local, 0–300 ms with zero default and reset, disabled during an attempt. No schema, volume, raw audio storage or new dependencies. Headset transport delay still needs physical phone trials. Private Tribute timing/pitch review files remain ignored under artifacts/tribute/review-2026-10-25/.
 
 ## Song library and visibility
 

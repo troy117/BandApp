@@ -19,13 +19,35 @@ function microphoneEnvironment(request) {
   }
   const environment = { isSecureContext: true, AudioContext: Context, performance: { now: () => now }, navigator: { mediaDevices: { getUserMedia: args => request ? request(args, makeStream) : Promise.resolve(makeStream()) } } };
   const microphone = new VocalMicrophone({ environment, onState: state => states.push(state) });
-  return { microphone, environment, tracks, contexts, connections, analyser, states, advance: () => { now += 70; } };
+  return { microphone, environment, tracks, contexts, connections, analyser, states, advance: (ms = 70) => { now += ms; } };
 }
 test('microphone is opt-in, analyzes locally without speaker monitoring, and releases audio resources', async () => {
   const env = microphoneEnvironment(); assert.equal(env.contexts.length, 0);
   await env.microphone.start(); assert.equal(env.microphone.state, 'listening'); assert.deepEqual(env.connections, [env.analyser]);
   assert.equal(env.microphone.sample(), null); env.advance(); assert.ok(Math.abs(env.microphone.sample().midi - 57) < .1);
   env.microphone.stop(); assert.equal(env.tracks[0].stopped, true); assert.equal(env.contexts[0].state, 'closed'); assert.equal(env.microphone.sample(), null);
+});
+test('short frames confirm a new note within 32 ms and preserve capture time for cached and quiet samples', async () => {
+  const env = microphoneEnvironment(); await env.microphone.start();
+  assert.equal(env.analyser.fftSize, 2048);
+  env.microphone.sample(); env.advance(32);
+  const first = env.microphone.sample(); assert.ok(first);
+  assert.ok(Math.abs(first.age - (.08 + 2048 / 96000)) < 1e-8);
+  env.advance(10); const cached = env.microphone.sample();
+  assert.ok(Math.abs(cached.age - first.age - .01) < 1e-8);
+  env.analyser.getFloatTimeDomainData = buffer => buffer.fill(0);
+  env.advance(22); assert.equal(env.microphone.sample(), null);
+  assert.ok(Math.abs(env.microphone.sampleAge() - first.age) < 1e-8);
+  env.advance(10); assert.ok(Math.abs(env.microphone.sampleAge() - first.age - .01) < 1e-8);
+  env.microphone.stop(); assert.equal(env.microphone.sampleAge(), 0);
+});
+test('browser-reported input latency replaces the fallback estimate', async () => {
+  let constraints;
+  const env = microphoneEnvironment((args, make) => { constraints = args; const stream = make(); stream.getAudioTracks()[0].getSettings = () => ({ latency: .15 }); return Promise.resolve(stream); });
+  await env.microphone.start(); assert.equal(constraints.audio.latency.ideal, .01);
+  assert.equal(env.microphone.latencyReported, true); assert.equal(env.microphone.inputLatency, .15);
+  env.microphone.sample(); env.advance(32); assert.ok(Math.abs(env.microphone.sample().age - .15 - 2048 / 96000) < 1e-8);
+  env.microphone.stop();
 });
 test('cancelling a pending permission request stops a late stream without reviving the mic', async () => {
   let resolveRequest, makeStream;

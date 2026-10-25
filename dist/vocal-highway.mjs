@@ -30,7 +30,7 @@ export function vocalHighwayLayout(chart, time, width, height, { shift = 0, rang
   return { left, right, top, bottom, playX, speed, range, notes, lyrics, beats, yAt, xAt };
 }
 
-export function drawVocalHighway(ctx, width, height, frame, history = []) {
+export function drawVocalHighway(ctx, width, height, frame, history = [], livePoint = null) {
   const { left, right, top, bottom, playX, range, yAt, xAt } = frame;
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = '#0b1424'; ctx.fillRect(0, 0, width, height);
@@ -67,9 +67,10 @@ export function drawVocalHighway(ctx, width, height, frame, history = []) {
     }
     previous = point;
   }
-  const latest = history.at(-1);
-  if (latest && Math.abs(xAt(latest.time) - playX) < frame.speed * .5) {
-    ctx.fillStyle = latest.onPitch ? '#b1ffbc' : '#f6b9d5'; ctx.beginPath(); ctx.arc(xAt(latest.time), Math.max(top, Math.min(bottom, yAt(latest.pitch))), 5, 0, Math.PI * 2); ctx.fill();
+  // The current voice cursor belongs on the sing line. Only the saved trail is
+  // placed at capture time; moving the cursor back made the whole guide look late.
+  if (livePoint) {
+    ctx.fillStyle = livePoint.onPitch ? '#b1ffbc' : '#f6b9d5'; ctx.beginPath(); ctx.arc(playX, Math.max(top, Math.min(bottom, yAt(livePoint.pitch))), 5, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
   const lyricY = bottom + 33;
@@ -99,15 +100,19 @@ export class VocalHighway {
     }
     if (this.lastTime !== null && (time < this.lastTime - .05 || time - this.lastTime > .75)) this.history = [];
     this.lastTime = time;
-    if (playing && Number.isFinite(feedback?.cents) && (!this.history.length || sampleTime - this.history.at(-1).time >= .045)) {
+    let livePoint = null;
+    if (playing && Number.isFinite(feedback?.cents)) {
       const note = chart.notes.find(note => note.time <= sampleTime && sampleTime < note.time + note.duration);
-      if (note) this.history.push({ time: sampleTime, pitch: note.pitch + shift + feedback.cents / 100, onPitch: feedback.state === 'on-pitch' });
+      if (note) {
+        livePoint = { time: sampleTime, pitch: note.pitch + shift + feedback.cents / 100, onPitch: feedback.state === 'on-pitch' };
+        if (!this.history.length || sampleTime - this.history.at(-1).time >= .025) this.history.push(livePoint);
+      }
     }
     this.history = this.history.filter(point => time - point.time < 3);
     const rect = this.canvas.getBoundingClientRect(), width = Math.max(160, rect.width), height = rect.height, dpr = Math.min(2, globalThis.devicePixelRatio || 1);
     if (this.canvas.width !== Math.round(width * dpr) || this.canvas.height !== Math.round(height * dpr)) { this.canvas.width = Math.round(width * dpr); this.canvas.height = Math.round(height * dpr); }
     const ctx = this.canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const frame = vocalHighwayLayout(chart, time, width, height, { shift, words: this.words, range: this.range });
-    drawVocalHighway(ctx, width, height, frame, this.history);
+    drawVocalHighway(ctx, width, height, frame, this.history, livePoint);
   }
 }

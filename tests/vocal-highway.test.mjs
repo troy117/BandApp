@@ -41,3 +41,11 @@ test('live trace records measured voice only and clears old evidence after seeki
   highway.draw(chart, 2, { shift: 12, playing: true, sampleTime: 1.9, feedback }); assert.equal(highway.history[0].pitch, 72.1);
   highway.reset(); assert.equal(highway.history.length, 0);
 });
+test('live voice cursor stays at the sing line while the captured trail retains its real timing', () => {
+  const arcs = [], ctx = context();
+  const recording = new Proxy(ctx, { get: (target, key) => key === 'arc' ? (...args) => arcs.push(args) : target[key] });
+  const frame = vocalHighwayLayout(chart, 2, 900, 230), point = { time: 1.7, pitch: 60.2, onPitch: true };
+  drawVocalHighway(recording, 900, 230, frame, [point], point);
+  assert.equal(arcs.length, 1); assert.equal(arcs[0][0], frame.playX); assert.notEqual(arcs[0][0], frame.xAt(point.time));
+  arcs.length = 0; drawVocalHighway(recording, 900, 230, frame, [point]); assert.equal(arcs.length, 0);
+});
