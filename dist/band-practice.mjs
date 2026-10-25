@@ -110,6 +110,7 @@ export class BandPractice {
     this.timer = setInterval(() => this.tick(), 25); requestAnimationFrame(() => this.frame());
     window.addEventListener('band-load-school', event => { const instrument=event.detail.instrument||(['guitar','bass','vocals'].includes(this.mode)?this.mode:'keyboard');this.setMode(instrument); this.attempt(() => this.loadChoice('school:' + event.detail.id, undefined, instrument)); });
     window.addEventListener('band-edit-school', event => { this.setMode('sync'); this.importer.attempt(() => this.importer.editSchoolSong(event.detail.id, event.detail.tab)); });
+    window.addEventListener('school-library-changed', () => this.attempt(() => this.refreshCatalog()));
     window.addEventListener('school-audio-library', () => this.setMode('sync'));
     window.addEventListener('focus', () => { if(this.school.user && !this.session)this.attempt(()=>this.refreshCatalog()); });
   }
@@ -166,7 +167,7 @@ export class BandPractice {
   renderCatalog() {
     const previous=this.q('b-song').value, instrument=['keyboard','guitar','bass','vocals'].includes(this.mode)?this.mode:null;
     const songs=this.catalog.filter(song=>!instrument||song.parts.some(part=>part.instrument===instrument));
-    this.q('b-song').innerHTML = songs.map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + (song.sourceKind === 'school' ? ' · School' : '') + '</option>').join('');
+    this.q('b-song').innerHTML = songs.map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + (song.sourceKind === 'school' ? song.visibility === 'teachers' ? ' · Teachers only' : ' · School' : '') + '</option>').join('');
     const current=this.arrangement.sourceKind+':'+this.arrangement.id;
     if(songs.some(song=>song.sourceKind+':'+song.id===current))this.q('b-song').value=current;
     else if(songs.some(song=>song.sourceKind+':'+song.id===previous))this.q('b-song').value=previous;

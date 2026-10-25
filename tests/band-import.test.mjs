@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BandImport } from '../dist/band-import.mjs';
-import { SongImporter } from '../dist/song-import.mjs';
+import { SongImporter, filterLibrarySongs } from '../dist/song-import.mjs';
 import { duetMidi } from './duet-fixture.mjs';
 
 function fields() {
@@ -11,6 +11,27 @@ function fields() {
     return nodes.get(id);
   };
 }
+
+test('song library combines search, part and visibility filters and sorts without mutating source songs', () => {
+  const songs = [{ id: 'a', title: 'Song 10', fileName: 'voice.mid', duration: 90, savedAt: 100, parts: [{ instrument: 'vocals' }], visibility: 'teachers' }, { id: 'b', title: 'Song 2', duration: 40, savedAt: 200, parts: [{ instrument: 'keyboard' }, { instrument: 'vocals' }] }, { id: 'c', title: 'Drum song', duration: 20, savedAt: 300 }], before = structuredClone(songs);
+  assert.deepEqual(filterLibrarySongs(songs).map(song => song.id), ['c', 'b', 'a']);
+  assert.deepEqual(filterLibrarySongs(songs, { query: ' VOICE ', instrument: 'vocals', visibility: 'teachers' }).map(song => song.id), ['a']);
+  assert.deepEqual(filterLibrarySongs(songs, { instrument: 'vocals', visibility: 'school' }).map(song => song.id), ['b']);
+  assert.deepEqual(filterLibrarySongs(songs, { instrument: 'drums' }).map(song => song.id), ['c']);
+  assert.deepEqual(filterLibrarySongs(songs, { sort: 'recent' }).map(song => song.id), ['c', 'b', 'a']);
+  assert.deepEqual(filterLibrarySongs(songs, { sort: 'duration' }).map(song => song.id), ['c', 'b', 'a']);
+  assert.deepEqual(songs, before);
+});
+
+test('compact song rows keep one practice action, student defaults, escaped titles and teacher-only access controls', () => {
+  const el = fields(), importer = Object.assign(Object.create(SongImporter.prototype), { el, libraryScope: 'school', school: { staff: true, user: { defaultInstrument: 'vocals' } }, librarySongs: [{ id: 'song', title: 'A <song>', duration: 120, bytes: 100, canManage: true, visibility: 'teachers', parts: [{ instrument: 'drums' }, { instrument: 'vocals' }] }] });
+  importer.resetLibraryFilters(); importer.renderLibraryRows(); const html = el('library-list').innerHTML;
+  assert.match(html, /A &lt;song&gt;/); assert.equal((html.match(/data-action="practice"/g) || []).length, 1);
+  assert.match(html, /value="vocals" selected/); assert.match(html, /data-visibility-song/); assert.match(html, /data-action="parts"/); assert.match(html, /Teachers only/);
+  importer.school.staff = false; importer.renderLibraryRows(); assert.doesNotMatch(el('library-list').innerHTML, /data-visibility-song|data-action="archive"|library-manage/);
+  importer.school.staff = true; importer.libraryScope = 'device'; importer.renderLibraryRows();
+  assert.doesNotMatch(el('library-list').innerHTML, /data-label="Student access"/); assert.match(el('library-list').innerHTML, /Publish teachers only/);
+});
 
 test('editing an existing library song retains backing, drum overrides and alignment and publishes a revision of that song', async () => {
   const q=fields(),bytes=duetMidi().buffer,audioBytes=new Uint8Array([1,2,3]).buffer,buffer={duration:4},requests=[];

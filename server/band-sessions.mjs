@@ -47,6 +47,7 @@ export class BandSessions {
     if (this.cache.has(key)) return this.cache.get(key);
     const midi = parseMidiSong(await readFile(this.store.musicPath(revision, 'midi')), meta.fileName);
     const arrangement = importedArrangement(midi, meta);
+    this.store.getSong(actor, id);
     arrangement.audio = meta.audioName ? { route: '/library/' + id + '/revisions/' + revision + '/' + (meta.backingTracks ? backingFileKind(meta.backingId) : 'audio'), offset: meta.offset, volume: meta.volume, name: meta.audioName, audioStart:meta.audioStart, audioEnd:meta.audioEnd } : null;
     arrangement.backingId=meta.backingTracks ? meta.backingId : null; arrangement.backingTracks=backingChoices(meta).map(({id,label})=>({id,label}));
     this.cache.set(key, arrangement);
@@ -70,6 +71,12 @@ export class BandSessions {
     return room;
   }
   teacher(actor, room) { if (room.teacherId !== actor.id || !staffMember(actor)) throw bandError(403, 'Only this session’s teacher can control it.'); }
+  assertSharedSong(arrangement) {
+    if (arrangement.sourceKind === 'school' && this.store.songVisibility(arrangement.id) !== 'school') throw bandError(409, 'Make this song available to students before using it in a jam session.');
+  }
+  assertSongCanBeHidden(id) {
+    if ([...this.rooms.values()].some(room => room.state !== 'closed' && room.arrangement.sourceKind === 'school' && room.arrangement.id === id)) throw bandError(409, 'End this song’s jam session before making it teachers only.');
+  }
   snapshot(room, actor) {
     const teacher = room.teacherId === actor.id;
     return { id: room.id, version: room.version, state: room.state, teacherId: room.teacherId, teacherName: room.teacherName, teacherConnected: Boolean(room.teacherSocket), teacherReady: room.teacherReady, arrangement: descriptor(room.arrangement), takeId: room.takeId, startAt: room.startAt, countInAt: room.countInAt, reason: room.reason || '', participants: room.participants.filter(p => teacher || p.userId === actor.id).map(p => ({ userId: p.userId, name: p.name, partId: p.partId, instrument: p.instrument, connected: Boolean(p.socket), ready: p.ready, state: p.state, input: p.input || '', progress: p.progress || null, result: p.result || null, message: p.message || '' })) };
@@ -84,7 +91,7 @@ export class BandSessions {
       const songs = [];
       for (const stored of this.store.listSongs(actor)) {
         const song = await this.librarySong(actor, stored);
-        songs.push({ id: song.id, revisionId: song.revisionId, sourceKind: 'school', title: song.title, backingTracks:backingChoices(song).map(({id,label})=>({id,label})), backingId:song.defaultBackingId || (song.audioName?'main':null), parts: arrangementParts(song.parts, song.selected) });
+        songs.push({ id: song.id, revisionId: song.revisionId, sourceKind: 'school', title: song.title, visibility: song.visibility, backingTracks:backingChoices(song).map(({id,label})=>({id,label})), backingId:song.defaultBackingId || (song.audioName?'main':null), parts: arrangementParts(song.parts, song.selected) });
       }
       send(200, { songs: [...DUETS.map(song => descriptor(builtinArrangement(song.id))), ...songs] }); return true;
     }
@@ -167,6 +174,7 @@ export class BandSessions {
       this.sweep();
       if (this.rooms.size >= 60 || [...this.rooms.values()].filter(room => room.teacherId === actor.id && room.state !== 'closed').length >= 3) throw bandError(409, 'Close an existing session before creating another.');
       const arrangement = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId, input.backingId);
+      this.assertSharedSong(arrangement);
       if (!Array.isArray(input.assignments) || input.assignments.length < 1 || input.assignments.length > 8 || new Set(input.assignments.map(p => p?.userId)).size !== input.assignments.length) throw bandError(400, 'Choose one to eight different students.');
       const participants = input.assignments.map(assignment => {
         const user = this.store.user(assignment?.userId), part = arrangement.parts.find(p => p.id === assignment?.partId);
@@ -186,6 +194,7 @@ export class BandSessions {
       if (room.state === 'closed') throw bandError(409, 'This session has ended. Create a new session.');
       if (match[2] === 'update') {
         const source = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId, input.backingId);
+        this.assertSharedSong(source);
         if (input.version !== room.version || room.state === 'closed') throw bandError(409, 'The session changed. Refresh its state.');
         if (!Array.isArray(input.assignments) || input.assignments.length !== room.participants.length || new Set(input.assignments.map(p => p?.userId)).size !== room.participants.length) throw bandError(400, 'Assign a part to every student in this session.');
         const assigned = room.participants.map(person => {
@@ -202,6 +211,7 @@ export class BandSessions {
         this.broadcast(room); send(200, { room: this.snapshot(room, actor) }); return true;
       }
       if (match[2] === 'start') {
+        this.assertSharedSong(room.arrangement);
         if (room.state !== 'preparing' || !room.teacherSocket || !room.teacherReady || room.participants.some(p => !p.socket || !p.ready || !this.eligible(room, p.userId))) throw bandError(409, 'All students and the teacher must be connected and Ready.');
         room.takeId = randomUUID(); room.state = 'playing'; room.version = randomUUID(); room.reason = '';
         const chart = room.arrangement.parts[0].chart;

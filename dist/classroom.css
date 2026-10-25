@@ -40,7 +40,7 @@
 .school-student { background: #ffffff02; }
 .school-student:nth-child(even) { background: #ffffff05; }
 .school-student:hover { background: #ffffff0a; }
-.school-student-name { width: 27%; min-width: 170px; font-weight: 400; }
+.school-student-name { white-space: normal; width: 27%; min-width: 170px; font-weight: 400; }
 .school-student strong { display: block; font-size: 14px; color: #edf1e5; overflow-wrap: anywhere; }
 .school-student small { display: block; font-size: 11px; color: #a6bdb1; margin-top: 4px; overflow-wrap: anywhere; }
 .school-student .school-student-teacher { font-size: 10px; color: #8ba398; }
@@ -130,3 +130,77 @@
 }
 
 .school-account-actions summary:focus-visible, .school-roster:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+
+/* Compact school and device song library. */
+#library-dialog { width: min(1180px,calc(100vw - 48px)); padding: 26px; }
+#library-dialog .dialog-header h2 { font-size: 27px; }
+.library-location-row { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin: 18px 0 10px; }
+.library-location-row .school-library-tabs { margin: 0; }
+.library-location-row .button { min-height: 36px; padding: 8px 12px; }
+#library-description:empty { display: none; }
+#library-description { margin: 10px 0 18px; font-size: 12px; }
+.library-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.library-toolbar label { display: grid; gap: 6px; color: #a9bdb5; font-size: 11px; min-width: 130px; }
+.library-toolbar .library-search { flex: 1; min-width: 200px; }
+.library-toolbar input, .library-toolbar select, .library-table select, .school-publish select { padding: 9px 10px; min-height: 36px; min-width: 0; width: 100%; color: #edf0e6; background: #172629; border: 1px solid #405653; border-radius: 6px; font-size: 13px; }
+.library-meta { display: flex; align-items: center; gap: 16px; min-height: 38px; color: #9fb6ad; font-size: 11px; }
+.library-meta #show-archived { margin-left: auto; }
+#library-list { min-height: 110px; max-height: min(600px,calc(100dvh - 450px)); overflow: auto; border: 1px solid #ffffff20; border-radius: 8px; margin: 0; scrollbar-gutter: stable; overscroll-behavior: contain; }
+.library-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 13px; }
+.library-table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.library-table thead th { position: sticky; top: 0; z-index: 2; padding: 11px 12px; border-bottom: 1px solid #ffffff1e; background: #243134; color: #b3c5bc; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.library-table td, .library-table tbody th { white-space: normal; padding: 12px; vertical-align: middle; border-bottom: 1px solid #ffffff12; }
+.library-table tbody tr { background: #ffffff02; }
+.library-table tbody tr:nth-child(even) { background: #ffffff05; }
+.library-table tbody tr:hover { background: #ffffff0a; }
+.library-table tbody tr:last-child > * { border-bottom: 0; }
+.library-table tbody th { white-space: normal; width: 42%; min-width: 180px; font-weight: 400; }
+.library-table strong { display: block; font-size: 14px; color: #edf1e5; overflow-wrap: anywhere; }
+.library-table small { display: block; font-size: 11px; color: #9fb8aa; margin-top: 6px; overflow-wrap: anywhere; line-height: 1.5; }
+.library-duration { white-space: nowrap; color: #bbcec1; font-variant-numeric: tabular-nums; }
+.library-table td[data-label="Student access"] { min-width: 170px; }
+.library-table select[data-visibility-song] { font-size: 12px; }
+.library-access { display: inline-block; font-size: 11px; color: #b9cfbc; }
+.library-private { color: #efcc8b; background: #e8c17b0c; border: 1px solid #e8c17b40; border-radius: 4px; padding: 2px 6px; margin-top: 6px; }
+.library-practice { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.library-practice select { width: 110px; font-size: 12px; }
+.library-practice > span { font-size: 11px; color: #b2c8bb; min-width: 54px; }
+.library-practice .button, .library-table td > .button { min-height: 36px; padding: 8px 10px; font-size: 11px; }
+.library-manage-cell { min-width: 94px; }
+.library-manage summary { display: flex; align-items: center; gap: 8px; justify-content: space-between; cursor: pointer; list-style: none; min-height: 36px; padding: 8px 5px; color: #b2c7bc; font-size: 11px; border-radius: 5px; }
+.library-manage summary::-webkit-details-marker { display: none; }
+.library-manage summary:hover, .library-manage[open] summary { background: #ffffff0a; color: #ecddba; }
+.library-manage > div { display: grid; gap: 8px; padding-top: 10px; min-width: 130px; }
+.library-manage .text-button { text-align: left; font-size: 11px; padding: 5px 0; }
+.library-manage small { max-width: 190px; font-size: 10px; }
+.library-manage summary:focus-visible, #library-list:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+#library-dialog .library-empty { padding: 20px 16px; margin: 0; }
+#library-dialog #library-help { margin: 12px 0 0; font-size: 11px; }
+#library-dialog .dialog-actions { margin-top: 12px; }
+.school-publish select { margin-bottom: 12px; }
+@media(max-width:1000px) and (min-width:701px) {
+  .library-table tbody th { min-width: 170px; }
+  .library-practice { flex-wrap: wrap; }
+  .library-table td, .library-table tbody th, .library-table thead th { padding-inline: 9px; }
+}
+@media(max-width:700px) {
+  #library-dialog { width: calc(100vw - 24px); padding: 18px; }
+  #library-dialog .dialog-header h2 { font-size: 24px; }
+  .library-location-row { flex-wrap: wrap; gap: 10px; }
+  .library-location-row .school-library-tabs { gap: 8px; }
+  .library-location-row .button { min-height: 42px; }
+  .library-toolbar { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .library-toolbar label { min-width: 0; }
+  .library-toolbar .library-search { min-width: 0; grid-column: 1 / -1; }
+  #library-list { max-height: 60vh; scrollbar-gutter: auto; }
+  .library-table, .library-table tbody { display: block; }
+  .library-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .library-table tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px; border-bottom: 1px solid #ffffff20; }
+  .library-table tbody th, .library-table td { display: block; border: 0; width: auto; padding: 0; min-width: 0; }
+  .library-table tbody th, .library-table td[data-label="Practice"] { grid-column: 1 / -1; }
+  .library-table td[data-label]::before { content: attr(data-label); display: block; font-size: 10px; color: #99afa5; margin-bottom: 6px; }
+  .library-practice select { width: auto; flex: 1; }
+  .library-practice .button, .library-manage summary, .library-manage .text-button { min-height: 42px; font-size: 12px; }
+  .library-manage-cell { grid-column: 1 / -1; }
+  .library-manage summary { justify-content: start; }
+}

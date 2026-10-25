@@ -154,6 +154,7 @@ export class BandBacking {
     this.importer.renderVocalState();
     const busy = this.owner.busy;
     for (const id of ['b-midi-file','b-audio-file','b-clear-audio','b-import-offset','b-import-speed','b-import-apply','b-publish','b-setup-file','b-setup-save','b-sync-reference','b-timing-map-file','b-timing-map-save','b-timing-map-anchor','b-timing-map-clear','b-vocal-notes-file']) this.q(id).disabled = busy || id!=='b-midi-file'&&!this.importer.draft || ['b-import-apply','b-publish','b-setup-save'].includes(id)&&!!this.importer.draft?.audioFailed;
+    this.q('b-publish-visibility').disabled = busy || !this.importer.draft || Boolean(this.importer.draft.schoolSource);
     this.q('b-import-speed').disabled=busy||!this.importer.draft||!!this.importer.draft.timingMap;
     for(const id of ['b-timing-map-save','b-timing-map-clear'])this.q(id).disabled=busy||!this.importer.draft?.timingMap;
     this.q('b-timing-map-anchor').disabled=busy||!this.importer.draft?.buffer;

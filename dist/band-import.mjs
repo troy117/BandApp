@@ -34,6 +34,7 @@ export class BandImport {
     q('b-backing-lyrics-clear').onclick=()=>{const track=this.currentBacking();if(track)for(const key of ['lyricsText','lyricsClock','lyricsOffset'])delete track[key];this.renderVocalState();};
     q('b-vocal-notes-file').onchange=()=>this.attempt(()=>this.readVocalNotes());
     q('b-import-apply').onclick = () => this.attempt(() => this.apply());
+    q('b-publish-visibility').onchange = () => { if (this.draft) this.draft.schoolVisibility = q('b-publish-visibility').value; };
     q('b-publish').onclick = () => this.attempt(() => this.publish());
     q('b-setup-save').onclick = () => this.attempt(() => this.downloadSetup());
     q('b-setup-file').onchange = () => this.attempt(() => this.loadSetup());
@@ -109,6 +110,7 @@ export class BandImport {
     q('b-import-offset').value = metadata.offset ?? 0; q('b-import-speed').value = 100 / (metadata.timeScale ?? 1); q('b-import-volume').value = (metadata.volume ?? 0.65) * 100;
     Object.assign(this.draft, {audioStart:metadata.audioStart ?? 0, audioEnd:metadata.audioEnd ?? null,timingMap:metadata.timingMap || null,vocalNotes:metadata.vocalNotes});
     q('b-audio-start').value = this.draft.audioStart; q('b-audio-end').value = this.draft.audioEnd ?? '';
+    q('b-publish-visibility').value = this.draft.schoolVisibility || 'school'; q('b-publish-visibility').disabled = Boolean(this.draft.schoolSource); q('b-publish-visibility-field').hidden = !this.practice?.school?.staff;
     q('b-publish').textContent = this.draft.schoolSource ? 'Publish school song update' : 'Publish new school song';
     const embedded=midiLyricCues(song);q('b-lyrics-text').value=metadata.lyricsText??formatLyricCues(embedded);q('b-lyrics-clock').value=metadata.lyricsClock||'midi';q('b-lyrics-offset').value=metadata.lyricsOffset||0;
     q('b-lyric-detected').textContent=embedded.length?embedded.length+' embedded MIDI lyric lines found. Check their words and timing before publishing.':'No embedded lyric text found. Melody notes do not include words; load or enter timed lyrics below.';
@@ -141,7 +143,7 @@ export class BandImport {
     const selected=tracks.find(track=>track.id===(meta.defaultBackingId || 'main'));
     const buffer=selected ? await this.practice.audio.decodeBacking(selected.bytes.slice(0)) : null;
     if(token!==this.token)return;
-    this.draft = { song:parseMidiSong(bytes,meta.fileName),bytes,fileName:meta.fileName,audioBytes:selected?.bytes || null,buffer,audioName:selected?.audioName || '',mapping:meta.mapping,schoolSource:{songId:id,revisionId:meta.revisionId},backingTracks:tracks,backingId:selected?.id || null,defaultBackingId:selected?.id || null,lyricsAlignment:meta.lyricsAlignment || {offset:meta.offset,timeScale:meta.timeScale} };
+    this.draft = { song:parseMidiSong(bytes,meta.fileName),bytes,fileName:meta.fileName,audioBytes:selected?.bytes || null,buffer,audioName:selected?.audioName || '',mapping:meta.mapping,schoolVisibility:meta.visibility || 'school',schoolSource:{songId:id,revisionId:meta.revisionId},backingTracks:tracks,backingId:selected?.id || null,defaultBackingId:selected?.id || null,lyricsAlignment:meta.lyricsAlignment || {offset:meta.offset,timeScale:meta.timeScale} };
     this.renderDraft(meta);
     this.q('b-import-state').textContent = 'Existing backing and alignment retained' + (meta.audioName ? ' · ' + meta.audioName : '') + '. Check the instrument assignments and lyrics, then publish the update.';
   }
@@ -229,7 +231,7 @@ export class BandImport {
     let upload;
     try {
       this.q('b-import-state').textContent = 'Publishing the MIDI, backing and instrument settings…';
-      upload = await school.request('/library/uploads', { method: 'POST', data: { ...meta, ...draft.schoolSource } });
+      upload = await school.request('/library/uploads', { method: 'POST', data: { ...meta, visibility: draft.schoolVisibility || 'school', ...draft.schoolSource } });
       const id = upload.uploadId;
       if (!id) throw new Error('The upload did not return a song revision.');
       await school.request('/library/uploads/' + id + '/midi', { method: 'PUT', data: draft.bytes });

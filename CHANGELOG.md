@@ -1,3 +1,10 @@
+# 0.25.0 — Organized song library and teacher-only songs
+
+- The desktop song library uses compact rows, sticky headings, title/file search, instrument and student-access filters, sorting and a single part picker/Practice action. Editing, audio/backing and recoverable archive tools sit under Manage. Phone layouts use stacked rows and retain the student’s default part when available.
+- Song owners and the school owner can choose Students & teachers or Teachers only. School catalogs, direct metadata, all current/historical MIDI/audio downloads and arrangement requests enforce student access, including cached arrangements. Teacher-only songs remain available to staff; active student jam sessions must end before hiding their song, and private songs cannot be assigned to new jams.
+- New publications can start teachers only. Publishing later edits and archive/restore preserve current visibility. Access flags use the existing private school settings table and backups; no schema or hosting-setting migration is needed. Existing songs keep their prior visibility until explicitly changed.
+- Validation: 218 automated tests, module syntax and standalone export; isolated teacher/student browser checks cover search/filtering, visibility saves, archive/restore, part routing and desktop/phone layout.
+
 # 0.24.0 — Compact teacher classroom
 
 - Teacher rosters use aligned desktop rows for names, default instruments, recent match rates, attempt counts, last practice and Results. Sticky column headings and a scrollable roster keep larger classes readable. Phone-sized screens retain stacked, touch-friendly rows.

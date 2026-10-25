@@ -54,8 +54,8 @@ export class BandRooms {
   }
   catalogChoices() {
     const current = this.q('b-room-song').value;
-    this.q('b-room-song').innerHTML = this.practice.catalog.map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + '</option>').join('');
-    if (this.practice.catalog.some(song => song.sourceKind + ':' + song.id === current)) this.q('b-room-song').value = current;
+    this.q('b-room-song').innerHTML = this.practice.catalog.filter(song => song.visibility !== 'teachers').map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + '</option>').join('');
+    if (this.practice.catalog.some(song => song.visibility !== 'teachers' && song.sourceKind + ':' + song.id === current)) this.q('b-room-song').value = current;
     this.partChoices();
     this.configVersion = null;
     if (this.room) this.render();
@@ -79,7 +79,7 @@ export class BandRooms {
     this.configVersion = this.room.version;
     const current = this.room.arrangement;
     const songs = this.practice.catalog.some(song => song.sourceKind === current.sourceKind && song.id === current.id) ? this.practice.catalog : [current, ...this.practice.catalog];
-    this.q('b-session-song').innerHTML = songs.map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + '</option>').join('');
+    this.q('b-session-song').innerHTML = songs.filter(song => song.visibility !== 'teachers').map(song => '<option value="' + song.sourceKind + ':' + song.id + '">' + escapeHtml(song.title) + '</option>').join('');
     this.q('b-session-song').value = current.sourceKind + ':' + current.id;
     this.sessionPartChoices(); this.q('b-session-from').value = current.startBar || 1;
   }

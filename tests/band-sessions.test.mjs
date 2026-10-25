@@ -57,6 +57,45 @@ async function bandFixture(t) {
 }
 const createRoom=env=>env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'duet-first',assignments:[{userId:env.a.user.id,partId:'drums'},{userId:env.b.user.id,partId:'keyboard'}]});
 
+test('song visibility protects student lists, cached arrangements and every published file version while retaining teacher access', async t => {
+  const env = await bandFixture(t), midi = duetMidi(), audio = new Uint8Array(createDemoWav());
+  const metadata = { title: 'Teacher test song', fileName: 'test.mid', audioName: 'test.wav', selected: ['0:9'], parts: [{ id: 'drums', instrument: 'drums', name: 'Drums', selected: ['0:9'] }, { id: 'keyboard', instrument: 'keyboard', name: 'Keyboard', selected: ['1:0'] }], mapping: {}, offset: 0, volume: .5, midiBytes: midi.length, audioBytes: audio.length };
+  const publish = async meta => {
+    const upload = await env.request(env.setup, '/library/uploads', 'POST', meta); assert.equal(upload.status, 201);
+    for (const [kind, bytes] of [['midi', midi], ['audio', audio]]) assert.equal((await env.request(env.setup, '/library/uploads/' + upload.data.uploadId + '/' + kind, 'PUT', bytes)).status, 200);
+    const result = await env.request(env.setup, '/library/uploads/' + upload.data.uploadId + '/publish', 'POST', {}); assert.equal(result.status, 200); return result.data.song;
+  };
+  const song = await publish(metadata), route = '/library/' + song.id;
+  assert.equal(song.visibility, 'school');
+  assert.equal((await env.request(env.a, '/band/arrangements/school/' + song.id)).status, 200);
+  assert.equal((await env.request(env.a, route + '/visibility', 'POST', { visibility: 'teachers' })).status, 403);
+  assert.equal((await env.request(env.other, route + '/visibility', 'POST', { visibility: 'teachers' })).status, 404);
+  assert.equal((await env.request(env.setup, route + '/visibility', 'POST', { visibility: 'invalid' })).status, 400);
+  assert.equal((await env.request(env.setup, route + '/visibility', 'POST', { visibility: 'teachers' }, { 'X-CSRF-Token': 'wrong' })).status, 403);
+  assert.equal((await env.request(env.setup, route + '/visibility', 'POST', { visibility: 'teachers' })).data.song.visibility, 'teachers');
+  assert.equal((await env.request(env.a, '/library')).data.songs.some(s => s.id === song.id), false);
+  assert.equal((await env.request(env.a, '/band/catalog')).data.songs.some(s => s.id === song.id), false);
+  for (const suffix of ['', '?revision=' + song.revisionId, '/revisions/' + song.revisionId + '/midi', '/revisions/' + song.revisionId + '/audio']) assert.equal((await env.request(env.a, route + suffix)).status, 404);
+  const head = await fetch(env.api.options.publicOrigin + '/api' + route + '/revisions/' + song.revisionId + '/midi', { method: 'HEAD', headers: { Cookie: 'groove_session=' + env.a.token } }); assert.equal(head.status, 404);
+  assert.equal((await env.request(env.a, '/band/arrangements/school/' + song.id)).status, 404, 'a teacher-primed arrangement cache must not bypass access');
+  assert.equal((await env.request(env.other, route)).status, 200, 'all teachers can inspect teacher-only music');
+  const updated = await publish({ ...metadata, songId: song.id, revisionId: song.revisionId, visibility: 'school' });
+  assert.equal(updated.visibility, 'teachers', 'publishing an edit must retain the current access setting');
+  assert.equal((await env.request(env.a, route + '/revisions/' + updated.revisionId + '/audio')).status, 404);
+  const roomInput = { sourceKind: 'school', sourceId: song.id, assignments: [{ userId: env.a.user.id, partId: 'drums' }] };
+  assert.equal((await env.request(env.setup, '/band/rooms', 'POST', roomInput)).status, 409);
+  const privateNew = await publish({ ...metadata, visibility: 'teachers' });
+  assert.equal((await env.request(env.a, '/library/' + privateNew.id)).status, 404, 'new private publication is never student-visible');
+  env.store.archiveSong(env.store.user(env.setup.user.id), song.id, true); env.store.archiveSong(env.store.user(env.setup.user.id), song.id, false);
+  const reopened = await ClassroomStore.open(env.directory); assert.equal(reopened.getSong(env.setup.user, song.id).visibility, 'teachers'); reopened.close();
+  assert.equal((await env.request(env.setup, route + '/visibility', 'POST', { visibility: 'school' })).status, 200);
+  assert.equal((await env.request(env.a, route)).status, 200);
+  const room = (await env.request(env.setup, '/band/rooms', 'POST', roomInput)).data.room;
+  assert.equal((await env.request(env.setup, route + '/visibility', 'POST', { visibility: 'teachers' })).status, 409, 'close a current student session before hiding its music');
+  await env.request(env.setup, '/band/rooms/' + room.id + '/close', 'POST', { version: room.version });
+  assert.equal((await env.request(env.setup, route + '/visibility', 'POST', { visibility: 'teachers' })).status, 200);
+});
+
 test('vocal practice reports save privately, reopen, retry idempotently and validate the selected song clock',async t=>{
  const env=await bandFixture(t),arrangement=arrangementFromBar(builtinArrangement('band-first'),2),chart=arrangement.parts.find(p=>p.instrument==='vocals').chart,tracker=new VocalPerformance(chart);
  for(let i=0;i<=150;i++){const at=i*.02,note=chart.notes.find(n=>n.time<=at&&n.time+n.duration>at);tracker.observe(at,note?{midi:note.pitch,confidence:.99}:null);}

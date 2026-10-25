@@ -262,11 +262,23 @@ export class ClassroomStore {
     return {...chosen,...lyrics,audioName:backings.find(b=>b.id===input.defaultBackingId).audioName};
   }
   canManageSong(actor, song) { return isStaff(actor) && (actor.role === 'owner' || song.teacher_id === actor.id); }
+  songVisibility(id) { return this.setting('song-visibility:' + id, 'school'); }
+  setSongVisibility(actor, id, visibility) {
+    this.requireStaff(actor); const row = this.songRow(id);
+    if (!row || !this.canManageSong(actor, row)) throw new SchoolError(404, 'Song not found.');
+    if (!['school', 'teachers'].includes(visibility)) throw new SchoolError(400, 'Choose Students & teachers or Teachers only.');
+    this.transaction(() => {
+      this.db.prepare('INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)').run('song-visibility:' + id, visibility);
+      this.audit(actor, 'song.visibility.' + visibility, id);
+    });
+    return this.getSong(actor, id);
+  }
   beginUpload(actor, input) {
     this.requireStaff(actor); const meta = this.metadata(input);
     let song = input.songId ? this.db.prepare('SELECT * FROM songs WHERE id=?').get(input.songId) : null;
     if (input.songId && (!song || !this.canManageSong(actor, song))) throw new SchoolError(404, 'Song not found.');
     if (song && song.revision_id !== input.revisionId) throw new SchoolError(409, 'This song has changed. Reload it from the school library before updating.');
+    if (input.visibility !== undefined && !['school', 'teachers'].includes(input.visibility)) throw new SchoolError(400, 'Choose a valid song visibility.');
     if(song && JSON.parse(this.songRow(song.id).metadata).backingTracks?.length > 1 && input.backingTracks === undefined)throw new SchoolError(409,'This song has multiple backings. Update it in MIDI & audio sync to retain every version.');
     const audioExpected=meta.backingTracks ? meta.backingTracks.reduce((sum,b)=>sum+b.audioBytes,0) : input.audioBytes;
     const used = this.db.prepare('SELECT COALESCE(SUM(midi_expected+audio_expected),0) AS n FROM revisions').get().n;
@@ -274,7 +286,10 @@ export class ClassroomStore {
     if (this.db.prepare("SELECT COUNT(*) AS n FROM revisions WHERE teacher_id=? AND state='draft'").get(actor.id).n >= 5) throw new SchoolError(409, 'Finish or cancel the current song uploads before starting another.');
     const id = randomUUID(), songId = song?.id || randomUUID();
     this.transaction(() => {
-      if (!song) this.db.prepare('INSERT INTO songs(id,teacher_id,updated_at) VALUES (?,?,?)').run(songId, actor.id, this.now());
+      if (!song) {
+        this.db.prepare('INSERT INTO songs(id,teacher_id,updated_at) VALUES (?,?,?)').run(songId, actor.id, this.now());
+        if (input.visibility === 'teachers') this.db.prepare('INSERT INTO settings(key,value) VALUES (?,?)').run('song-visibility:' + songId, 'teachers');
+      }
       this.db.prepare('INSERT INTO revisions(id,song_id,teacher_id,base_revision,metadata,midi_expected,audio_expected,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id, songId, actor.id, song?.revision_id ?? null, JSON.stringify(meta), input.midiBytes, audioExpected, this.now());
     });
     return { uploadId: id, songId };
@@ -340,15 +355,15 @@ export class ClassroomStore {
   songRow(id) { return this.db.prepare("SELECT s.*,r.metadata,r.id AS revision FROM songs s JOIN revisions r ON r.id=s.revision_id WHERE s.id=? AND r.state='published'").get(id); }
   getSong(actor, id, revisionId) {
     const row = this.songRow(id);
-    if (!row || (row.archived && !this.canManageSong(actor, row))) throw new SchoolError(404, 'Song not found.');
+    if (!row || (row.archived && !this.canManageSong(actor, row)) || (!isStaff(actor) && this.songVisibility(id) !== 'school')) throw new SchoolError(404, 'Song not found.');
     const revision=revisionId ? this.db.prepare("SELECT id,metadata FROM revisions WHERE id=? AND song_id=? AND state='published'").get(revisionId,id) : {id:row.revision,metadata:row.metadata};
     if(!revision)throw new SchoolError(404,'Song version not found.');
-    return { ...JSON.parse(revision.metadata), id: row.id, revisionId: revision.id, ownerId: row.teacher_id, ownerName: this.user(row.teacher_id)?.name ?? 'Teacher', canManage: this.canManageSong(actor, row), archived: Boolean(row.archived), savedAt: row.updated_at };
+    return { ...JSON.parse(revision.metadata), id: row.id, revisionId: revision.id, visibility: this.songVisibility(id), ownerId: row.teacher_id, ownerName: this.user(row.teacher_id)?.name ?? 'Teacher', canManage: this.canManageSong(actor, row), archived: Boolean(row.archived), savedAt: row.updated_at };
   }
   listSongs(actor, archived = false) {
     if (archived) this.requireStaff(actor);
     const ids = archived ? (actor.role === 'owner' ? this.db.prepare('SELECT id FROM songs WHERE archived=1 AND revision_id IS NOT NULL ORDER BY updated_at DESC').all() : this.db.prepare('SELECT id FROM songs WHERE archived=1 AND teacher_id=? AND revision_id IS NOT NULL ORDER BY updated_at DESC').all(actor.id)) : this.db.prepare('SELECT id FROM songs WHERE archived=0 AND revision_id IS NOT NULL ORDER BY updated_at DESC').all();
-    return ids.map(row => this.getSong(actor, row.id));
+    return ids.filter(row => isStaff(actor) || this.songVisibility(row.id) === 'school').map(row => this.getSong(actor, row.id));
   }
   archiveSong(actor, id, archived) {
     this.requireStaff(actor); const row = this.songRow(id);
@@ -362,6 +377,7 @@ export class ClassroomStore {
     if(kind.startsWith('audio-') && !meta.backingTracks?.some(b=>backingFileKind(b.id)===kind))throw new SchoolError(404,'Recording not found.');
     const file = this.musicPath(revisionId, kind);
     let info; try { info = await stat(file); } catch (error) { if (error.code === 'ENOENT') throw new SchoolError(404, 'Recording not found.'); throw error; }
+    this.getSong(actor, songId, revisionId);
     response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': info.size, 'Content-Disposition': `attachment; filename="${songId}.${kind === 'midi' ? 'mid' : 'audio'}"` });
     if (request.method === 'HEAD') { response.end(); return; }
     const stream = createReadStream(file); response.on('close', () => stream.destroy()); stream.on('error', () => response.destroy()); stream.pipe(response);
@@ -468,11 +484,17 @@ export class ClassroomApi {
         if (action === 'publish' && method === 'POST') { try { send(200, { song: await this.store.publish(actor, id) }); } catch (error) { if (!error.status && error.code?.startsWith('SQLITE')) throw error; if (!error.status) throw new SchoolError(400, String(error.message).slice(0, 240)); throw error; } return true; }
         if (!action && method === 'DELETE') { await this.store.discard(actor, id); send(200, { discarded: true }); return true; }
       }
-      match = pathname.match(/^\/api\/library\/([0-9a-f-]+)(?:\/(archive|revisions\/([0-9a-f-]+)\/(midi|audio(?:-[a-z0-9][a-z0-9-]{0,39})?)))?$/);
+      match = pathname.match(/^\/api\/library\/([0-9a-f-]+)(?:\/(archive|visibility|revisions\/([0-9a-f-]+)\/(midi|audio(?:-[a-z0-9][a-z0-9-]{0,39})?)))?$/);
       if (match) {
         const [, id, action, revision, kind] = match;
         if (!action && method === 'GET') { const song = this.store.getSong(actor, id, url.searchParams.get('revision')); send(200, { song: this.band ? await this.band.librarySong(actor, song) : song }); return true; }
         if (action === 'archive' && method === 'POST') { this.store.archiveSong(actor, id, (await this.json(request)).archived); send(200, { updated: true }); return true; }
+        if (action === 'visibility' && method === 'POST') {
+          const { visibility } = await this.json(request);
+          this.store.requireStaff(actor);
+          if (visibility === 'teachers') this.band?.assertSongCanBeHidden(id);
+          send(200, { song: this.store.setSongVisibility(actor, id, visibility) }); return true;
+        }
         if (revision && ['GET', 'HEAD'].includes(method)) { await this.store.sendFile(actor, id, revision, kind, request, response); return true; }
       }
       throw new SchoolError(404, 'School action not found.');
