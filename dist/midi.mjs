@@ -151,7 +151,7 @@ export function pitchChoices(song, selected) {
   for (const part of song.parts.filter(part => selected.includes(part.id))) for (const note of part.notes) counts.set(note.pitch, (counts.get(note.pitch) || 0) + 1);
   return [...counts].sort((a, b) => a[0] - b[0]).map(([pitch, count]) => ({ pitch, count, name: GM_DRUMS[pitch]?.[0] || `MIDI note ${pitch}`, defaultDrum: GM_DRUMS[pitch]?.[1] || 'ignore' }));
 }
-export function makeMidiChart(song, selected, mapping = {}) {
+export function makeMidiChart(song, selected, mapping = {}, pickupQuarters=0) {
   if (!selected.length) throw new Error('Select at least one drum part.');
   const chosen = song.parts.filter(part => selected.includes(part.id));
   const all = chosen.flatMap(part => part.notes).sort((a, b) => a.tick - b.tick);
@@ -168,9 +168,16 @@ export function makeMidiChart(song, selected, mapping = {}) {
   }
   if (!notes.length) throw new Error('No drum hits are mapped. Select a drum part and assign at least one note to a drum.');
   if (notes.length > 50000) throw new Error('Choose a part with fewer than 50,000 drum hits.');
-  return { ...midiTimeGrid(song), notes, ignored, combined };
+  const grid=midiTimeGrid(song,pickupQuarters);
+  if(pickupQuarters){let i=0;for(const note of notes){while(i+1<grid.measures.length&&grid.measures[i+1].time<=note.time+1e-7)i++;const m=grid.measures[i];note.bar=m.bar;note.beat=1+(m.beatOffset||0)+(note.quarter-m.startQuarter)/(4/m.denominator);}}
+  return { ...grid, notes, ignored, combined };
 }
-export function midiTimeGrid(song) {
+export function validatePickup(value=0) {
+  if(!Number.isFinite(value)||value<0||value>32)throw new Error('Choose a pickup length between 0 and 32 quarter notes.');return value;
+}
+export function midiTimeGrid(song, pickupQuarters = 0) {
+  validatePickup(pickupQuarters);
+  if(pickupQuarters)return pickupMidiGrid(song,pickupQuarters);
   const beats = [];
   const signatures = song.timeline.signatures;
   for (let i = 0; i < signatures.length; i++) {
@@ -200,6 +207,24 @@ export function midiTimeGrid(song) {
     signatures: signatures.map(item => ({ time: song.timeline.tickToSeconds(item.tick), numerator: item.numerator, denominator: item.denominator })),
     tempos: song.timeline.tempos.map(item => ({ time: item.seconds, quarter: item.tick / song.ppq, bpm: 60000000 / item.microsecondsPerBeat })),
   };
+}
+function pickupMidiGrid(song,pickup) {
+  const grid=midiTimeGrid(song),first=song.timeline.signatures[0],nominal=first.numerator*4/first.denominator;
+  if(pickup>=nominal||pickup>=song.endTick/song.ppq||song.timeline.signatures[1]&&pickup>=song.timeline.signatures[1].tick/song.ppq)throw new Error('The pickup must be shorter than the first full bar.');
+  const measures=[],beats=[];let bar=1;
+  for(let i=0;i<song.timeline.signatures.length;i++){
+    const meter=song.timeline.signatures[i],end=Math.min(song.endTick,song.timeline.signatures[i+1]?.tick??song.endTick)/song.ppq,unit=4/meter.denominator,length=unit*meter.numerator;
+    for(let q=meter.tick/song.ppq;q<end-1e-8;){
+      const short=!i&&q===0,to=Math.min(end,q+(short?pickup:length)),missing=short?length-pickup:0;
+      measures.push({bar,startQuarter:q,endQuarter:to,time:song.timeline.tickToSeconds(q*song.ppq),endTime:song.timeline.tickToSeconds(to*song.ppq),numerator:meter.numerator,denominator:meter.denominator,...(short?{pickup:true,beatOffset:missing/unit}:{})});
+      for(let beat=Math.ceil(missing/unit-1e-8);beat<meter.numerator;beat++){
+        const quarter=q+beat*unit-missing;if(quarter>=to-1e-8)break;
+        beats.push({time:song.timeline.tickToSeconds(quarter*song.ppq),quarter,bar,beat:beat+1,downbeat:beat===0});
+      }
+      bar++;q=to;
+    }
+  }
+  return {...grid,measures,beats,bars:measures.length,pickupQuarters:pickup,countInOffset:beats[0]?.time||0};
 }
 export function backingSchedule(startAt, offsetSeconds, duration) {
   if (![startAt, offsetSeconds, duration].every(Number.isFinite) || duration <= 0) throw new Error('Invalid backing audio timing.');

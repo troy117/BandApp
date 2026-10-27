@@ -1,3 +1,12 @@
+# 0.28.0 — Guitar parts, original tablature and listening controls
+
+- Select separate guitar parts, retaining that choice when changing backing. Teachers can name additional parts, choose Standard/Drop D tunings, import prepared original tablature and preserve it through publication/setup export.
+- Display source strings/frets, tied holds, palm muting, muted/ghost notes, slides and pick scrapes in the highway and full tablature. Sound pitches remain separate from fingering; legacy MIDI-only imports retain explicit estimates.
+- Seek to a time or bar, pause and listen to repeated bar sections, including guitar/bass rests. Focus view keeps song/part/seek/loop controls. Crop resumed loop audio so earlier passes do not replay over the current pass.
+- Unscored solo listening survives tab/window changes; scored/shared sessions retain interruption rules. Mobile OS suspension remains outside the browser's control.
+- Restore a missing short opening measure without changing absolute note/lyric times or independent backing maps. Retain subsequent tempo and meter changes in clicks, bar labels and loops. The source review identifies Dreams' 1.5-quarter pickup, Drop D parts for Still Into You/Ocean Avenue, and Ocean Avenue's bass octave against the isolated original recording.
+- No database schema, dependency, Railway setting or volume changes. See [guitar and bass practice](docs/GUITAR_AND_BASS.md).
+
 # 0.27.0 — Automatic headphone timing check
 
 - Check timing beside the vocal microphone guides students through a short five-chirp acoustic check, measures the delay and applies it automatically. No singing, reaction-time tapping or numeric adjustment is needed. The microphone must be able to hear an earpiece.

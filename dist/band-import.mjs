@@ -3,7 +3,8 @@ import { validateVocalNotes } from './vocal-guide.mjs';
 import { backingChoices, backingFileKind, validateBackingTracks, withBacking } from './backing-tracks.mjs';
 import { LyricTiming, plainLyricLines } from './lyric-timing.mjs';
 import { BandBacking } from './band-backing.mjs';
-import { parseMidiSong } from './midi.mjs';
+import {STANDARD_STRINGS,DROP_D_STRINGS,retunePart} from './fretted-parts.mjs';
+import { parseMidiSong, validatePickup } from './midi.mjs';
 import { DEFAULT_MIDI_MAPPING } from './midi-input.mjs';
 import { arrangementParts, importedArrangement } from './arrangements.mjs';
 import { validateAlignment } from './sync.mjs';
@@ -24,6 +25,8 @@ export class BandImport {
       q('b-import-'+tab+'-button').onclick = () => this.tab(tab);
       q('b-import-'+tab+'-button').onkeydown = event => { if (['ArrowLeft','ArrowRight'].includes(event.key)) { event.preventDefault(); const next=tab==='audio'?'parts':'audio'; this.tab(next); q('b-import-'+next+'-button').focus(); } };
     }
+    q('b-add-guitar').onclick=()=>this.attempt(()=>{if(!this.draft)throw new Error('Choose MIDI first.');this.draft.partDefinitions=this.readParts(true);let index=2;while(this.draft.partDefinitions.some(p=>p.id==='guitar-'+index))index++;this.draft.partDefinitions.push({id:'guitar-'+index,instrument:'guitar',name:'Guitar '+index,selected:[]});this.renderParts();});
+    q('b-fretted-file').onchange=()=>this.attempt(()=>this.readFrettedGuide());
     q('b-midi-file').onchange = () => this.attempt(() => this.readMidi());
     q('b-audio-file').onchange = () => this.attempt(() => this.readAudio());
     q('b-clear-audio').onclick=()=>this.attempt(()=>this.removeBacking());
@@ -105,7 +108,9 @@ export class BandImport {
   renderDraft(metadata = {}) {
     this.timing.reset(); this.q('b-lyric-plain').value = '';
     const q = this.q, song = this.draft.song;
-    const assigned = metadata.parts ? new Map(metadata.parts.flatMap(part => part.selected.map(id => [id, part.instrument]))) : null;
+    this.draft.partDefinitions=metadata.parts?.map(p=>({...p,id:p.id||p.instrument,name:p.name||BAND_INSTRUMENTS[p.instrument]})) || Object.entries(BAND_INSTRUMENTS).map(([id,name])=>({id,instrument:id,name,selected:song.parts.filter(p=>p.drumCandidate?id==='drums':p.bassCandidate?id==='bass':p.guitarCandidate?id==='guitar':p.keyboardCandidate?id==='keyboard':p.vocalCandidate&&midiLyricCues(song).length?id==='vocals':false).map(p=>p.id)}));
+    for(const [id,name]of Object.entries(BAND_INSTRUMENTS))if(!this.draft.partDefinitions.some(p=>p.instrument===id))this.draft.partDefinitions.push({id,instrument:id,name,selected:[]});
+    q('b-pickup').value=metadata.pickupQuarters||0;
     q('b-import-title').value = metadata.title || song.title;
     q('b-import-offset').value = metadata.offset ?? 0; q('b-import-speed').value = 100 / (metadata.timeScale ?? 1); q('b-import-volume').value = (metadata.volume ?? 0.65) * 100;
     Object.assign(this.draft, {audioStart:metadata.audioStart ?? 0, audioEnd:metadata.audioEnd ?? null,timingMap:metadata.timingMap || null,vocalNotes:metadata.vocalNotes});
@@ -115,13 +120,38 @@ export class BandImport {
     const embedded=midiLyricCues(song);q('b-lyrics-text').value=metadata.lyricsText??formatLyricCues(embedded);q('b-lyrics-clock').value=metadata.lyricsClock||'midi';q('b-lyrics-offset').value=metadata.lyricsOffset||0;
     q('b-lyric-detected').textContent=embedded.length?embedded.length+' embedded MIDI lyric lines found. Check their words and timing before publishing.':'No embedded lyric text found. Melody notes do not include words; load or enter timed lyrics below.';
     q('b-lyrics-file').value='';
-    q('b-import-tracks').innerHTML = song.parts.map(part => {
-      const suggestion=part.drumCandidate?'drums':part.bassCandidate?'bass':part.guitarCandidate?'guitar':part.keyboardCandidate?'keyboard':part.vocalCandidate&&embedded.length?'vocals':'';
-      const instrument=assigned ? assigned.get(part.id) || '' : suggestion;
-      return '<div class="band-track"><div>' + escapeHtml(part.name) + '<small>Track ' + part.track + ' · MIDI channel ' + part.channel + ' · ' + part.notes.length + ' notes</small></div><label>Assign to<select data-band-track="' + escapeHtml(part.id) + '"><option value="">Ignore</option>'+Object.entries(BAND_INSTRUMENTS).map(([id,name])=>'<option value="'+id+'"'+(instrument===id?' selected':'')+'>'+name+'</option>').join('')+'</select></label></div>';
-    }).join('');
+    this.renderParts();
     q('b-vocal-notes-state').textContent=this.draft.vocalNotes?.length ? this.draft.vocalNotes.length+' analyzed vocal notes retained on the MIDI timeline.' : 'No imported vocal pitch guide. Existing MIDI vocal assignments are retained.';
     this.renderBackingChoices(); this.backing?.reset(); if(this.backing)this.tab(this.requestedTab || 'parts');
+  }
+  renderParts() {
+    const parts=this.draft.partDefinitions,assigned=new Map(parts.flatMap(p=>p.selected.map(id=>[id,p.id]))),q=this.q;
+    q('b-string-parts').innerHTML=parts.filter(p=>STANDARD_STRINGS[p.instrument]).map(p=>{
+      const tuning=p.tuning||STANDARD_STRINGS[p.instrument],same=t=>JSON.stringify(t)===JSON.stringify(tuning),value=same(STANDARD_STRINGS[p.instrument])?'standard':same(DROP_D_STRINGS[p.instrument])?'drop-d':'custom';
+      return '<div class="string-part-editor"><label>Part name<input data-part-name="'+p.id+'" maxlength="60" value="'+escapeHtml(p.name)+'"></label><label>Tuning<select data-part-tuning="'+p.id+'"><option value="standard"'+(value==='standard'?' selected':'')+'>Standard</option><option value="drop-d"'+(value==='drop-d'?' selected':'')+'>Drop D</option>'+(value==='custom'?'<option value="custom" selected>Source tuning</option>':'')+'</select></label><small>'+(p.tablature?'Original tablature · '+p.tablature.notes.length+' notes':'MIDI fingering estimates')+'</small></div>';
+    }).join('');
+    q('b-import-tracks').innerHTML=this.draft.song.parts.map(p=>'<div class="band-track"><div>'+escapeHtml(p.name)+'<small>Track '+p.track+' · MIDI channel '+p.channel+' · '+p.notes.length+' notes</small></div><label>Assign to<select data-band-track="'+p.id+'"><option value="">Ignore</option>'+parts.map(part=>'<option value="'+part.id+'"'+(assigned.get(p.id)===part.id?' selected':'')+'>'+escapeHtml(part.name)+'</option>').join('')+'</select></label></div>').join('');
+  }
+  readParts(includeEmpty=false) {
+    const chosen=[...this.q('b-import-tracks').querySelectorAll('[data-band-track]')];
+    return this.draft.partDefinitions.map(def=>{
+      const part={...def,name:this.q('b-string-parts').querySelector?.('[data-part-name="'+def.id+'"]')?.value.trim()||def.name,selected:chosen.filter(s=>s.value===def.id).map(s=>s.dataset.bandTrack)};
+      if(JSON.stringify([...part.selected].sort())!==JSON.stringify([...def.selected].sort()))delete part.tablature;
+      const tuning=this.q('b-string-parts').querySelector?.('[data-part-tuning="'+def.id+'"]')?.value;
+      const target=tuning==='drop-d'?DROP_D_STRINGS[part.instrument]:STANDARD_STRINGS[part.instrument];
+      return tuning&&tuning!=='custom'&&JSON.stringify(target)!==JSON.stringify(part.tuning||STANDARD_STRINGS[part.instrument])?retunePart(part,target):part;
+    }).filter(p=>includeEmpty||p.selected.length||p.instrument==='vocals'&&this.q('b-lyrics-text').value.trim());
+  }
+  async readFrettedGuide() {
+    if(!this.draft)throw new Error('Choose the matching MIDI first.');
+    const file=this.q('b-fretted-file').files[0];if(!file)return;
+    if(file.size>8*1024*1024)throw new Error('Choose tablature smaller than 8 MB.');
+    const token=this.token,input=JSON.parse(await file.text());if(token!==this.token)return;
+    if(input.format!=='bandapp-fretted-guide'||input.version!==1||input.fingerprint!==this.draft.song.fingerprint||!Array.isArray(input.parts)||input.parts.some(p=>!STANDARD_STRINGS[p.instrument]))throw new Error('Choose original tablature prepared for this exact MIDI.');
+    const parts=arrangementParts(input.parts),pickupQuarters=validatePickup(input.pickupQuarters||0);
+    importedArrangement(this.draft.song,{parts,pickupQuarters});
+    this.draft.partDefinitions=[...this.readParts(true).filter(p=>!STANDARD_STRINGS[p.instrument]),...parts];this.q('b-pickup').value=pickupQuarters;this.renderParts();this.backing.reset();this.q('b-fretted-file').value='';
+    this.q('b-import-state').textContent='Original strings, frets and techniques loaded. Check the separate parts, then publish.';
   }
   async editSchoolSong(id, tab = 'parts') {
     if (this.practice.rooms.room) throw new Error('Leave the session before editing song parts.');
@@ -200,9 +230,9 @@ export class BandImport {
   metadata() {
     if (!this.draft) throw new Error('Choose a MIDI file first.');
     if (this.switching || this.draft.pendingAudio || this.draft.audioFailed) throw new Error(this.draft.pendingAudio ? 'Wait for the backing recording to finish loading.' : 'Choose a supported backing recording, or remove the failed recording.');
-    const q = this.q, chosen = [...q('b-import-tracks').querySelectorAll('[data-band-track]')];
+    const q = this.q;
     const lyricsText=lyricText(q('b-lyrics-text').value||''),lyricsClock=q('b-lyrics-clock').value||'midi',lyricsOffset=Number(q('b-lyrics-offset').value||0);
-    const parts = Object.keys(BAND_INSTRUMENTS).map(instrument => ({ id: instrument, name: BAND_INSTRUMENTS[instrument], instrument, selected: chosen.filter(select => select.value === instrument).map(select => select.dataset.bandTrack) })).filter(part => part.selected.length || part.instrument==='vocals'&&lyricsText.trim());
+    const parts=this.readParts(),pickupQuarters=validatePickup(Number(q('b-pickup').value||0));
     arrangementParts(parts);
     const title = q('b-import-title').value.trim();
     if (!title || title.length > 120 || /[\u0000-\u001f]/.test(title)) throw new Error('Enter a song title of 1–120 characters.');
@@ -212,7 +242,7 @@ export class BandImport {
     this.flushBacking();
     const tracks=(this.draft.backingTracks || []).map(({bytes,...track})=>track);
     validateBackingTracks(tracks,this.draft.defaultBackingId || null);
-    const result = { title, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, ...range, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset,backingTracks:tracks,defaultBackingId:this.draft.defaultBackingId || null,lyricsAlignment:this.draft.lyricsAlignment || {...alignment,timingMap:this.draft.timingMap || null},...(this.draft.vocalNotes!==undefined?{vocalNotes:validateVocalNotes(this.draft.vocalNotes)}:{}) };
+    const result = { title, pickupQuarters, fileName: this.draft.fileName, audioName: this.draft.audioName, midiBytes: this.draft.bytes.byteLength, audioBytes: this.draft.audioBytes?.byteLength || 0, parts, selected: (parts.find(part => part.instrument === 'drums') || parts[0]).selected, mapping: { ...(this.draft.mapping ?? DEFAULT_MIDI_MAPPING) }, ...alignment, ...range, volume, arrangementVersion: 1, lyricsText,lyricsClock,lyricsOffset,backingTracks:tracks,defaultBackingId:this.draft.defaultBackingId || null,lyricsAlignment:this.draft.lyricsAlignment || {...alignment,timingMap:this.draft.timingMap || null},...(this.draft.vocalNotes!==undefined?{vocalNotes:validateVocalNotes(this.draft.vocalNotes)}:{}) };
     return {...withBacking(result,result.defaultBackingId),lyricsText,lyricsClock,lyricsOffset};
   }
   async apply() {
@@ -253,10 +283,10 @@ export class BandImport {
   async loadSetup() {
     if (!this.draft) throw new Error('Load the matching MIDI first.');
     const file = this.q('b-setup-file').files[0]; if (!file) return;
-    if (file.size > 2*1024*1024) throw new Error('Choose an arrangement setup smaller than 2 MB.');
+    if (file.size > 8*1024*1024) throw new Error('Choose an arrangement setup smaller than 8 MB.');
     const token = this.token, setup = JSON.parse(await file.text()); if (token !== this.token) return;
     if (setup.format !== 'groove-lab-arrangement' || setup.version !== 1 || setup.fingerprint !== this.draft.song.fingerprint) throw new Error('This setup must match the exact MIDI file.');
-    const parts = arrangementParts(setup.parts), assignment = new Map(parts.flatMap(part => part.selected.map(id => [id, part.instrument])));
+    const parts = arrangementParts(setup.parts);
     importedArrangement(this.draft.song, setup); validateAlignment(setup.offset, setup.timeScale);
     const loadedMap=validateTimingMap(setup.timingMap);const loadedNotes=validateVocalNotes(setup.vocalNotes);
     if(loadedMap && setup.audioName!==this.draft.audioName)throw new Error('Load the matching backing file before restoring its timing map.');
@@ -264,7 +294,7 @@ export class BandImport {
     if(base.lyricsText!==undefined)lyricText(base.lyricsText);
     const range=validateAudioRange(setup, this.draft.buffer?.duration);
     if (!Number.isFinite(setup.volume) || setup.volume < 0 || setup.volume > 1 || typeof setup.title !== 'string' || !setup.title.trim() || setup.title.length > 120) throw new Error('Invalid arrangement setup.');
-    for (const select of this.q('b-import-tracks').querySelectorAll('[data-band-track]')) select.value = assignment.get(select.dataset.bandTrack) || '';
+    this.draft.partDefinitions=parts;this.renderParts();this.q('b-pickup').value=setup.pickupQuarters||0;
     if (setup.mapping !== undefined) {
       if (!setup.mapping || typeof setup.mapping !== 'object' || Array.isArray(setup.mapping) || Object.entries(setup.mapping).some(([pitch, drum]) => !/^\d{1,3}$/.test(pitch) || Number(pitch) > 127 || !Object.values(DEFAULT_MIDI_MAPPING).includes(drum) && drum !== 'ignore')) throw new Error('Invalid drum assignments in this setup.');
       this.draft.mapping = { ...setup.mapping };

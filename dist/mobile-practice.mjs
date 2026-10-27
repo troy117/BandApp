@@ -3,6 +3,8 @@ export class MobilePractice {
     this.practice = practice; this.q = practice.q; this.mobile = matchMedia('(max-width:800px), (orientation:landscape) and (max-height:600px)');
     this.nav = document.querySelector('.instrument-nav'); this.trigger = this.q('instrument-menu-toggle');
     this.actions = document.querySelector('.top-actions'); this.song = this.q('b-practice-choices');
+    this.partHome=document.createComment('part picker home');this.q('b-part-picker').before(this.partHome);
+    this.loopHome=document.createComment('loop controls home');this.q('b-loop-controls').before(this.loopHome);
     this.song.classList.add('practice-song-picker'); this.solo = this.q('groove'); this.soloHome = this.solo.parentElement;
     this.q('b-song').setAttribute('aria-label','Practice song');
     this.soloSlot = document.createElement('label'); this.soloSlot.className = 'focus-song-picker'; this.soloSlot.setAttribute('aria-label', 'Practice song');
@@ -32,6 +34,8 @@ export class MobilePractice {
     const vocal = p.part.instrument === 'vocals', destination = p.expanded ? this.q('b-full-song-slot') : mobile && vocal ? this.q('b-vocal-song-slot') : this.q('b-song-choices');
     if (this.song.parentElement !== destination) destination.prepend(this.song);
     this.q('b-lyrics-screen').classList.toggle('has-vocal-song-picker', mobile && vocal && !p.expanded);
+    if(p.expanded){this.q('b-full-song-slot').append(this.q('b-part-picker'));this.q('b-seek-controls').after(this.q('b-loop-controls'));}
+    else {this.partHome.after(this.q('b-part-picker'));this.loopHome.after(this.q('b-loop-controls'));}
     this.q('b-full-title').hidden = p.expanded;
     const soloFull = this.q('practice-stage').classList.contains('score-expanded');
     if (soloFull && this.solo.parentElement !== this.soloSlot) this.soloSlot.append(this.solo);

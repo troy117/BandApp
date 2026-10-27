@@ -25,6 +25,8 @@ Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open th
 
 ## Session controls and lyric timing
 
+Prototype 28 separates guitar parts, retains original tablature and tunings, handles short pickup measures, and adds seek/pause/bar-loop listening in focus view. Unscored solo listening continues across tab changes. See [guitar and bass practice](docs/GUITAR_AND_BASS.md).
+
 Prototype 25 compacts the song library with search, part/access filters, sorting and one Practice action per song. Teachers can keep test songs **Teachers only**, protected by the school API as well as the interface. See [school song access](docs/SONG_LIBRARY.md).
 
 Prototype 24 compacts the teacher classroom into a desktop roster with sticky headings, search, instrument/account filters, sorting, expandable account creation and per-row Manage controls. See [classroom accounts](docs/CLASSROOMS.md).

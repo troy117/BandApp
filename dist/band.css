@@ -218,3 +218,27 @@ body .instrument-nav{position:fixed;left:0;top:0;bottom:0;z-index:35;width:var(-
 @media(max-width:600px){#vocal-report-chart{height:230px}.vocal-report-phrase{gap:9px}.vocal-report-phrase>.button{font-size:11px;padding:9px}.vocal-report-phrase p{font-size:14px}.vocal-report-phrase small{font-size:10px}}
 
 .vocal-calibration-dialog{max-width:520px}.vocal-calibration-dialog ol{padding-left:1.4em;line-height:1.7}.vocal-calibration-dialog progress{width:100%;accent-color:#e5bc73}.vocal-calibration-dialog #b-calibration-state{padding:12px;border-radius:8px;background:#15272e;line-height:1.6}.vocal-calibration-dialog .dialog-actions{flex-wrap:wrap}.singing-mic-row #b-vocal-calibrate{white-space:nowrap}
+.instrument-seek{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#142326;border-bottom:1px solid #385056;flex-wrap:wrap}.instrument-seek label{font-size:11px;color:#b4c9cc;display:grid;gap:3px}.instrument-seek-slider{flex:1;min-width:140px}.instrument-seek input[type=range]{width:100%;min-width:100px}.instrument-seek input[type=number]{width:62px;padding:6px}.instrument-seek output{font-size:12px;font-variant-numeric:tabular-nums;color:#e8c17b}.instrument-seek .button{padding:7px 11px;font-size:12px}.string-part-editor{display:grid;gap:8px;border:1px solid #3b5359;border-radius:8px;padding:12px}.string-part-editor small{font-size:11px;color:var(--muted)}#b-full-song-slot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}#b-full-song-slot #b-part-picker{max-width:220px;min-width:110px;font-size:11px}#b-stage>.band-loop-controls{padding:5px 14px;background:#142326;margin:0;border-bottom:1px solid #385056}#b-stage>.band-loop-controls .band-fields{margin:6px 0}#b-stage>.band-loop-controls input[type=number]{max-width:80px}
+@media(max-width:600px){.instrument-seek{gap:6px;padding:7px}.instrument-seek-slider{min-width:120px}.instrument-seek label{font-size:10px}.instrument-seek .button{padding:7px}#b-full-song-slot #b-part-picker{max-width:140px}#b-stage>.band-loop-controls{font-size:12px}}@media(orientation:landscape) and (max-height:600px){.band-stage.band-expanded .instrument-seek{flex-wrap:nowrap;padding:4px 10px}.band-stage.band-expanded .instrument-seek-slider{min-width:100px}.band-stage.band-expanded #b-play-status{margin:3px 12px}.band-stage.band-expanded #b-full-song-slot #b-part-picker{max-width:170px}.band-stage.band-expanded .band-loop-controls{font-size:11px}}
+
+.band-stage .highway-look{position:static;flex-shrink:0;margin:0 8px;padding:4px 0;min-height:32px}.band-stage.has-highway-meter>#b-play-status{margin:8px 80px 4px 0}.instrument-seek>.highway-look{margin-left:auto}.band-stage.band-expanded #b-full-scroll{flex:1;min-height:100px}
+@media(orientation:landscape) and (max-height:600px){
+ .band-stage:not(.singing-stage).band-expanded{padding:5px 10px}
+ .band-stage:not(.singing-stage).band-expanded #b-full-controls{flex-wrap:nowrap;gap:8px;min-height:36px}
+ .band-stage:not(.singing-stage).band-expanded #b-full-song-slot{flex:1;min-width:0;flex-wrap:nowrap;gap:6px}
+ .band-stage:not(.singing-stage).band-expanded #b-full-song-slot label{font-size:0;gap:0;min-width:0}
+ .band-stage:not(.singing-stage).band-expanded #b-full-song-slot label>span{display:none}
+ .band-stage:not(.singing-stage).band-expanded #b-full-song-slot select{font-size:11px;min-height:34px;padding:6px;max-width:160px}
+ .band-stage:not(.singing-stage).band-expanded #b-awake-state{display:none}
+ .band-stage:not(.singing-stage).band-expanded .focus-sound-options>label{font-size:11px;padding:2px;min-height:34px}
+ .band-stage:not(.singing-stage).band-expanded #b-full-controls>.button{font-size:11px;padding:7px;min-height:34px;white-space:nowrap}
+ .band-stage:not(.singing-stage).band-expanded .instrument-seek{height:40px;min-height:40px;padding:3px 6px;gap:7px;flex-shrink:0}
+ .band-stage:not(.singing-stage).band-expanded .instrument-seek label{display:flex;align-items:center;gap:5px;white-space:nowrap}
+ .band-stage:not(.singing-stage).band-expanded .instrument-seek-slider{font-size:0;min-width:100px}
+ .band-stage:not(.singing-stage).band-expanded .instrument-seek input[type=number]{min-height:30px;height:30px;padding:3px;width:48px}
+ .band-stage:not(.singing-stage).band-expanded .instrument-seek input[type=range]{min-height:26px}
+ .band-stage:not(.singing-stage).band-expanded #b-loop-controls{flex-shrink:0;font-size:11px;padding:3px 10px}
+ .band-stage:not(.singing-stage).band-expanded #b-play-status{height:18px;min-height:18px;font-size:11px;margin:4px 0}
+ .band-stage:not(.singing-stage).band-expanded .highway-look{font-size:10px;margin:0;padding:0;min-height:30px}
+ .band-stage:not(.singing-stage).band-expanded .highway-look select{min-height:30px;padding:3px;font-size:10px}
+}

@@ -13,7 +13,7 @@ export function createPracticeChart(source, options = {}, { allowEmpty = false }
   const startBeat = source.beats.find(beat => beat.bar === startBar);
   const endBeat = source.beats.find(beat => beat.bar === endBar + 1);
   if (!startBeat) throw new Error('That section has no beat grid. Choose an earlier bar.');
-  const from = startBeat.time, to = endBeat?.time ?? source.duration;
+  const from = source.measures?.find(m=>m.bar===startBar)?.time ?? startBeat.time, to = source.measures?.find(m=>m.bar===endBar)?.endTime ?? endBeat?.time ?? source.duration;
   const selected = focusIds(focus), pitched=source.notes.some(note=>note.pitch!==undefined);
   const sourceNotes = source.notes.filter(note => note.time >= from - 1e-8 && note.time < to - 1e-8 && (pitched || selected.includes(note.drum)));
   if (!sourceNotes.length && !allowEmpty) throw new Error(pitched ? 'No keyboard notes in this section. Choose a wider section.' : `No ${focus === 'all' ? 'drum' : FOCUS_OPTIONS[focus].replace(' only', '').toLowerCase()} hits in this section. Choose another focus or a wider section.`);
@@ -22,7 +22,7 @@ export function createPracticeChart(source, options = {}, { allowEmpty = false }
   const increment = source.kind === 'groove' && options.enabled && repeats > 1 && options.stepUp ? 5 : 0;
   const initialBpm = source.tempos?.findLast(tempo => tempo.time <= from)?.bpm ?? source.bpm;
   const initialMeter = source.signatures?.findLast(meter => meter.time <= from) ?? source;
-  const chart = { ...source, notes: [], beats: [], tempos: [], signatures: [], measures: source.measures ? [] : undefined, bars: barCount * repeats, passes: [], focusDrums: selected, practice: { startBar, endBar, repeats, focus, increment, full: startBar === 1 && endBar === source.bars }, bpm: initialBpm, numerator: initialMeter.numerator, denominator: initialMeter.denominator };
+  const chart = { ...source, notes: [], beats: [], tempos: [], signatures: [], measures: source.measures ? [] : undefined, sourceBars:source.sourceBars||source.bars, bars: barCount * repeats, passes: [], focusDrums: selected, practice: { startBar, endBar, repeats, focus, increment, full: startBar === 1 && endBar === source.bars }, bpm: initialBpm, numerator: initialMeter.numerator, denominator: initialMeter.denominator };
   const fromQuarter = source.measures?.find(measure => measure.bar === startBar)?.startQuarter ?? startBeat.quarter ?? (startBar-1)*4;
   const toQuarter = source.measures?.find(measure => measure.bar === endBar)?.endQuarter ?? endBeat?.quarter ?? endBar*4;
   const quarterLength = toQuarter - fromQuarter;
@@ -32,7 +32,7 @@ export function createPracticeChart(source, options = {}, { allowEmpty = false }
     const scale = source.kind === 'groove' ? initialBpm / bpm : 1;
     const duration = (to - from) * scale;
     chart.passes.push({ index: pass + 1, time: cursor, duration, bpm, from, to, scale, firstBar: pass * barCount + 1, bars: barCount });
-    for (const note of sourceNotes) chart.notes.push({ ...note, ...(Number.isFinite(note.quarter) ? { quarter: pass * quarterLength + note.quarter - fromQuarter } : {}), id: `${pass}:${note.id}`, sourceBar: note.bar, pass: pass + 1, bar: pass * barCount + note.bar - startBar + 1, time: cursor + (note.time - from) * scale, status: 'pending', errorMs: null, actualTime: null });
+    for (const note of sourceNotes) chart.notes.push({ ...note, ...(Number.isFinite(note.quarter) ? { quarter: pass * quarterLength + note.quarter - fromQuarter } : {}), id: `${pass}:${note.id}`, sourceBar: note.bar, pass: pass + 1, bar: pass * barCount + note.bar - startBar + 1, time: cursor + (note.time - from) * scale, ...(Number.isFinite(note.duration)?{duration:Math.min(note.duration,to-note.time)*scale}:{}), status: 'pending', errorMs: null, actualTime: null });
     for (const beat of source.beats.filter(beat => beat.time >= from - 1e-8 && beat.time < to - 1e-8)) chart.beats.push({ ...beat, ...(Number.isFinite(beat.quarter) ? { quarter: pass * quarterLength + beat.quarter - fromQuarter } : {}), sourceBar: beat.bar, pass: pass + 1, bar: pass * barCount + beat.bar - startBar + 1, time: cursor + (beat.time - from) * scale });
     for (const measure of source.measures || []) if (measure.bar >= startBar && measure.bar <= endBar) chart.measures.push({ ...measure, sourceBar: measure.bar, pass: pass + 1, bar: pass * barCount + measure.bar - startBar + 1, startQuarter: pass * quarterLength + measure.startQuarter - fromQuarter, endQuarter: pass * quarterLength + measure.endQuarter - fromQuarter, time: cursor + (measure.time - from) * scale, endTime: cursor + (measure.endTime - from) * scale });
     const tempos = source.kind === 'groove' ? [{ time: from, bpm }] : [{ time: from, bpm: initialBpm }, ...(source.tempos || []).filter(item => item.time > from && item.time < to)];
@@ -44,6 +44,7 @@ export function createPracticeChart(source, options = {}, { allowEmpty = false }
   if (cursor > 1200) throw new Error('Keep a practice run under 20 minutes. Choose fewer repeats or a shorter section.');
   chart.duration = cursor;
   if (chart.measures) chart.endQuarter = quarterLength * repeats;
+  chart.countInOffset=chart.beats[0]?.time||0;
   chart.countInBeats = chart.numerator;
   chart.countInBeatSeconds = 60 / initialBpm * 4 / chart.denominator;
   chart.tempoChanges = chart.tempos.filter((tempo, i, all) => i && tempo.bpm !== all[i - 1].bpm).length;
@@ -57,10 +58,11 @@ export function practicePassAt(chart, time) {
 
 // Translate each selected MIDI section to its matching segment of the full recording.
 // A positive recording offset is silence before the recording starts on the MIDI timeline.
-export function backingSegments(chart, backing) {
+export function backingSegments(chart, backing, from=0) {
   return chart.passes.flatMap(pass => {
     const clip = backingClip(backing, pass.from, pass.to);
-    return clip ? [{...clip, when:pass.time + clip.when - pass.from}] : [];
+    if(!clip)return [];const when=pass.time+clip.when-pass.from,skip=Math.max(0,from-when);
+    return skip<clip.duration?[{when:when+skip,offset:clip.offset+skip,duration:clip.duration-skip}]:[];
   });
 }
 

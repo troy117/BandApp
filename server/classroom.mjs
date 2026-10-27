@@ -8,6 +8,7 @@ import { mkdir, open, rename, unlink, readFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validatePickup } from '../dist/midi.mjs';
 import { parseMidiSong } from '../dist/midi.mjs';
 import { validateAlignment } from '../dist/sync.mjs';
 import { validateAudioRange } from '../dist/backing-range.mjs';
@@ -253,9 +254,10 @@ export class ClassroomStore {
     } catch(error){throw new SchoolError(400,error.message);}
     let lyricsAlignment;
     try { if(input.lyricsAlignment)lyricsAlignment={...validateAlignment(input.lyricsAlignment.offset,input.lyricsAlignment.timeScale),...(input.lyricsAlignment.timingMap?{timingMap:validateTimingMap(input.lyricsAlignment.timingMap)}:{})}; } catch(error){throw new SchoolError(400,error.message);}
+    let pickupQuarters;try{pickupQuarters=validatePickup(input.pickupQuarters??0);}catch(error){throw new SchoolError(400,error.message);}
     let timingMap,vocalNotes;try{timingMap=validateTimingMap(input.timingMap);vocalNotes=validateVocalNotes(input.vocalNotes);}catch(error){throw new SchoolError(400,error.message);}
     const extra = backings ? {backingTracks:backings,defaultBackingId:input.defaultBackingId} : {};
-    const result = { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...lyrics, ...(input.parts ? { arrangementVersion: 1, parts } : {}),...extra,...(lyricsAlignment?{lyricsAlignment}:{}),...(timingMap?{timingMap}:{}),...(vocalNotes!==undefined?{vocalNotes}:{}) };
+    const result = { title, fileName, audioName, selected: [...new Set(input.selected)], mapping: { ...input.mapping }, ...alignment, volume: input.volume, ...(pickupQuarters?{pickupQuarters}:{}), ...lyrics, ...(input.parts ? { arrangementVersion: 1, parts } : {}),...extra,...(lyricsAlignment?{lyricsAlignment}:{}),...(timingMap?{timingMap}:{}),...(vocalNotes!==undefined?{vocalNotes}:{}) };
     if(!backings?.length)return result;
     const chosen=withBacking(result,input.defaultBackingId);
     for(const key of ['baseLyrics','lyricsText','lyricsClock','lyricsOffset'])delete chosen[key];
@@ -329,7 +331,7 @@ export class ClassroomStore {
     const song = parseMidiSong(bytes, meta.fileName);
     for(const track of meta.backingTracks || [])importedArrangement(song,withBacking(meta,track.id));
     const arrangement = importedArrangement(song, meta), chart = (arrangement.parts.find(part => part.instrument === 'drums') || arrangement.parts[0]).chart;
-    meta.parts = arrangement.parts.map(({ id, instrument, name, selected }) => ({ id, instrument, name, selected }));
+    meta.parts = arrangement.parts.map(({ chart, ...part }) => part);
     meta.arrangementVersion = 1;
     Object.assign(meta, { fingerprint: song.fingerprint, notes: chart.notes.length || chart.lyrics?.length || 0, duration: chart.duration, bpm: chart.bpm, bytes: row.midi_expected + row.audio_expected });
     this.transaction(() => {
@@ -476,7 +478,7 @@ export class ClassroomApi {
         const resolved = []; for (const song of songs) resolved.push(this.band ? await this.band.librarySong(actor, song) : song);
         send(200, { songs: resolved }); return true;
       }
-      if (pathname === '/api/library/uploads' && method === 'POST') { this.limit(`uploads:${actor.id}`, 100, 60 * 60 * 1000); this.store.requireStaff(actor); await this.store.cleanDrafts(); send(201, this.store.beginUpload(actor, await this.json(request,2*1024*1024))); return true; }
+      if (pathname === '/api/library/uploads' && method === 'POST') { this.limit(`uploads:${actor.id}`, 100, 60 * 60 * 1000); this.store.requireStaff(actor); await this.store.cleanDrafts(); send(201, this.store.beginUpload(actor, await this.json(request,8*1024*1024))); return true; }
       match = pathname.match(/^\/api\/library\/uploads\/([0-9a-f-]+)(?:\/(midi|audio(?:-[a-z0-9][a-z0-9-]{0,39})?|publish))?$/);
       if (match) {
         const [, id, action] = match;

@@ -1,3 +1,4 @@
+import {InstrumentListening,canListenInBackground} from './instrument-listening.mjs';
 import { vocalCsv } from './vocal-performance.mjs';
 import { vocalTarget, drawVocalStaff } from './vocal-guide.mjs';
 import { drawDrumHighway } from './drum-highway.mjs';
@@ -63,6 +64,7 @@ export class BandPractice {
     this.karaoke = new KaraokeLyrics(q);
     this.singing = new SingingPractice(this);
     this.awake = new ScreenAwake({ onState: state => { q('b-awake-state').textContent = awakeLabel(state); } });
+    this.listening=new InstrumentListening(this);
     this.mobile = new MobilePractice(this);
     q('b-publish').hidden = !school.staff;
     q('b-open-import').hidden = !school.staff;
@@ -96,15 +98,15 @@ export class BandPractice {
     q('b-fullscreen').onclick = () => this.expand(); q('b-full-exit').onclick = () => this.collapse();
     document.addEventListener('fullscreenchange', () => { if (document.fullscreenElement !== q('b-stage') && this.nativeFull) { this.nativeFull = false; this.finishCollapse(); } });
     document.addEventListener('keydown', event => this.keyDown(event), true); document.addEventListener('keyup', event => this.keyUp(event), true);
-    document.addEventListener('visibilitychange', () => { if (document.hidden && this.active) { this.stop('Tab hidden. Prepare a fresh take when you return.',true,true); this.rooms.unready('Tab hidden.'); this.clearHeld(); } else if(!document.hidden && this.school.user && !this.session)this.attempt(()=>this.refreshCatalog()); });
-    window.addEventListener('blur', () => { this.clearHeld(); if (this.active && this.session && !this.session.teacher && this.part.instrument !== 'vocals') this.stop('Window lost focus. Prepare a fresh take when you return.',true,true); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.active && canListenInBackground(this.session)) { this.clearHeld();this.tick(); } else if (document.hidden && this.active) { this.stop('Tab hidden. Prepare a fresh take when you return.',true,true); this.rooms.unready('Tab hidden.'); this.clearHeld(); } else if(!document.hidden && this.school.user && !this.session)this.attempt(()=>this.refreshCatalog()); });
+    window.addEventListener('blur', () => { this.clearHeld(); if (this.active && this.session && !canListenInBackground(this.session) && !this.session.teacher && this.part.instrument !== 'vocals') this.stop('Window lost focus. Prepare a fresh take when you return.',true,true); });
     q('b-csv').onclick = () => { if (this.lastReport) this.download('groove-lab-' + this.lastReport.part.instrument + '-timing.csv', this.lastReport.detail?.instrument==='vocals'?vocalCsv(this.lastReport.detail):partCsv(this.lastReport.judge), 'text/csv'); };
     q('b-retry-save').onclick = () => this.saveResult();
     q('b-open-report').onclick=()=>{if(this.lastReport?.detail)this.onReport?.(this.lastReport.runRecord,this.lastReport.detail);};
     this.loopOptions={enabled:false,startBar:1,endBar:4,repeats:4,focus:'all'};
     for(const id of ['b-loop-enabled','b-loop-from','b-loop-to','b-loop-repeats'])q(id).onchange=()=>{
       const options={enabled:q('b-loop-enabled').checked,startBar:Number(q('b-loop-from').value),endBar:Number(q('b-loop-to').value),repeats:Number(q('b-loop-repeats').value),focus:'all'};
-      try{if(options.enabled)createPracticeChart(this.part.chart,options);this.loopOptions=options;this.loopChart=null;q('b-loop-state').textContent=options.enabled?'Bars '+options.startBar+'–'+options.endBar+' · '+options.repeats+' passes':'Whole song';}catch(error){q('b-loop-state').textContent=error.message;q('b-loop-enabled').checked=false;this.loopOptions.enabled=false;this.loopChart=null;}
+      try{if(options.enabled)createPracticeChart(this.part.chart,options,{allowEmpty:followInstrument(this.part.instrument)});this.loopOptions=options;this.loopChart=null;this.listening.reset();q('b-loop-state').textContent=options.enabled?'Bars '+options.startBar+'–'+options.endBar+' · '+options.repeats+' passes':'Whole song';}catch(error){q('b-loop-state').textContent=error.message;q('b-loop-enabled').checked=false;this.loopOptions.enabled=false;this.loopChart=null;}
     };
     this.renderCatalog(); this.renderPart(); this.renderMidi(this.midi.snapshot());
     this.timer = setInterval(() => this.tick(), 25); requestAnimationFrame(() => this.frame());
@@ -138,7 +140,7 @@ export class BandPractice {
     this.renderKeys();
     document.body.classList.toggle('singing-mode', this.active && mode!=='sync' && this.part.instrument === 'vocals');
     this.q('b-practice').hidden = mode === 'sync' || mode === 'jam' && !!this.school.staff;
-    this.q('b-editor-workspace').hidden=mode!=='sync'; this.q('b-part-picker').hidden=mode!=='jam';
+    this.q('b-editor-workspace').hidden=mode!=='sync'; this.renderPartChoices();
     this.renderCatalog(); this.attempt(()=>this.refreshCatalog());
     document.body.classList.toggle('teacher-jam-mode', mode === 'jam' && !!this.school.staff);
     this.mobile?.layout(); this.mobile?.poll();
@@ -175,6 +177,7 @@ export class BandPractice {
   }
   async loadChoice(value, revision, instrument, backingId) {
     if (this.rooms.room) throw new Error('Leave the session before changing songs.');
+    const preferredPart=this.arrangement&&value===this.arrangement.sourceKind+':'+this.arrangement.id?this.part?.id:null;
     this.stop(); const token = ++this.loadToken, [kind, id] = value.split(':');
     let arrangement;
     if (kind === 'duet') arrangement = builtinArrangement(id);
@@ -185,13 +188,13 @@ export class BandPractice {
     if (token !== this.loadToken) return;
     instrument=instrument||(['keyboard','guitar','bass','vocals'].includes(this.mode)?this.mode:undefined);
     if(instrument && !arrangement.parts.some(part=>part.instrument===instrument))throw new Error('This song has no '+instrument+' part. Choose another song.');
-    this.useArrangement(arrangement, instrument); this.message('Song ready. Listen first to check the selected part.');
+    this.useArrangement(arrangement, instrument,preferredPart); this.message('Song ready. Listen first to check the selected part.');
   }
-  useArrangement(arrangement, instrument = this.part?.instrument) {
+  useArrangement(arrangement, instrument = this.part?.instrument,preferredPart=null) {
     this.loadToken++; this.stop(); this.arrangement = arrangement; this.backing = arrangement.backing || null; this.startedTake = null; this.teacherGuide = null;
     const volume = Math.round((this.backing?.volume ?? arrangement.audio?.volume ?? 0.65) * 100);
     this.q('b-volume').value = volume; this.q('b-speaker-volume').value = volume;
-    const part = arrangement.parts.find(part => part.instrument === instrument) || arrangement.parts.find(part => part.instrument === 'keyboard') || arrangement.parts[0];
+    const part = arrangement.parts.find(part=>part.id===preferredPart&&part.instrument===instrument) || arrangement.parts.find(part => part.instrument === instrument) || arrangement.parts.find(part => part.instrument === 'keyboard') || arrangement.parts[0];
     this.part = part; this.renderPart();
     const choices=arrangement.backingTracks || [];this.q('b-backing').innerHTML=choices.map(track=>'<option value="'+track.id+'">'+escapeHtml(track.label)+'</option>').join('');this.q('b-backing').value=arrangement.backingId || '';this.q('b-backing-picker').hidden=choices.length<2;
     const key = arrangement.sourceKind + ':' + arrangement.id;
@@ -206,10 +209,10 @@ export class BandPractice {
     q('b-vocal-guide-enabled').checked = false;
     this.loopOptions={enabled:false,startBar:1,endBar:Math.min(4,this.part.chart.bars),repeats:4,focus:'all'};this.loopChart=null;
     q('b-loop-enabled').checked=false;q('b-loop-from').value=1;q('b-loop-to').value=this.loopOptions.endBar;q('b-loop-from').max=q('b-loop-to').max=this.part.chart.bars;q('b-loop-state').textContent='Whole song';
-    q('b-part').innerHTML = this.arrangement.parts.map(part => '<option value="' + part.id + '">' + escapeHtml(part.name) + '</option>').join(''); q('b-part').value = this.part.id;
+    this.renderPartChoices();this.listening?.reset();
     q('b-song-info').textContent = this.arrangement.title + ' · ' + Math.round(this.part.chart.bpm) + ' BPM · ' + this.part.chart.bars + (this.part.chart.bars === 1 ? ' bar' : ' bars') + ' · ' + (this.part.chart.lyrics?.length || this.part.chart.notes.length) + (this.part.instrument==='vocals'?' lyric cues':' notes') + ' · ' + (follow ? 'Follow-along · no score' : keys ? 'Pitch + onset timing' : 'Drum + onset timing');
     q('b-input-controls').hidden=follow;q('b-stats').hidden=follow;q('b-csv').hidden=follow;q('b-open-report').hidden=follow;q('b-follow-help').hidden=!follow;
-    q('b-follow-help').textContent=strings?'Suggested frets · standard '+(this.part.instrument==='guitar'?'six-string E A D G B E':'four-string E A D G')+' tuning · frets 0–24. MIDI does not retain original fingering. '+(this.part.chart.unmapped?this.part.chart.unmapped+' notes cannot be placed and are marked with ?; check the tuning or MIDI with your teacher.':'Fret 0 means an open string. Check fingering with your teacher.'):this.part.chart.notes.length ? 'Follow the lyric line and the lead-vocal melody below. Enable your microphone for live pitch guidance, or sing with the lyrics. Sheet music and reference tones are below.' : 'Follow the highlighted lyric line. To add a melody guide, your teacher can assign the lead-vocal MIDI tracks to Vocals in Edit instrument parts.';
+    q('b-follow-help').textContent=strings?(this.part.chart.fingeringSource==='score'?'Original tablature':'Estimated MIDI fingering')+' · Tuning (low to high): '+[...this.part.chart.tuning].reverse().map(p=>pitchName(p)).join(' ')+'. '+(this.part.chart.unmapped?this.part.chart.unmapped+' notes are outside this tuning; ask your teacher to check the score.':'0 = open string · × = muted · P.M. = palm mute · sl. = slide · scrape = pick scrape.'):this.part.chart.notes.length ? 'Follow the lyrics and lead-vocal melody. Enable your microphone for live pitch guidance.' : 'Follow the highlighted lyric line.';
     if(follow)q('b-feedback').textContent='Ready to follow your part. Press Play or wait for your teacher’s shared start.';
     q('b-input-controls').open = false;
     q('b-full-title').textContent = this.arrangement.title + ' · ' + this.part.name;
@@ -225,12 +228,17 @@ export class BandPractice {
     this.notation = null; this.renderKeys(); this.renderView(); this.stats(null); this.lockControls();
     this.mobile?.layout();
   }
+  renderPartChoices() {
+    const parts=this.arrangement.parts.filter(p=>this.mode==='jam'||p.instrument===this.part.instrument);
+    this.q('b-part').innerHTML=parts.map(p=>'<option value="'+p.id+'">'+escapeHtml(p.name)+'</option>').join('');this.q('b-part').value=this.part.id;
+    this.q('b-part-label').textContent=this.mode==='jam'?'Your part':this.part.instrument==='guitar'?'Guitar part':'Part';this.q('b-part-picker').hidden=this.mode!=='jam'&&parts.length<2;
+  }
   setSection(selection, repeats = 4) {
     if(this.rooms.room)throw new Error('Leave the jam session before individual section practice.');
     this.loopOptions={enabled:true,...selection,repeats,focus:'all'};this.loopChart=createPracticeChart(this.part.chart,this.loopOptions);
     const q=this.q;q('b-loop-enabled').checked=true;q('b-loop-from').value=selection.startBar;q('b-loop-to').value=selection.endBar;q('b-loop-repeats').value=repeats;q('b-loop-controls').open=true;q('b-loop-state').textContent='Bars '+selection.startBar+'–'+selection.endBar+' · '+repeats+' practice passes';this.renderView();q('b-loop-controls').scrollIntoView({behavior:'smooth',block:'center'});
   }
-  playChart(){if(this.rooms.room || !this.loopOptions?.enabled || followInstrument(this.part.instrument))return this.part.chart;return this.loopChart||(this.loopChart=createPracticeChart(this.part.chart,this.loopOptions));}
+  playChart(){if(this.rooms.room || !this.loopOptions?.enabled || this.part.instrument==='vocals')return this.part.chart;return this.loopChart||(this.loopChart=createPracticeChart(this.part.chart,this.loopOptions,{allowEmpty:followInstrument(this.part.instrument)}));}
   renderKeys() {
     const q = this.q, keys = this.part.instrument === 'keyboard';
     if(followInstrument(this.part.instrument)){q('b-key-guide').innerHTML='';q('b-key-controls').hidden=true;return;}
@@ -323,7 +331,7 @@ export class BandPractice {
     if (this.school.user?.mustChangePassword) { this.school.openPassword(); return; }
     const token = ++this.token;
     await this.prepareAudio(); if (token !== this.token || !this.active) return;
-    try { this.begin(this.audio.context.currentTime + 0.18 + this.part.chart.countInBeats * this.part.chart.countInBeatSeconds, { listen }); }
+    try { const chart=this.playChart(),from=listen||followInstrument(this.part.instrument)?this.listening.position:0,skipCountIn=from>0;this.begin(this.audio.context.currentTime+.18+(skipCountIn?0:chart.countInBeats*chart.countInBeatSeconds)-from,{listen,from,skipCountIn}); }
     catch (error) { this.stop(error.message); throw error; }
   }
   startScheduled(room, clock, teacher) {
@@ -346,7 +354,7 @@ export class BandPractice {
       this.session.guide = chart.notes.findIndex(note => note.time >= from); if (this.session.guide < 0) this.session.guide = chart.notes.length;
     }
     if (options.skipCountIn) this.session.count = chart.countInBeats;
-    if (this.backing && chart.passes && (!this.rooms.room || options.teacher)) { for(const segment of backingSegments(chart,this.backing))this.audio.playBacking(this.backing.buffer,startAt+segment.when,segment.offset,this.backing.volume,segment.duration); }
+    if (this.backing && chart.passes && (!this.rooms.room || options.teacher)) { for(const segment of backingSegments(chart,this.backing,from))this.audio.playBacking(this.backing.buffer,startAt+segment.when,segment.offset,this.backing.volume,segment.duration); }
     else if (this.backing && (!this.rooms.room || options.teacher)) {
       const clip=backingClip(this.backing,from,chart.duration);
       if(clip)this.audio.playBacking(this.backing.buffer,startAt+clip.when,clip.offset,this.backing.volume,clip.duration);
@@ -372,7 +380,7 @@ export class BandPractice {
   }
   lockControls() {
     const room = this.rooms?.room, locked = !!this.session || !!room, inputLocked = !!this.session || room?.state === 'playing';
-    this.q('b-loop-controls').hidden=!!room||followInstrument(this.part.instrument);
+    this.q('b-loop-controls').hidden=!!room||this.part.instrument==='vocals';this.listening?.update();
     for(const id of ['b-loop-enabled','b-loop-from','b-loop-to','b-loop-repeats'])this.q(id).disabled=locked;
     for (const id of ['b-song', 'b-backing', 'b-part', 'b-open-import']) this.q(id).disabled = locked;
     this.q('b-song').disabled = !!room;
@@ -385,9 +393,9 @@ export class BandPractice {
   }
   tick() {
     const session = this.session; if (!session) return;
-    const chart = session.judge.chart, time = this.audio.audibleTime() - session.startAt, horizon = this.audio.context.currentTime + 0.12;
+    const chart = session.judge.chart, time = this.audio.audibleTime() - session.startAt, horizon = this.audio.context.currentTime + (document.hidden&&canListenInBackground(session)?5:.12);
     while (session.count < chart.countInBeats) {
-      const at = session.startAt + (session.from || 0) + (session.count - chart.countInBeats) * chart.countInBeatSeconds;
+      const at = session.startAt + (session.from || 0) + (session.count - chart.countInBeats) * chart.countInBeatSeconds+(session.from?0:chart.countInOffset||0);
       if (at > horizon) break;
       if ((!session.takeId || session.teacher) && at >= this.audio.context.currentTime - 0.03) this.audio.click(at, session.count === 0); session.count++;
     }
@@ -396,7 +404,7 @@ export class BandPractice {
     while (session.guide < guides.length) {
       const note = guides[session.guide], at = session.startAt + note.time; if (at > horizon) break;
       if ((session.listen || (session.teacher && !this.backing) || (!session.teacher && this.part.instrument === 'vocals' && this.q('b-vocal-guide-enabled').checked)) && at >= this.audio.context.currentTime - 0.03) {
-        if (note.pitch !== undefined) { const id = 'guide:' + session.guide, shift = !session.teacher && this.part.instrument === 'vocals' ? Number(this.q('b-vocal-guide-octave').value) : 0; this.piano.on(id, note.pitch + shift, 0.45, at); this.piano.off(id, at + Math.max(0.08, Math.min(this.part.instrument === 'vocals' || note.instrument === 'vocals' ? 30 : 1.5, note.duration || 0.25))); }
+        if (note.pitch !== undefined && !note.muted) { const id = 'guide:' + session.guide, shift = !session.teacher && this.part.instrument === 'vocals' ? Number(this.q('b-vocal-guide-octave').value) : 0; this.piano.on(id, note.pitch + shift, 0.45, at); this.piano.off(id, at + Math.max(0.08, Math.min(this.part.instrument === 'vocals' || note.instrument === 'vocals' ? 30 : 1.5, note.duration || 0.25))); }
         else if(note.drum) this.audio.play(note.drum, at, 0.55);
       }
       session.guide++;
@@ -404,7 +412,8 @@ export class BandPractice {
     if (!session.listen && !session.teacher) { session.judge.advance(time - this.offset / 1000); this.stats(session.judge); }
     this.q('b-play-status').textContent = time < (session.from || 0) ? 'Count-in · ' + Math.max(1, Math.min(chart.countInBeats, chart.countInBeats + 1 + Math.floor((time - (session.from || 0)) / chart.countInBeatSeconds))) : 'Bar ' + (chart.beats.findLast(beat => beat.time <= time)?.sourceBar || chart.beats.findLast(beat => beat.time <= time)?.bar || 1) + ' / ' + (chart.sourceBars || chart.bars);
     if (session.takeId && !session.teacher && time >= 0 && performance.now() - session.lastProgress > 200) { session.lastProgress = performance.now(); this.rooms.progress(partSummary(session.judge), Math.min(chart.duration, time)); }
-    if (time > chart.duration + 0.35) this.finish();
+    if(canListenInBackground(session))this.listening.update();
+    if (time > chart.duration + 0.35) {this.listening.position=0;this.finish();}
   }
   finish() {
     const session = this.session; if (!session) return;
@@ -479,7 +488,7 @@ export class BandPractice {
     requestAnimationFrame(() => this.frame());
   }
   draw() {
-    const chart = this.session?.judge.chart || this.playChart(), time = this.session ? this.audio.audibleTime() - this.session.startAt : this.part.instrument === 'vocals' ? this.singing.position : -0.5;
+    const chart = this.session?.judge.chart || this.playChart(), time = this.session ? this.audio.audibleTime() - this.session.startAt : this.part.instrument === 'vocals' ? this.singing.position : (this.listening?.position||0);
     this.highwayExperience.draw(this.session?.judge, time, { playing: !!this.session, listen: !!this.session?.listen, teacher: !!this.session?.teacher });
     if(this.part.instrument==='vocals') {
       const counting = this.session && time < (this.session.from || 0);
@@ -504,6 +513,7 @@ export class BandPractice {
       if (this.q('b-view').value === 'full') { this.fullScore.draw(this.notation.model, chart, time, !!this.session, this.session?.listen); return; }
     }
     const rect = canvas.getBoundingClientRect(), width = Math.max(260, rect.width), height = Math.max(100, rect.height), dpr = Math.min(2, devicePixelRatio || 1);
+    if(this.highwayExperience.visible){const meter=this.highwayExperience.meter;meter.style.top=(canvas.offsetTop+8)+'px';meter.style.bottom=Math.max(8,this.q('b-stage').clientHeight-canvas.offsetTop-canvas.clientHeight+8)+'px';}
     if (canvas.width !== Math.round(width*dpr) || canvas.height !== Math.round(height*dpr)) { canvas.width = Math.round(width*dpr); canvas.height = Math.round(height*dpr); }
     context.setTransform(dpr,0,0,dpr,0,0); context.clearRect(0,0,width,height);
     if(['guitar','bass'].includes(this.part.instrument)){drawFretted(context,width,height,chart,time,this.q('b-view').value==='tab',this.highwayExperience.options);return;}

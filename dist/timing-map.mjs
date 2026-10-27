@@ -47,7 +47,7 @@ export function mapMidiChart(chart,alignment) {
     return {time:forward(time),quarter,bpm:(endQuarter-quarter)*60/(forward(end)-forward(time))};
   });
   const bpm=tempos[0].bpm;
-  return {...chart,timingMap:map,timeScale:1,duration,bpm,countInBeatSeconds:60/bpm*4/(chart.denominator||4),
+  return {...chart,timingMap:map,timeScale:1,duration,bpm,countInBeatSeconds:60/bpm*4/(chart.denominator||4),...(chart.countInOffset?{countInOffset:timing.forward(chart.countInOffset)}:{}),
     notes:chart.notes.map(note=>({...note,time:forward(note.time),...(Number.isFinite(note.duration)?{duration:forward(note.time+note.duration)-forward(note.time)}:{})})),
     beats:chart.beats.map(beat=>({...beat,time:forward(beat.time)})),tempos,
     signatures:chart.signatures.map(meter=>({...meter,time:forward(meter.time)})),

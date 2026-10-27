@@ -324,7 +324,7 @@ function schedule() {
   const horizon = audio.context.currentTime + 0.12;
   while (session.scheduledCount < judge.chart.countInBeats) {
     const index = session.scheduledCount;
-    const at = startAt + (index - judge.chart.countInBeats) * judge.chart.countInBeatSeconds;
+    const at = startAt + (index - judge.chart.countInBeats) * judge.chart.countInBeatSeconds+(judge.chart.countInOffset||0);
     if (at > horizon) break;
     if (at >= audio.context.currentTime - 0.025) audio.click(at, index === 0);
     session.scheduledCount++;

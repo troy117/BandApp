@@ -1,4 +1,5 @@
 import { pitchName } from './instruments.mjs';
+import {drawTabTechnique} from './fretted-parts.mjs';
 import { arcadePulse, drawArcadeBackdrop } from './highway-experience.mjs';
 const STRING_COLORS = ['#e8c17b','#74dcca','#c4a5ef','#f29b94','#91b8f5','#d2d5af'];
 export function drawFretted(context, width, height, chart, time, tab = false, { arcade = false, motion = true } = {}) {
@@ -22,7 +23,8 @@ export function drawFretted(context, width, height, chart, time, tab = false, { 
     context.strokeStyle=STRING_COLORS[note.string];context.lineWidth=3;
     const tail=Math.min(right,xAt(note.time+Math.min(note.duration||0,3)));if(tail>x){context.beginPath();context.moveTo(x,y);context.lineTo(tail,y);context.stroke();}context.lineWidth=1;
     if (arcade && !tab) { context.shadowColor=STRING_COLORS[note.string];context.shadowBlur=10+10*arcadePulse(time,motion); }
-    context.fillStyle=active?'#fff3c7':STRING_COLORS[note.string];context.fillRect(x-12,y-12,24,24);context.shadowBlur=0;context.fillStyle='#102023';context.textAlign='center';context.font='bold 15px system-ui';context.fillText(String(note.fret),x,y+5);context.textAlign='left';
+    context.fillStyle=active?'#fff3c7':STRING_COLORS[note.string];context.fillRect(x-12,y-12,24,24);context.shadowBlur=0;context.fillStyle='#102023';context.textAlign='center';context.font='bold 15px system-ui';context.fillText(note.muted?'×':note.ghost?'('+note.fret+')':String(note.fret),x,y+5);context.textAlign='left';
+    drawTabTechnique(context,note,chart.notes.find(n=>n.time>note.time&&n.string===note.string),x,y,tail,{color:STRING_COLORS[note.string]});
   }
   const cursor=tab?xAt(Math.max(0,time)):hitX;
   context.strokeStyle='#e8c17b';context.lineWidth=2;context.strokeRect(cursor-16,top-18,32,bottom-top+36);context.lineWidth=1;

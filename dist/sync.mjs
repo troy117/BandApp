@@ -25,7 +25,7 @@ export function alignMidiChart(chart, timeScale = 1, timingMap = null) {
   validateAlignment(0, timeScale);
   if(timingMap)return mapMidiChart(chart,{timeScale,timingMap});
   if (chart.duration * timeScale > 1200) throw new Error('The adjusted MIDI would exceed 20 minutes. Choose a faster MIDI speed.');
-  return { ...chart, timeScale, duration: chart.duration * timeScale, bpm: chart.bpm / timeScale, countInBeatSeconds: chart.countInBeatSeconds * timeScale,
+  return { ...chart, timeScale, duration: chart.duration * timeScale, bpm: chart.bpm / timeScale, countInBeatSeconds: chart.countInBeatSeconds * timeScale,...(chart.countInOffset?{countInOffset:chart.countInOffset*timeScale}:{}),
     notes: chart.notes.map(note => ({ ...note, time: note.time * timeScale })), beats: chart.beats.map(beat => ({ ...beat, time: beat.time * timeScale })),
     tempos: chart.tempos.map(tempo => ({ ...tempo, time: tempo.time * timeScale, bpm: tempo.bpm / timeScale })),
     signatures: chart.signatures.map(meter => ({ ...meter, time: meter.time * timeScale })),
@@ -45,7 +45,8 @@ export function fitAlignment(first, second, currentScale = 1) {
 export function midiPositionTime(chart, bar, beat) {
   const measure = chart.measures.find(item => item.bar === Number(bar));
   if (!measure || !Number.isFinite(beat) || beat < 1 || beat >= measure.numerator + 1) throw new Error('Choose a MIDI bar and beat inside the song.');
-  const quarter = measure.startQuarter + (beat - 1) * 4 / measure.denominator;
+  const quarter = measure.startQuarter + (beat - 1-(measure.beatOffset||0)) * 4 / measure.denominator;
+  if(quarter<measure.startQuarter-1e-8)throw new Error('That beat is before the opening pickup.');
   if (quarter >= measure.endQuarter - 1e-8) throw new Error('That beat is past the end of this MIDI section.');
   const tempo = chart.tempos.findLast(item => item.quarter <= quarter) || chart.tempos[0];
   return tempo.time + (quarter - tempo.quarter) * 60 / tempo.bpm;

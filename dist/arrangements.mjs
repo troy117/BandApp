@@ -1,3 +1,4 @@
+import {validateFrettedPart} from './fretted-parts.mjs';
 import { createChart, DRUMS } from './engine.mjs';
 import { makeMidiChart, midiTimeGrid } from './midi.mjs';
 import { alignMidiChart } from './sync.mjs';
@@ -36,7 +37,7 @@ export function arrangementParts(input, legacySelected) {
   return input.map(part => {
     if (!part || typeof part !== 'object' || !/^[a-z][a-z0-9-]{0,31}$/.test(part.id) || seen.has(part.id) || !Object.hasOwn(BAND_INSTRUMENTS,part.instrument) || typeof part.name !== 'string' || !part.name.trim() || part.name.length > 60 || /[\u0000-\u001f]/.test(part.name) || !Array.isArray(part.selected) || !part.selected.length && part.instrument !== 'vocals' || part.selected.length > 512 || !part.selected.every(id => typeof id === 'string' && /^\d{1,3}:\d{1,2}$/.test(id))) throw new Error('Invalid instrument part. Choose its instrument and MIDI tracks.');
     seen.add(part.id);
-    return { id: part.id, instrument: part.instrument, name: part.name.trim(), selected: [...new Set(part.selected)] };
+    return { id: part.id, instrument: part.instrument, name: part.name.trim(), selected: [...new Set(part.selected)], ...validateFrettedPart(part) };
   });
 }
 export function detectedArrangementParts(song, metadata = {}) {
@@ -57,32 +58,34 @@ export function detectedArrangementParts(song, metadata = {}) {
 }
 export function importedArrangement(song, metadata = {}) {
   const parts = detectedArrangementParts(song, metadata);
-  const timeScale = metadata.timeScale ?? 1;
+  const timeScale = metadata.timeScale ?? 1, grid=midiTimeGrid(song,metadata.pickupQuarters||0);
   const charts = parts.map(part => {
     if (!part.selected.every(id => song.parts.some(candidate => candidate.id === id))) throw new Error('An assigned MIDI track is missing.');
     let chart;
     if (part.instrument === 'vocals') {
       const lyrics = arrangementLyrics(song,metadata);
       if(!lyrics.length)throw new Error('Add timed lyrics for the vocals part. This MIDI may contain melody notes without words.');
-      const grid=midiTimeGrid(song),notes=metadata.vocalNotes===undefined?vocalMelody(song,part.selected):analyzedVocalMelody(grid,metadata.vocalNotes);
+      const notes=metadata.vocalNotes===undefined?vocalMelody(song,part.selected):analyzedVocalMelody(grid,metadata.vocalNotes);
       chart = { ...alignMidiChart({ ...grid, notes }, timeScale,metadata.timingMap), kind: 'vocals', lyrics };
       if(!metadata.timingMap)chart.notes.forEach(note => { note.duration *= timeScale; });
-    } else if (part.instrument === 'drums') chart = alignMidiChart(makeMidiChart(song, part.selected, metadata.mapping || {}), timeScale,metadata.timingMap);
+    } else if (part.instrument === 'drums') { const drums=makeMidiChart(song,part.selected,metadata.mapping||{}); chart=alignMidiChart({...drums,...grid,notes:drums.notes},timeScale,metadata.timingMap); }
     else {
       const all = song.parts.filter(item => part.selected.includes(item.id)).flatMap(item => item.notes).sort((a, b) => a.tick - b.tick);
       const seen = new Set(), notes = [];
-      for (const note of all) {
+      for (const note of part.tablature ? [] : all) {
         const id = note.tick + ':' + note.pitch;
         if (seen.has(id)) continue; seen.add(id);
         const position = song.timeline.position(note.tick);
         notes.push({ id, pitch: note.pitch, time: song.timeline.tickToSeconds(note.tick), duration: song.timeline.tickToSeconds(note.endTick ?? note.tick + song.ppq / 4) - song.timeline.tickToSeconds(note.tick), quarter: note.tick / song.ppq, velocity: note.velocity / 127, bar: position.bar, beat: position.beat, status: 'pending', errorMs: null, actualTime: null });
       }
+      if(part.tablature)for(const [i,note]of part.tablature.notes.entries()){if(note.time+note.duration>song.duration+.001)throw new Error('Tablature extends beyond this MIDI. Load its matching score.');notes.push({...note,id:'tab-'+i,quarter:song.timeline.secondsToTick(note.time)/song.ppq,velocity:.7,status:'pending',actualTime:null,errorMs:null});}
       if (!notes.length || notes.length > 50000) throw new Error('Choose an instrument part with 1–50,000 notes.');
       // Reuse the exact tempo/meter construction, without converting pitched notes into drum identities.
-      chart = alignMidiChart({ ...midiTimeGrid(song), kind: part.instrument, notes }, timeScale,metadata.timingMap);
+      chart = alignMidiChart({ ...grid, kind: part.instrument, notes }, timeScale,metadata.timingMap);
       if(!metadata.timingMap)chart.notes.forEach(note => { note.duration *= timeScale; });
-      if(['guitar','bass'].includes(part.instrument))chart=frettedChart(chart,part.instrument);
+      if(['guitar','bass'].includes(part.instrument))chart=frettedChart(chart,part.instrument,part);
     }
+    if(metadata.pickupQuarters||part.tablature){let index=0;for(const note of chart.notes){while(index+1<chart.measures.length&&chart.measures[index+1].time<=note.time+1e-7)index++;const measure=chart.measures[index];note.bar=measure.bar;note.beat=1+(measure.beatOffset||0)+(note.quarter-measure.startQuarter)/(4/measure.denominator);}}
     chart.title = metadata.title || song.title;
     return { ...part, chart };
   });

@@ -1,16 +1,18 @@
+import {STANDARD_STRINGS} from './fretted-parts.mjs';
 export const BAND_INSTRUMENTS = { drums:'Drums', keyboard:'Piano / Keyboard', guitar:'Guitar', bass:'Bass', vocals:'Vocals' };
 export const followInstrument = instrument => ['guitar','bass','vocals'].includes(instrument);
-export const STRING_TUNINGS = { guitar:[64,59,55,50,45,40], bass:[43,38,33,28] };
+export const STRING_TUNINGS = STANDARD_STRINGS;
 export class FollowCursor {
   constructor(chart) { this.chart = structuredClone(chart); this.followAlong = true; }
   advance() {}
   summary() { return { mode:'follow' }; }
 }
-export function frettedChart(chart, instrument) {
-  const tuning = STRING_TUNINGS[instrument];
+export function frettedChart(chart, instrument, settings = {}) {
+  const tuning = settings.tuning || STRING_TUNINGS[instrument];
   if (!tuning) throw new Error('Choose guitar or bass.');
   const result = structuredClone(chart), groups = new Map(); let previous = 3;
   if(!result.measures)result.measures=Array.from({length:chart.bars||0},(_,i)=>({bar:i+1,time:i*4*60/chart.bpm,endTime:Math.min(chart.duration,(i+1)*4*60/chart.bpm)}));
+  if(settings.tablature){result.tuning=[...tuning];result.unmapped=0;result.fingeringSource='score';return result;}
   for (const note of result.notes) { const key = note.time.toFixed(6); if (!groups.has(key)) groups.set(key,[]); groups.get(key).push(note); }
   for (const chord of groups.values()) {
     const notes = [...chord].sort((a,b) => b.pitch-a.pitch); let states = [{used:0,choices:[],cost:0,frets:[]}];
@@ -29,6 +31,6 @@ export function frettedChart(chart, instrument) {
     notes.forEach((note,i) => Object.assign(note,best.choices[i]));
     if (best.frets.length) previous = Math.min(...best.frets);
   }
-  result.tuning = [...tuning]; result.unmapped = result.notes.filter(note => note.string === null).length;
+  result.tuning = [...tuning]; result.unmapped = result.notes.filter(note => note.string === null).length;result.fingeringSource='estimated';
   return result;
 }

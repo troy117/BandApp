@@ -1,3 +1,5 @@
+import {importedArrangement} from './arrangements.mjs';
+import {escapeHtml} from './song-import.mjs';
 import { validateTimingMap, timingFunctions } from './timing-map.mjs';
 import { AudioSync } from './audio-sync.mjs';
 import { makeMidiChart, midiTimeGrid } from './midi.mjs';
@@ -6,7 +8,8 @@ import { validateAlignment, midiPositionTime } from './sync.mjs';
 import { validateAudioRange } from './backing-range.mjs';
 import { BAND_INSTRUMENTS } from './follow-along.mjs';
 
-export function backingReferences(song, assignments, mapping = {}) {
+export function backingReferences(song, assignments, mapping = {}, settings={}) {
+  if(settings.parts)return settings.parts.filter(p=>p.selected.length).flatMap(p=>{try{const chart=p.tablature?importedArrangement(song,{parts:[p],pickupQuarters:settings.pickupQuarters}).parts[0].chart:p.instrument==='drums'?makeMidiChart(song,p.selected,mapping,settings.pickupQuarters):{...midiTimeGrid(song,settings.pickupQuarters),kind:p.instrument,notes:vocalMelody(song,p.selected)};return chart.notes.length?[{id:p.id,name:p.name,chart}]:[];}catch{return [];}});
   return Object.entries(BAND_INSTRUMENTS).flatMap(([instrument, name]) => {
     const selected = assignments.filter(item => item.instrument === instrument).map(item => item.id);
     if (!selected.length) return [];
@@ -49,7 +52,7 @@ export class BandBacking {
     q('b-timing-map-anchor').onclick=()=>importer.attempt(()=>this.addTimingAnchor());
     q('b-timing-map-clear').onclick=()=>importer.attempt(()=>this.clearTimingMap());
     q('b-sync-reference').onchange = () => { this.cancel(); this.render(); };
-    q('b-import-tracks').addEventListener('change', () => this.reset());
+    for(const id of ['b-import-tracks','b-string-parts','b-pickup'])q(id).addEventListener('change', () => this.reset());
     for (const id of ['b-import-offset','b-import-speed']) q(id).addEventListener('input', () => {
       this.cancel();
       try { this.readControls(); this.render(); } catch (error) { this.sync.status(error.message); }
@@ -118,11 +121,12 @@ export class BandBacking {
     const draft = this.importer.draft;
     if (!draft) { this.q('b-sync-reference').innerHTML=''; this.referenceKey=null; this.charts=[]; return []; }
     const assignments = [...this.q('b-import-tracks').querySelectorAll('[data-band-track]')].map(select => ({id:select.dataset.bandTrack,instrument:select.value}));
-    const key = JSON.stringify([draft.song.fingerprint, assignments, draft.mapping]);
+    const parts=this.importer.readParts?.(),pickupQuarters=Number(this.q('b-pickup').value||0);
+    const key = JSON.stringify([draft.song.fingerprint, assignments, draft.mapping,pickupQuarters,parts?.map(p=>[p.id,p.name,p.selected,p.tuning,p.tablature?.notes.length])]);
     if (key !== this.referenceKey) {
-      this.referenceKey = key; this.charts = backingReferences(draft.song, assignments, draft.mapping);
+      this.referenceKey = key; this.charts = backingReferences(draft.song, assignments, draft.mapping,{parts,pickupQuarters});
       const picker = this.q('b-sync-reference'), previous = picker.value;
-      picker.innerHTML = this.charts.map(part => '<option value="'+part.id+'">'+part.name+' · '+part.chart.notes.length+' notes</option>').join('');
+      picker.innerHTML = this.charts.map(part => '<option value="'+part.id+'">'+escapeHtml(part.name)+' · '+part.chart.notes.length+' notes</option>').join('');
       picker.value = this.charts.some(part => part.id === previous) ? previous : this.charts.find(part => part.id === 'drums')?.id || this.charts[0]?.id || '';
     }
     return this.charts;
