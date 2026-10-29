@@ -51,3 +51,18 @@ test('blocked storage does not prevent kit input or learning', async () => {
   await env.controls.input.connect(); env.clickLearn('kick'); env.controls.receive({ pitch: 80, velocity: 1, timestamp: 5 });
   assert.equal(env.hits[0].drum, 'kick'); assert.match(env.doc.getElementById('midi-storage').textContent, /last for this visit/); assert.match(env.doc.getElementById('midi-learn-status').textContent, /Kept for this visit/);
 });
+
+test('saved generic hi-hat pads migrate, distinct MIDI hits reach practice, and explicit relearning survives reload',async()=>{
+  const data=new Map([['sierra-groove-midi-v1',JSON.stringify({mapping:{22:'hihat',26:'hihat',42:'hihat',44:'hihat',46:'hihat',60:'snare',61:'ignore'},sound:false})]]);
+  const storage={getItem:key=>data.get(key),setItem:(key,value)=>data.set(key,value)};
+  const env=fixture(storage);await env.controls.input.connect();
+  const send=bytes=>env.kit.dispatchEvent(Object.assign(new Event('midimessage'),{data:Uint8Array.from(bytes)}));
+  for(const pitch of [42,46,44,22,26])send([0x99,pitch,100]);
+  assert.deepEqual(env.hits.map(hit=>hit.drum),['hihat','hihat-open','hihat-pedal','hihat','hihat-open']);
+  for(const bytes of [[0xb9,4,127],[0xb9,4,0],[0x99,46,0],[0x89,46,100]])send(bytes);
+  assert.equal(env.hits.length,5);assert.equal(env.controls.mapping[60],'snare');assert.equal(env.controls.mapping[61],'ignore');
+  const labels=env.doc.getElementById('midi-mapping-list').children.map(row=>row.children[0].textContent);
+  for(const label of ['Closed hi-hat','Open hi-hat','Pedal hi-hat'])assert.ok(labels.includes(label));
+  env.clickLearn('hihat');send([0x99,46,100]);assert.equal(env.hits.at(-1).drum,'hihat');
+  const restored=fixture(storage);restored.controls.receive({pitch:46,velocity:.5,timestamp:10});assert.equal(restored.hits[0].drum,'hihat');
+});

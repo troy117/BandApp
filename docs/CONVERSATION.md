@@ -1,5 +1,13 @@
 # Groove Lab conversation record
 
+## Drum report and hi-hat requests — October 29, 2026
+
+> For the band app. After completing a practice song for drums the report comes up. Can we reduce the size of the your music in focus and the six fields that show up. I want the graph of timing issues to be at the top. Add a button next to the exit to retry that will allow students to go back into the full screen mode and ready to start again.
+
+> Another thing I've noticed with regard to the high-hat is that it registers the same wether it is open or closed. Can we address that so that when it is open or closed the program recognizes it? I don't believe they should be the same letter in the keyboard either
+
+Prototype 29 implements the scoped report/Retry update and distinct hi-hat targets; see [behavior and checks](DRUM_REPORTS_AND_HIHAT.md). The current task explicitly stops at a tested local commit, pending publication approval.
+
 ## Phone and classroom layout — October 23, 2026
 
 The user reported that student vocals and keyboard screens felt crowded on a phone. They requested instrument selection in the top bar, vocal songs beside Focus, song switching inside fullscreen, backing volume beside Mic, screen-awake support, landscape vocal highway/large lyrics with an easily visible right-side pitch meter, and a top-menu Join jam shortcut. For teacher Jam they requested recent shared-take deletion, automatic default-instrument assignments and class performance meters instead of the teacher's Band practice panel. Prototype 18 implements these with recoverable Delete/Restore, live per-student cards and ephemeral teacher-only vocal state/cents; it does not stream screens or record audio. See MOBILE_CLASSROOM.md for behavior and validation.

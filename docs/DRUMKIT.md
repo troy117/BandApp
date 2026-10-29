@@ -5,7 +5,7 @@ Version 0.9 / Prototype 09 introduces drumkit input. The input and learning logi
 1. Turn on the TD-17 and connect its **USB COMPUTER** port to the computer with a USB data cable.
 2. Open Groove Lab in **Chrome** at its HTTPS Railway address, or at localhost for local development. Confirm the footer says **Prototype 09** or later. If Railway still serves an older version, deploy the latest GitHub commit and refresh.
 3. Choose **Connect drumkit** in the header, or **Controls → Connect drumkit**. Allow MIDI device access if Chrome asks. Select **TD-17** in the Drumkit list; the name may vary with the driver.
-4. Strike each pad. The readout should show **Kick**, **Snare**, **Hi-hat**, the toms, **Crash** or **Ride**, along with note number and strength. Check open/closed hi-hat, pedal, cymbal edges/bell and snare rim too. Default assignments are a starting point, not a verified factory TD-17 preset.
+4. Strike each pad. The readout should show **Kick**, **Snare**, **Closed hi-hat**, **Open hi-hat**, **Pedal hi-hat**, the toms, **Crash** or **Ride**, along with note number and strength. Check open/closed hi-hat, pedal, cymbal edges/bell and snare rim too. The hi-hat defaults follow Roland's TD-17 map; custom module settings still need checking.
 5. If a pad is wrong or unassigned, open **Check or change pad assignments**. Choose **Learn pad** beside the correct drum and strike it once. Repeat to add rims/edges. Learning moves a note from its previous assignment. Select its **×** chip to ignore it. Escape or Cancel learning cancels; **Restore drumkit assignments** restores defaults.
 6. Choose **Done**, choose a simple practice track and click **Start groove**. Play after the count-in. Kit hits use the same timing/scoring as keyboard hits in the highway, sheet and fullscreen score. Enter starts/stops; keyboard pads remain usable.
 
@@ -27,6 +27,6 @@ Backing recordings, guide drums and metronome play through the computer's select
 
 Start with **Input delay correction = 0 ms**. If hits consistently grade late after you have checked the audible beat, a small positive correction subtracts that device delay. This is manual; there is no automatic hardware calibration yet.
 
-The first hardware version combines hi-hat/cymbal variations into their drum lanes. MIDI note-off, zero-velocity note-on, clock, continuous pedal-control and choke messages do not create strikes. Continuous hi-hat openness, cymbal choking and expressive hit strength are not graded. A pedal that sends a note-on can be mapped or ignored like any other pad.
+Prototype 29 separates closed, open and pedal hi-hat, with default keys D/E/R and TD-17 notes 42/22, 46/26 and 44. Open and closed hits cannot match one another. MIDI note-off, zero-velocity note-on, clock, CC4 pedal-position and choke messages do not create strikes. Continuous hi-hat openness, cymbal choking and expressive hit strength are not graded. See [hi-hat mapping compatibility and the physical kit check](DRUM_REPORTS_AND_HIHAT.md).
 
 Pad assignments, preferred device and app-sound preference save locally in this browser, separately from keyboard bindings, imported-song note assignments and school accounts. They do not travel through GitHub or student accounts. Only the selected input is listened to; no MIDI output or system-exclusive access is requested.

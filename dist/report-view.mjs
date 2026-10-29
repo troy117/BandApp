@@ -7,17 +7,18 @@ import { reportSelection, reportCsv, reportMeasureAt } from './run-report.mjs';
 export class RunReportView {
   constructor(onPractice) {
     this.onPractice=onPractice;this.root=document.getElementById('report-dialog');this.q=id=>this.root.querySelector('#'+id);
-    this.root.innerHTML=`<div class="dialog-header"><div><p class="eyebrow">EVERY ATTEMPT IS PROGRESS</p><h2 id="report-title">Your music, in focus.</h2></div><button id="report-close" class="close-button" aria-label="Close report">×</button></div>
+    this.root.innerHTML=`<div class="dialog-header"><div><p class="eyebrow">EVERY ATTEMPT IS PROGRESS</p><h2 id="report-title">Your music, in focus.</h2></div><div class="report-header-actions"><button id="report-retry" class="button primary" hidden title="Return to full screen, ready to start the same practice again">Retry</button><button id="report-close" class="close-button" aria-label="Close report">×</button></div></div>
       <p id="report-subtitle" class="dialog-description"></p><div id="report-stats" class="report-stats"></div><p id="report-detail-help" class="report-footnote"></p>
-      <section id="report-detail"><div class="report-timeline-tools"><h3>Where your notes landed</h3><button id="report-zoom-in" class="button secondary" aria-label="Zoom in to report">＋</button><button id="report-zoom-out" class="button secondary" aria-label="Zoom out of report">−</button><button id="report-zoom-reset" class="text-button">Whole attempt</button><output id="report-zoom-label"></output></div>
+      <section id="report-detail"><div id="report-timeline"><div class="report-timeline-tools"><h3>Where your notes landed</h3><button id="report-zoom-in" class="button secondary" aria-label="Zoom in to report">＋</button><button id="report-zoom-out" class="button secondary" aria-label="Zoom out of report">−</button><button id="report-zoom-reset" class="text-button">Whole attempt</button><output id="report-zoom-label"></output></div>
       <label id="report-pan-label">Timeline position<input id="report-pan" type="range" min="0" step="0.01" value="0"></label>
       <p class="report-footnote">Drag across the chart to select bars. Green = matched, pink = wrong note, × = missed, gold = extra. Above zero is late; below zero is early.</p>
-      <canvas id="timing-chart" aria-label="Note timing report. Drag to select bars, or use the From and Through bar fields." tabindex="0"></canvas>
+      <canvas id="timing-chart" aria-label="Note timing report. Drag to select bars, or use the From and Through bar fields." tabindex="0"></canvas></div>
       <div class="report-selection-controls"><label>From bar<input id="report-from" type="number" min="1" value="1"></label><label>Through bar<input id="report-to" type="number" min="1" value="1"></label><button id="report-practice" class="button primary">Add section to practice</button><span id="report-selection-label" role="status"></span></div>
       <div class="table-wrap report-note-table"><table><thead><tr><th>Source bar / beat</th><th>Expected</th><th>Result</th><th>Timing</th></tr></thead><tbody id="report-notes"></tbody></table></div><button id="report-more" class="text-button">Show more notes</button><details id="report-breakdown"><summary>Timing by drum and practice pass</summary><div id="report-breakdown-content"></div></details></section>
       <p id="report-message" role="status"></p><div class="dialog-actions"><button id="download-report" class="button secondary">Download CSV ↓</button><button id="report-replay" class="button primary">Play again</button><button id="report-slower" class="button secondary">Try 5 BPM slower</button><button id="report-next" class="button secondary">Explore next track →</button><button id="report-done" class="button secondary">Done</button></div>`;
     this.vocal=new VocalReportView(this);
     this.q('report-close').onclick=this.q('report-done').onclick=()=>this.root.close();
+    this.q('report-retry').onclick=()=>this.retry();
     this.q('report-zoom-in').onclick=()=>this.zoom(2);this.q('report-zoom-out').onclick=()=>this.zoom(0.5);this.q('report-zoom-reset').onclick=()=>{this.scale=1;this.start=0;this.render();};
     this.q('report-pan').oninput=()=>{this.start=Number(this.q('report-pan').value);this.limit=250;this.render();};
     for(const id of ['report-from','report-to'])this.q(id).oninput=this.q(id).onchange=()=>this.selectBars();
@@ -32,8 +33,18 @@ export class RunReportView {
     this.q('download-report').onclick=()=>{if(!this.report)return;const url=URL.createObjectURL(new Blob([this.record?.instrument==='vocals'?this.vocal.csv():reportCsv(this.report)],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download='groove-lab-note-report.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
     window.addEventListener('resize',()=>{if(this.root.open)this.draw();});
   }
-  open(record,report=null) {
+  open(record,report=null,{onRetry=null}={}) {
     this.record=record;this.report=report;
+    const drums=!record.instrument||record.instrument==='drums';
+    this.root.classList.toggle('drum-report',drums);
+    // Move the actual chart, so reading/tab order follows the drum layout too.
+    if(drums)this.q('report-subtitle').after(this.q('report-timeline'));
+    else this.q('report-detail').prepend(this.q('report-timeline'));
+    this.q('report-timeline').hidden=!report||record.instrument==='vocals';
+    this.onRetry=drums&&report?onRetry:null;
+    this.q('report-retry').hidden=!this.onRetry;
+    this.q('report-close').textContent=drums?'Exit':'×';
+    this.q('report-close').className=drums?'button secondary':'close-button';
     if(record.instrument==='vocals'){this.vocal.open(record,report);return;}
     this.vocal.panel.hidden=true;this.q('report-title').textContent='Your music, in focus.';this.q('report-replay').textContent='Play again';
     this.scale=1;this.start=0;this.limit=250;this.selection=null;
@@ -42,10 +53,22 @@ export class RunReportView {
     this.q('report-detail-help').textContent=report?(!report.notes.length?'No expected notes were reached. This preview does not add a saved attempt. ':report.stopped?'Future notes were not counted. ':'')+'Match rate counts attempted notes and extras. Timing uses matched notes only.':'This older attempt saved an overall summary only. New attempts include a detailed note report.';
     this.q('report-detail').hidden=!report;this.q('download-report').hidden=!report;this.q('report-message').textContent='';this.q('report-replay').disabled=!report;this.q('report-slower').hidden=record.sourceKind!=='builtin';this.q('report-slower').disabled=!report||record.bpm<=40;this.q('report-next').hidden=record.sourceKind!=='builtin';
     if(report){this.breakdown();const last=Math.max(...report.measures.map(m=>m[2]));for(const id of ['report-from','report-to']){this.q(id).max=last;this.q(id).value=report.measures[0][2];}this.selectBars(false);}
-    if(!this.root.open)this.root.showModal();requestAnimationFrame(()=>this.render());
+    if(!this.root.open)this.root.showModal();this.root.scrollTop=0;requestAnimationFrame(()=>this.render());
+  }
+  retry() {
+    if(!this.root.open||!this.onRetry||this.retrying)return;
+    this.retrying=true;
+    try {
+      // Prepare synchronously, then request fullscreen in the Retry click's activation.
+      // Never reuse Play again: that path loads saved reports and starts playback.
+      const enter=this.onRetry();
+      this.root.close();
+      enter();
+    } catch(error) { this.q('report-message').textContent=error.message;this.q('report-message').scrollIntoView?.({block:'nearest'}); }
+    finally { this.retrying=false; }
   }
   async replay(slower=false,next=false){if(this.record?.instrument==='vocals'){await this.vocal.retry(this.record.stopped&&this.report.elapsed<this.report.duration?this.report.elapsed:0);return;}try{const [startBar,endBar]=this.record.section.split('–').map(Number);await this.onPractice(this.record,this.report,{startBar,endBar},{replay:true,slower,next});this.root.close();}catch(error){this.q('report-message').textContent=error.message;}}
-  clear(){this.root.close();this.record=null;this.report=null;this.vocal.report=null;this.vocal.record=null;this.vocal.panel.hidden=true;for(const id of ['report-subtitle','report-stats','report-notes','report-message'])this.q(id).textContent='';}
+  clear(){this.root.close();this.onRetry=null;this.q('report-retry').hidden=true;this.record=null;this.report=null;this.vocal.report=null;this.vocal.record=null;this.vocal.panel.hidden=true;for(const id of ['report-subtitle','report-stats','report-notes','report-message'])this.q(id).textContent='';}
   selectBars(draw=true) {
     const from=Number(this.q('report-from').value),to=Number(this.q('report-to').value),last=Number(this.q('report-from').max);
     const valid=Number.isInteger(from)&&Number.isInteger(to)&&from>=1&&to>=from&&to<=last;
@@ -57,15 +80,16 @@ export class RunReportView {
   zoom(factor){if(!this.report)return;const selected=this.selection?this.report.measures.filter(m=>m[2]>=this.selection.startBar&&m[2]<=this.selection.endBar&&m[0]<=this.report.elapsed):[];const middle=selected.length?(selected[0][0]+Math.min(this.report.elapsed,selected.at(-1)[1]))/2:this.start+this.windowLength()/2;this.scale=Math.max(1,Math.min(32,this.scale*factor));this.start=Math.max(0,Math.min(this.report.elapsed-this.windowLength(),middle-this.windowLength()/2));this.limit=250;this.render();}
   timeAt(event){const rect=this.q('timing-chart').getBoundingClientRect();return this.start+Math.max(0,Math.min(1,(event.clientX-rect.left-40)/Math.max(1,rect.width-58)))*this.windowLength();}
   render(){if(!this.report)return;this.q('report-pan').max=Math.max(0,this.report.elapsed-this.windowLength());this.q('report-pan').value=this.start;this.q('report-pan-label').hidden=this.scale===1;this.q('report-zoom-label').textContent=this.scale+'× · '+formatDuration(this.start)+'–'+formatDuration(this.start+this.windowLength());this.draw();this.table();}
+  drumLabel(id){return id==='hihat'&&!this.report?.hiHatVoices?'Hi-hat':DRUMS.find(drum=>drum.id===id)?.name||id;}
   breakdown(){
-    const rows=(this.record.drums||[]).map(d=>'<tr><td>'+escapeHtml(DRUMS.find(item=>item.id===d.id)?.name||d.id)+'</td><td>'+d.hits+' / '+d.total+'</td><td>'+(d.meanAbsMs===null?'—':Math.round(d.meanAbsMs)+' ms')+'</td></tr>');
+    const rows=(this.record.drums||[]).map(d=>'<tr><td>'+escapeHtml(this.drumLabel(d.id))+'</td><td>'+d.hits+' / '+d.total+'</td><td>'+(d.meanAbsMs===null?'—':Math.round(d.meanAbsMs)+' ms')+'</td></tr>');
     const passes=new Map();for(const n of this.report.notes){if(!passes.has(n[8]))passes.set(n[8],[]);passes.get(n[8]).push(n);}
     if(passes.size>1)for(const [pass,notes] of passes){const hits=notes.filter(n=>n[4]==='hit');rows.push('<tr><td>Pass '+pass+'</td><td>'+hits.length+' / '+notes.length+'</td><td>'+(hits.length?Math.round(hits.reduce((sum,n)=>sum+Math.abs(n[5]),0)/hits.length)+' ms':'—')+'</td></tr>');}
     this.q('report-breakdown').hidden=!rows.length;this.q('report-breakdown-content').innerHTML='<div class="table-wrap"><table><thead><tr><th>Drum / pass</th><th>Matched</th><th>Average error</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
   }
   table(){
     if(!this.report)return;const extras=this.report.extras.map(([time,voice])=>{const m=reportMeasureAt(this.report,time);return [time,m[2],0,voice,'extra',null,null,m[2],m[3]];});const visible=[...this.report.notes,...extras].sort((a,b)=>a[0]-b[0]).filter(n=>n[0]>=this.start-1e-6&&n[0]<=this.start+this.windowLength()+1e-6);
-    this.q('report-notes').innerHTML=visible.slice(0,this.limit).map(n=>'<tr><td><button class="text-button" data-report-bar="'+n[7]+'">'+n[7]+' / '+(n[4]==='extra'?'extra':Math.round(n[2]*100)/100)+(n[8]>1?' · pass '+n[8]:'')+'</button></td><td>'+escapeHtml(typeof n[3]==='number'?pitchName(n[3]):DRUMS.find(d=>d.id===n[3])?.name||n[3])+'</td><td>'+n[4]+(n[4]==='wrong'?' · played '+pitchName(n[6]):'')+'</td><td>'+(n[5]===null?'—':Math.round(Math.abs(n[5]))+' ms '+(n[5]<0?'early':'late'))+'</td></tr>').join('');this.q('report-more').hidden=visible.length<=this.limit;
+    this.q('report-notes').innerHTML=visible.slice(0,this.limit).map(n=>'<tr><td><button class="text-button" data-report-bar="'+n[7]+'">'+n[7]+' / '+(n[4]==='extra'?'extra':Math.round(n[2]*100)/100)+(n[8]>1?' · pass '+n[8]:'')+'</button></td><td>'+escapeHtml(typeof n[3]==='number'?pitchName(n[3]):this.drumLabel(n[3]))+'</td><td>'+n[4]+(n[4]==='wrong'?' · played '+pitchName(n[6]):'')+'</td><td>'+(n[5]===null?'—':Math.round(Math.abs(n[5]))+' ms '+(n[5]<0?'early':'late'))+'</td></tr>').join('');this.q('report-more').hidden=visible.length<=this.limit;
   }
   draw(){
     if(this.record?.instrument==='vocals'){this.vocal.render();return;}

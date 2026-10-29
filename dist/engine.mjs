@@ -2,13 +2,25 @@ import { PRACTICE_TRACKS } from './lessons.mjs';
 export const DRUMS = [
   { id: 'kick', name: 'Kick', short: 'KICK', color: '#63d9c4', keys: ['Space'], midi: [35, 36] },
   { id: 'snare', name: 'Snare', short: 'SNARE', color: '#f58c99', keys: ['KeyF', 'KeyG'], midi: [38, 40] },
-  { id: 'hihat', name: 'Hi-hat', short: 'HI-HAT', color: '#f1cc75', keys: ['KeyD'], midi: [22, 26, 42, 44, 46] },
+  { id: 'hihat', name: 'Closed hi-hat', short: 'CLOSED HAT', color: '#f1cc75', keys: ['KeyD'], midi: [22, 42] },
+  { id: 'hihat-open', name: 'Open hi-hat', short: 'OPEN HAT ○', color: '#ffe9b0', keys: ['KeyE'], midi: [26, 46] },
+  { id: 'hihat-pedal', name: 'Pedal hi-hat', short: 'PEDAL HAT', color: '#cab98c', keys: ['KeyR'], midi: [44] },
   { id: 'tom1', name: 'High tom', short: 'HIGH TOM', color: '#b5a0ed', keys: ['KeyJ'], midi: [48, 50] },
   { id: 'tom2', name: 'Mid tom', short: 'MID TOM', color: '#a0b6ed', keys: ['KeyK'], midi: [45, 47] },
   { id: 'tom3', name: 'Floor tom', short: 'FLOOR TOM', color: '#8ba1ca', keys: ['KeyL'], midi: [41, 43] },
   { id: 'crash', name: 'Crash', short: 'CRASH', color: '#e7a875', keys: ['KeyA'], midi: [49, 55, 57] },
   { id: 'ride', name: 'Ride', short: 'RIDE', color: '#9acc9a', keys: ['KeyS'], midi: [51, 53, 59] },
 ];
+// Old song/pad mappings used one generic "hihat" voice. Resolve its known notes
+// on read; explicit new closed assignments use "hihat-closed" so Learn/remapping
+// can still assign any MIDI pitch to a closed hit. Runtime/built-in ID stays hihat.
+export const drumMappingId = id => id === 'hihat' ? 'hihat-closed' : id;
+export function mappedDrum(pitch, id) {
+  if(id==='hihat-closed')return 'hihat';
+  if(id==='hihat')return [26,46].includes(Number(pitch))?'hihat-open':Number(pitch)===44?'hihat-pedal':'hihat';
+  return id;
+}
+export const validDrumMapping = id => id==='ignore'||id==='hihat-closed'||DRUMS.some(drum=>drum.id===id);
 export const GROOVES = PRACTICE_TRACKS;
 export const DEFAULT_BINDINGS = Object.fromEntries(DRUMS.map(drum => [drum.id, [...drum.keys]]));
 export const RESERVED_KEYS = new Set(['Enter', 'Escape', 'Tab', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight']);
@@ -21,10 +33,17 @@ const allowedKey = code => typeof code === 'string' && /^(Key[A-Z]|Digit[0-9]|Sp
 export function validateBindings(input) {
   const seen = new Set();
   const output = {};
+  const added = new Set(['hihat-open','hihat-pedal']);
   for (const drum of DRUMS) {
+    if(added.has(drum.id)&&input?.[drum.id]===undefined)continue;
     if (!Array.isArray(input?.[drum.id]) || input[drum.id].length > 4) return structuredClone(DEFAULT_BINDINGS);
     output[drum.id] = input[drum.id].filter(code => allowedKey(code) && !seen.has(code));
     output[drum.id].forEach(code => seen.add(code));
+  }
+  // Reserve all existing custom keys before adding the two new hi-hat controls.
+  for(const drum of DRUMS.filter(drum=>!output[drum.id])) {
+    const choices=[...drum.keys,...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(key=>'Key'+key),...'0123456789'.split('').map(key=>'Digit'+key)];
+    const key=choices.find(code=>!seen.has(code));output[drum.id]=key?[key]:[];if(key)seen.add(key);
   }
   return output;
 }

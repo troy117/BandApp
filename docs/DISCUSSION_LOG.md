@@ -2,6 +2,10 @@
 
 This is a concise project discussion log, written at the user's request so work can continue from another computer. It records requirements and decisions, not a verbatim chat transcript.
 
+## October 29 — Drum reports and hi-hats
+
+The user requested smaller report title/summary fields, timing graph at the top, and Retry beside Exit to return to fullscreen ready to begin. They also reported open and closed hi-hats registering alike and sharing a keyboard letter. Prototype 29 supplies distinct closed/open/pedal targets, preserves custom configuration, and uses documented TD-17 note numbers without an invented CC4 threshold. Report Retry is a synchronous preparation/fullscreen action, separate from saved-history Play again and shared teacher transport. This task authorizes a tested local commit only; push, PR and deployment require subsequent approval. See [details](DRUM_REPORTS_AND_HIHAT.md).
+
 ## Original direction
 
 - Build a browser-based drum learning game inspired by Rock Band, with timing feedback useful for a student.

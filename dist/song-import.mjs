@@ -1,6 +1,6 @@
 import { validateTimingMap } from './timing-map.mjs';
 import { backingChoices, backingFileKind, withBacking } from './backing-tracks.mjs';
-import { DRUMS } from './engine.mjs';
+import { DRUMS, drumMappingId, mappedDrum, validDrumMapping } from './engine.mjs';
 import { parseMidiSong, pitchChoices, makeMidiChart, backingSchedule } from './midi.mjs';
 import { createDemoMidi, createDemoWav } from './demo-data.mjs';
 import { STUDENT_INSTRUMENTS } from './student-preferences.mjs';
@@ -104,7 +104,7 @@ export class SongImporter {
     const profile = this.profile(song);
     const selected = Array.isArray(profile.selected) ? profile.selected.filter(id => song.parts.some(part => part.id === id)) : song.selected;
     const mapping = {};
-    for (const [pitch, drum] of Object.entries(profile.mapping || {})) if (/^\d{1,3}$/.test(pitch) && (drum === 'ignore' || DRUMS.some(item => item.id === drum))) mapping[pitch] = drum;
+    for (const [pitch, drum] of Object.entries(profile.mapping || {})) if (/^\d{1,3}$/.test(pitch) && validDrumMapping(drum)) mapping[pitch] = drum;
     for (const part of song.parts.filter(part => part.rhythmGame)) for (const note of part.notes) if (!(note.pitch in mapping)) mapping[note.pitch] = 'ignore';
     return { song, selected: selected.length ? selected : song.selected, mapping, buffer: null, audioName: '', midiBytes: null, audioBytes: null, libraryId: null, timeScale: Number.isFinite(profile.timeScale) && profile.timeScale >= 0.5 && profile.timeScale <= 2 ? profile.timeScale : 1, offset: Number.isFinite(profile.offset) && Math.abs(profile.offset) <= 300 ? profile.offset : 0, volume: Number.isFinite(profile.volume) && profile.volume >= 0 && profile.volume <= 1 ? profile.volume : 0.65 };
   }
@@ -196,7 +196,7 @@ export class SongImporter {
   }
   renderMapping() {
     const { song, selected, mapping } = this.draft;
-    this.el('midi-mapping').innerHTML = pitchChoices(song, selected).map(item => `<label class="pitch-choice"><span><strong>${item.pitch} <span>${escapeHtml(item.name)}</span></strong><small>${item.count} strike${item.count === 1 ? '' : 's'}</small></span><select data-pitch="${item.pitch}" aria-label="MIDI note ${item.pitch} drum assignment" ${this.busy ? 'disabled' : ''}>${[{ id: 'ignore', name: 'Ignore this note' }, ...DRUMS].map(drum => `<option value="${drum.id}" ${(mapping[item.pitch] ?? item.defaultDrum) === drum.id ? 'selected' : ''}>${drum.name}</option>`).join('')}</select></label>`).join('');
+    this.el('midi-mapping').innerHTML = pitchChoices(song, selected).map(item => `<label class="pitch-choice"><span><strong>${item.pitch} <span>${escapeHtml(item.name)}</span></strong><small>${item.count} strike${item.count === 1 ? '' : 's'}</small></span><select data-pitch="${item.pitch}" aria-label="MIDI note ${item.pitch} drum assignment" ${this.busy ? 'disabled' : ''}>${[{ id: 'ignore', name: 'Ignore this note' }, ...DRUMS].map(drum => `<option value="${drumMappingId(drum.id)}" ${mappedDrum(item.pitch,mapping[item.pitch] ?? item.defaultDrum) === drum.id ? 'selected' : ''}>${drum.name}</option>`).join('')}</select></label>`).join('');
   }
   exportSetup() {
     if (!this.draft || this.busy) return;
@@ -219,7 +219,7 @@ export class SongImporter {
       if (token !== this.token) return;
       if (setup.format !== 'groove-lab-song-setup' || setup.version !== 1 || setup.fingerprint !== this.draft.song.fingerprint) throw new Error('This setup belongs to a different MIDI file. Import the exact original MIDI first.');
       validateAlignment(setup.offset, setup.timeScale);
-      if (!Array.isArray(setup.selected) || !setup.selected.every(id => this.draft.song.parts.some(part => part.id === id)) || !setup.mapping || typeof setup.mapping !== 'object' || Array.isArray(setup.mapping) || !Object.entries(setup.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && (drum === 'ignore' || DRUMS.some(item => item.id === drum))) || !Number.isFinite(setup.volume) || setup.volume < 0 || setup.volume > 1) throw new Error('This setup has invalid drum assignments or volume.');
+      if (!Array.isArray(setup.selected) || !setup.selected.every(id => this.draft.song.parts.some(part => part.id === id)) || !setup.mapping || typeof setup.mapping !== 'object' || Array.isArray(setup.mapping) || !Object.entries(setup.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && validDrumMapping(drum)) || !Number.isFinite(setup.volume) || setup.volume < 0 || setup.volume > 1) throw new Error('This setup has invalid drum assignments or volume.');
       alignMidiChart(makeMidiChart(this.draft.song, setup.selected, setup.mapping,setup.pickupQuarters), setup.timeScale,validateTimingMap(setup.timingMap));
       if (this.draft.buffer) backingSchedule(0, setup.offset, this.draft.buffer.duration);
       this.sync.stop(); Object.assign(this.draft, { selected: [...setup.selected], mapping: { ...setup.mapping }, offset: setup.offset, timeScale: setup.timeScale, volume: setup.volume,pickupQuarters:setup.pickupQuarters, audioStart:0, audioEnd:null, ...validateAudioRange(setup,this.draft.buffer?.duration),timingMap:validateTimingMap(setup.timingMap) });

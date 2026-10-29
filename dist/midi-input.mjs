@@ -1,18 +1,18 @@
-import { DRUMS } from './engine.mjs';
+import { DRUMS, drumMappingId, mappedDrum, validDrumMapping } from './engine.mjs';
 
-export const DEFAULT_MIDI_MAPPING = Object.fromEntries(DRUMS.flatMap(drum => drum.midi.map(pitch => [pitch, drum.id])));
+export const DEFAULT_MIDI_MAPPING = Object.fromEntries(DRUMS.flatMap(drum => drum.midi.map(pitch => [pitch, drumMappingId(drum.id)])));
 Object.assign(DEFAULT_MIDI_MAPPING, { 37: 'snare', 52: 'crash' });
 export function validateMidiMapping(input) {
   const result = { ...DEFAULT_MIDI_MAPPING };
   if (!input || typeof input !== 'object' || Array.isArray(input)) return result;
   for (const [pitch, drum] of Object.entries(input)) {
-    if (/^(0|[1-9]\d{0,2})$/.test(pitch) && Number(pitch) <= 127 && (drum === 'ignore' || DRUMS.some(item => item.id === drum))) result[pitch] = drum;
+    if (/^(0|[1-9]\d{0,2})$/.test(pitch) && Number(pitch) <= 127 && validDrumMapping(drum)) result[pitch] = drumMappingId(mappedDrum(pitch,drum));
   }
   return result;
 }
 export function learnMidiNote(mapping, pitch, drum) {
   if (!Number.isInteger(pitch) || pitch < 0 || pitch > 127 || !DRUMS.some(item => item.id === drum)) throw new Error('Choose a drum and play a valid MIDI note.');
-  return { ...validateMidiMapping(mapping), [pitch]: drum };
+  return { ...validateMidiMapping(mapping), [pitch]: drumMappingId(drum) };
 }
 export function midiNote(event, now = () => performance.now()) {
   const bytes = event.data;

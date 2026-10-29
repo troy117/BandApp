@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_MIDI_MAPPING, validateMidiMapping, learnMidiNote, midiNote, MidiDrumInput } from '../dist/midi-input.mjs';
-import { Judge, createChart } from '../dist/engine.mjs';
+import { Judge, createChart, mappedDrum } from '../dist/engine.mjs';
 
 class InputPort extends EventTarget {
   constructor(id, name = id) { super(); Object.assign(this, { id, name, state: 'connected', opens: 0, closes: 0 }); }
@@ -75,9 +75,9 @@ test('busy inputs can retry and abandoned permission/open requests cannot reconn
 });
 test('MIDI input reaches the existing early/late judge without rounding or losing simultaneous notes', async () => {
   const chart = createChart('rock', 80, 4); const judge = new Judge(chart, 140);
-  const env = fixture([], { onNote: note => judge.strike(DEFAULT_MIDI_MAPPING[note.pitch], note.timestamp / 1000 - 1, 'midi') });
+  const env = fixture([], { onNote: note => judge.strike(mappedDrum(note.pitch,DEFAULT_MIDI_MAPPING[note.pitch]), note.timestamp / 1000 - 1, 'midi') });
   const kit = new InputPort('kit', 'TD-17'); env.access.inputs.set(kit.id, kit); await env.source.connect();
   const first = chart.notes.filter(note => note.time === chart.notes[0].time);
-  for (const note of first) { const pitch = Object.keys(DEFAULT_MIDI_MAPPING).find(pitch => DEFAULT_MIDI_MAPPING[pitch] === note.drum); kit.hit([0x99, Number(pitch), 110], (1 + note.time + .0234) * 1000); }
+  for (const note of first) { const pitch = Object.keys(DEFAULT_MIDI_MAPPING).find(pitch => mappedDrum(pitch,DEFAULT_MIDI_MAPPING[pitch]) === note.drum); kit.hit([0x99, Number(pitch), 110], (1 + note.time + .0234) * 1000); }
   assert.equal(judge.summary().hits, first.length); for (const note of judge.chart.notes.slice(0, first.length)) assert.ok(Math.abs(note.errorMs - 23.4) < 1e-8);
 });

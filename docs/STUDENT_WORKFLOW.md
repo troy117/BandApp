@@ -9,6 +9,8 @@ October 22, 2026. This release reorganizes practice and adds detailed, reusable 
 - Students land on their default instrument after sign-in. The separate drum-pad/keyboard-is-the-kit panel is removed. Key labels remain by the highway; Controls still provides keyboard remapping, timing settings and USB drumkit configuration.
 - Your practice journal starts closed. Click its heading to expand it, then click a result row to reopen the report. Teacher/student account result lists also have a Report button on each accuracy result.
 
+Prototype 29 adds a compact drum report with the timing graph first, **Retry** beside **Exit**, and separate closed/open/pedal hi-hat targets. See [current report and hi-hat behavior](DRUM_REPORTS_AND_HIHAT.md). Retry returns the current solo setup to fullscreen, waiting for Play; historical Play again keeps its existing behavior.
+
 ## Reports for completed and stopped songs
 
 New scored drum and keyboard attempts save note-level detail. Stopping through Stop/Escape opens a report of the notes reached before the stop. Future notes do not become misses. A reached note with an unfinished timing window is closed when the attempt is stopped. Notes already played slightly early remain included. Count-ins and listen-only playback do not create scored attempts. Stopping during an intro before any expected notes shows a local empty report without adding a zero-note saved attempt. Keyboard/drum input loss or an interrupted shared take can retain a partial individual report without claiming that the shared take completed.

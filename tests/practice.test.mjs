@@ -24,7 +24,7 @@ test('24 original tracks span four levels and valid, distinct four-bar patterns'
     }
   }
   assert.equal(distinct.size, 24);
-  assert.deepEqual([...drums].sort(), DRUMS.map(drum => drum.id).sort());
+  assert.deepEqual([...drums].sort(), DRUMS.filter(drum => !['hihat-open','hihat-pedal'].includes(drum.id)).map(drum => drum.id).sort());
 });
 test('section repeats include the selected bars, reset their origin, and keep source data intact', () => {
   const source = createChart('rock', 120, 4), before = structuredClone(source);

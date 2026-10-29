@@ -23,6 +23,10 @@ npm run dev
 
 Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open the standalone HTML file in Chrome, or serve the `dist` directory from an HTTPS host. No Electron or Linux subsystem is needed. The modular `dist/index.html` needs an HTTP server; the generated standalone copy also works directly from a file.
 
+## Drum reports and hi-hat voices
+
+Prototype 29 puts the timing graph first in compact drum reports and adds **Retry** beside **Exit**. Retry returns the current solo setup to fullscreen, ready for Play. Closed/open/pedal hi-hat now have distinct MIDI targets and default keys **D/E/R**, with custom settings preserved. See [usage, compatibility and hardware checks](docs/DRUM_REPORTS_AND_HIHAT.md).
+
 ## Session controls and lyric timing
 
 Prototype 28 separates guitar parts, retains original tablature and tunings, handles short pickup measures, and adds seek/pause/bar-loop listening in focus view. Unscored solo listening continues across tab changes. See [guitar and bass practice](docs/GUITAR_AND_BASS.md).
@@ -76,7 +80,7 @@ Connections require a supported browser (target: Chrome on Windows/ChromeOS) on 
 - Click **Start groove** or press Enter. Four metronome beats count you in.
 - Meet each approaching note in its matching hit box. The center mark is the exact beat. The first exercise uses Kick, Snare, and Hi-hat.
 - Use **Note highway / Sheet music / Full sheet** to change views, including during playback. All three views share the same song clock, keyboard controls, scoring, and report.
-- Space = kick, F/G = snare, D = hi-hat, J/K/L = toms, A = crash, S = ride.
+- Space = kick, F/G = snare, D = closed hi-hat, E = open hi-hat, R = pedal hi-hat, J/K/L = toms, A = crash, S = ride.
 - **Controls** lets you replace keys or add alternates. Duplicate assignments are rejected. Keys and practice settings save in this browser's local storage. If storage is blocked, changes last for the visit.
 - **Listen first** plays an unscored demonstration. **Guide drums** adds demonstration drums to a scored run; the score always requires actual user input.
 - Esc stops a run. Complete a run to see timing results or export per-note CSV.

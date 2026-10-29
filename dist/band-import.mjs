@@ -6,6 +6,7 @@ import { BandBacking } from './band-backing.mjs';
 import {STANDARD_STRINGS,DROP_D_STRINGS,retunePart} from './fretted-parts.mjs';
 import { parseMidiSong, validatePickup } from './midi.mjs';
 import { DEFAULT_MIDI_MAPPING } from './midi-input.mjs';
+import { validDrumMapping } from './engine.mjs';
 import { arrangementParts, importedArrangement } from './arrangements.mjs';
 import { validateAlignment } from './sync.mjs';
 import { validateAudioRange } from './backing-range.mjs';
@@ -296,7 +297,7 @@ export class BandImport {
     if (!Number.isFinite(setup.volume) || setup.volume < 0 || setup.volume > 1 || typeof setup.title !== 'string' || !setup.title.trim() || setup.title.length > 120) throw new Error('Invalid arrangement setup.');
     this.draft.partDefinitions=parts;this.renderParts();this.q('b-pickup').value=setup.pickupQuarters||0;
     if (setup.mapping !== undefined) {
-      if (!setup.mapping || typeof setup.mapping !== 'object' || Array.isArray(setup.mapping) || Object.entries(setup.mapping).some(([pitch, drum]) => !/^\d{1,3}$/.test(pitch) || Number(pitch) > 127 || !Object.values(DEFAULT_MIDI_MAPPING).includes(drum) && drum !== 'ignore')) throw new Error('Invalid drum assignments in this setup.');
+      if (!setup.mapping || typeof setup.mapping !== 'object' || Array.isArray(setup.mapping) || Object.entries(setup.mapping).some(([pitch, drum]) => !/^\d{1,3}$/.test(pitch) || Number(pitch) > 127 || !validDrumMapping(drum))) throw new Error('Invalid drum assignments in this setup.');
       this.draft.mapping = { ...setup.mapping };
     }
     this.q('b-import-title').value = setup.title; this.q('b-import-offset').value = setup.offset; this.q('b-import-speed').value = 100 / setup.timeScale; this.q('b-import-volume').value = setup.volume * 100;

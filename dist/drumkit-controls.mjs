@@ -1,4 +1,4 @@
-import { DRUMS } from './engine.mjs';
+import { DRUMS, mappedDrum } from './engine.mjs';
 import { MidiDrumInput, DEFAULT_MIDI_MAPPING, validateMidiMapping, learnMidiNote } from './midi-input.mjs';
 
 export class DrumkitControls {
@@ -49,7 +49,7 @@ export class DrumkitControls {
       const name = this.document.createElement('strong'); name.textContent = drum.name;
       const notes = this.document.createElement('span'); notes.className = 'midi-note-list';
       for (const [pitch, owner] of Object.entries(this.mapping)) {
-        if (owner !== drum.id) continue;
+        if (mappedDrum(pitch,owner) !== drum.id) continue;
         const chip = this.document.createElement('button'); chip.className = 'midi-note-chip'; chip.dataset.midiRemove = pitch; chip.textContent = `${pitch} ×`; chip.setAttribute('aria-label', `Ignore MIDI note ${pitch} for ${drum.name}`); notes.append(chip);
       }
       if (!notes.children.length) notes.textContent = 'No pad assigned';
@@ -74,7 +74,7 @@ export class DrumkitControls {
     if (state.status !== 'ready') this.cancelLearn(); else { this.persist(); this.renderMappings(); }
   }
   receive(note) {
-    let drum = this.mapping[note.pitch];
+    let drum = mappedDrum(note.pitch,this.mapping[note.pitch]);
     if (this.learning) {
       const previous = DRUMS.find(item => item.id === drum)?.name;
       drum = this.learning; this.mapping = learnMidiNote(this.mapping, note.pitch, drum); this.learning = null;

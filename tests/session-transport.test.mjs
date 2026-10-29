@@ -37,20 +37,20 @@ test('late sections retain tempo changes and empty parts so every student can fo
   assert.ok(sliced.duration > 0);
 });
 
-test('highway separates open and closed hi-hats while preserving drum judging and saved lane order', () => {
-  const chart = { notes: [{ drum: 'hihat', midiPitch: 42 }, { drum: 'hihat', midiPitch: 46 }, { drum: 'hihat', midiPitch: 44 }, { drum: 'hihat', midiPitch: 26 }, { drum: 'snare', midiPitch: 46 }] };
-  assert.deepEqual(chart.notes.map(drumHighwayLane), ['hihat', 'hihat-open', 'hihat', 'hihat-open', 'snare']);
+test('highway uses distinct scored hi-hat voices and preserves legacy lane order', () => {
+  const chart = { notes: [{ drum: 'hihat', midiPitch: 42 }, { drum: 'hihat-open', midiPitch: 46 }, { drum: 'hihat-pedal', midiPitch: 44 }, { drum: 'hihat-open', midiPitch: 26 }, { drum: 'snare', midiPitch: 46 }] };
+  assert.deepEqual(chart.notes.map(drumHighwayLane), ['hihat', 'hihat-open', 'hihat-pedal', 'hihat-open', 'snare']);
   const lanes = drumHighwayLanes(chart);
-  assert.deepEqual(lanes.map(lane => lane.id), ['hihat', 'hihat-open', 'snare']);
-  assert.equal(lanes[1].drumId, 'hihat');
+  assert.deepEqual(lanes.map(lane => lane.id), ['hihat', 'hihat-open', 'hihat-pedal', 'snare']);
+  assert.equal(lanes[1].drumId, 'hihat-open');
   assert.equal(drumHighwayLanes({ notes: [{ drum: 'hihat' }] }).length, 1);
   const order = ['snare', 'kick', 'hihat', 'tom1', 'tom2', 'tom3', 'crash', 'ride'];
-  assert.deepEqual(drumHighwayLanes(chart, order).map(lane => lane.id), ['snare', 'hihat', 'hihat-open']);
+  assert.deepEqual(drumHighwayLanes(chart, order).map(lane => lane.id), ['snare', 'hihat', 'hihat-open', 'hihat-pedal']);
 });
 
 test('shared drum renderer draws labelled hi-hat boxes with finite geometry at narrow and wide sizes', () => {
   const chart = builtinArrangement().parts[0].chart;
-  chart.notes[0] = { ...chart.notes[0], drum: 'hihat', midiPitch: 46 };
+  chart.notes[0] = { ...chart.notes[0], drum: 'hihat-open', midiPitch: 46 };
   const labels = [], context = new Proxy({}, { get: (_object, key) => key === 'createLinearGradient' ? () => ({ addColorStop() {} }) : (...args) => {
     assert.ok(args.every(value => typeof value !== 'number' || Number.isFinite(value)));
     if (key === 'fillText') labels.push(args[0]);

@@ -18,6 +18,7 @@ export function makeRunReport(judge, { instrument = 'drums', elapsed = judge.cha
   const chart = judge.chart;
   return {
     version: 1, instrument, stopped, elapsed: Math.max(0, Math.min(chart.duration, elapsed)), duration: chart.duration,
+    ...(instrument==='drums'?{hiHatVoices:true}:{}),
     tolerance: judge.toleranceMs ?? 140, offset, planned: chart.notes.length, measures: reportMeasures(chart),
     // Compact tuples keep a long song's note detail practical to store and download.
     notes: chart.notes.map(note => [note.time, note.bar, note.beat, note.drum ?? note.pitch, note.status, note.errorMs ?? null, note.actualPitch ?? null, note.sourceBar ?? note.bar, note.pass ?? 1]),

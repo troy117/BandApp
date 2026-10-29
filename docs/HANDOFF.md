@@ -1,15 +1,19 @@
 # Groove Lab — development handoff
 
-Updated October 25, 2026. This is the starting point for continuing at home.
+Updated October 29, 2026. This is the starting point for continuing at home.
 
 ## Where things stand
 
-- Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.27.0 / Prototype 27**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Repository: https://github.com/troy117/BandApp — published branch `main`; current local work `improve/drum-report-retry`.
+- Browser app, version **0.29.0 / Prototype 29**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Drum report and hi-hat update
+
+Prototype 29 is prepared locally on `improve/drum-report-retry`; it is not pushed or deployed. The current authorization requires approval before publishing. Read [DRUM_REPORTS_AND_HIHAT.md](DRUM_REPORTS_AND_HIHAT.md) for behavior, compatibility, validation and physical TD-17 checks. Drum reports put the timing graph first, compact the title/summary and offer Retry beside Exit for the current solo attempt. Retry resets to the same fullscreen setup without autoplay or resaving the prior result. Jam/history/teacher/other-instrument flows are preserved. Hi-hat closed/open/pedal targets are separate with D/E/R defaults; legacy mappings and custom keys migrate without collisions, CC4 never becomes a strike, and old report grading stays unchanged. 252 tests, syntax, standalone and isolated Chromium QA pass. No production data access, schema, dependency or hosting changes.
 
 ## Guitar, bass and listening review
 

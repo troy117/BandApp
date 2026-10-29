@@ -1,3 +1,10 @@
+# 0.29.0 — Compact drum reports, ready-to-play Retry and distinct hi-hats
+
+- Move the drum timing graph above six compact summary fields; shrink the heading and add Retry beside Exit for the current solo attempt. Retry preserves the loaded setup, resets live state, requests fullscreen from the click and waits for Play. Prior results and pending saves remain intact; shared transport and saved-history replay stay separate.
+- Distinguish closed/open/pedal hi-hat in MIDI imports, input, scoring, labels, notation and sounds. Default keys D/E/R and TD-17 notes 42/22, 46/26, 44. Preserve custom keys/mappings, legacy song setups and lane order; ignore CC4 and release messages as strikes. Old reports retain their original combined hi-hat meaning.
+- 252 tests, syntax and standalone export pass. Isolated Chromium QA covers retry lifecycle, native/fallback fullscreen, responsive/keyboard controls, persistence, report transitions, staff access and synthetic hi-hat correctness/mismatches. Physical TD-17 validation remains outstanding.
+- No schema, dependency, hosting variable or volume changes. Prepared as a local commit; no push/deployment authorized yet. See [details and hardware check](docs/DRUM_REPORTS_AND_HIHAT.md).
+
 # 0.28.0 — Guitar parts, original tablature and listening controls
 
 - Select separate guitar parts, retaining that choice when changing backing. Teachers can name additional parts, choose Standard/Drop D tunings, import prepared original tablature and preserve it through publication/setup export.

@@ -122,7 +122,7 @@ function renderView() {
   if (sheet && imported) $('view-help').textContent += ' MIDI rhythms are rounded for readable notation; playback and scoring keep the original timing. Lyrics and original engraving are not included in MIDI.';
   $('view-availability').hidden = true;
   canvas.setAttribute('aria-label', sheet ? 'Drum sheet music on a five-line percussion staff. Filled heads are drums, X heads are cymbals, and rests mean silence. Follow the gold playhead and the drum/key legend.' : 'Approaching drum notes. Press each drum key when its colored bar is centered in the matching hit box.');
-  $('sheet-legend').innerHTML = laneDrums.map(drum => `<span style="--drum-color:${drum.color}"><i aria-hidden="true">${['hihat', 'crash', 'ride'].includes(drum.id) ? '×' : '●'}</i>${drum.name}<kbd>${bindings[drum.id].map(keyLabel).join(' / ') || 'Unassigned'}</kbd></span>`).join('') + '<small>Same column = play together · Rests = silence</small>';
+  $('sheet-legend').innerHTML = laneDrums.map(drum => `<span style="--drum-color:${drum.color}"><i aria-hidden="true">${['hihat', 'hihat-open', 'hihat-pedal', 'crash', 'ride'].includes(drum.id) ? '×' : '●'}</i>${drum.name}<kbd>${bindings[drum.id].map(keyLabel).join(' / ') || 'Unassigned'}</kbd></span>`).join('') + '<small>Same column = play together · Rests = silence</small>';
   $('score-legend').innerHTML = $('sheet-legend').innerHTML;
 }
 
@@ -256,6 +256,7 @@ async function startRun(mode = 'practice') {
     const chart = previewChart;
     const beat = chart.countInBeatSeconds;
     session = { mode, judge: new Judge(chart, settings.tolerance), sourceKey: practice.key, accountId: school.user?.id || null, schoolSource: settings.grooveId === 'imported' ? loadedSong.schoolSource : null, startAt: audio.context.currentTime + 0.18 + chart.countInBeats * beat, scheduledBeat: 0, scheduledCount: 0, scheduledNote: 0, settings: { ...settings }, backing: settings.grooveId === 'imported' ? loadedSong.backing : null, lastCount: null };
+    session.practiceOptions={...practice.options};session.loadedSong=loadedSong;
     if (session.backing) for (const segment of backingSegments(chart, session.backing)) audio.playBacking(session.backing.buffer, session.startAt + segment.when, segment.offset, session.backing.volume, segment.duration);
     flashes.clear();
     $('start').innerHTML = '<span aria-hidden="true">■</span> Stop groove <kbd>Esc</kbd>';
@@ -299,7 +300,7 @@ function saveDrumAttempt(finished, stopped = false, played = finished.judge.char
   const kind=judge.chart.kind==='groove'?'builtin':finished.schoolSource?'school':'personal';
   const reference={stopped,report,sourceKind:kind,sourceId:kind==='builtin'?judge.chart.grooveId:kind==='school'?finished.schoolSource.songId:finished.sourceKey,revisionId:finished.schoolSource?.revisionId||null};
   const record=reached?practice.record(judge,finished.settings,reference):{...reference,id:crypto.randomUUID(),title:judge.chart.title,accuracy:0,hits:0,total:0,extras:judge.extras.length,meanMs:null,meanAbsMs:null,bpm:judge.chart.bpm,section:judge.chart.practice.startBar+'–'+judge.chart.practice.endBar,repeats:judge.chart.practice.repeats,focus:judge.chart.practice.focus};
-  lastReport={record,report};
+  lastReport={record,report,onRetry:()=>prepareDrumRetry(finished)};
   if(reached)school.record(record,finished.accountId);
   return judge;
 }
@@ -549,7 +550,22 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
-async function showReport() { if(!lastReport)return;await scoreScreen.exit();if(lastReport)reportView.open(lastReport.record,lastReport.report); }
+function prepareDrumRetry(finished) {
+  if(band.rooms.room)throw new Error('Leave the jam session before retrying individual practice.');
+  if(band.active||session||starting||practice.key!==finished.sourceKey||loadedSong!==finished.loadedSong)throw new Error('The practice setup changed. Exit this report and choose your song again.');
+  if((school.user?.id||null)!==finished.accountId)throw new Error('The signed-in account changed. Exit this report and start a new attempt.');
+  // Keep the loaded backing and current sound/view choices; restore the attempted plan.
+  Object.assign(settings,finished.settings,{view:settings.view,metronome:settings.metronome,guide:settings.guide});
+  Object.assign(practice.options,finished.practiceOptions);
+  stopRun();flashes.clear();lastStatsAt=0;
+  for(const timer of padTimers.values())clearTimeout(timer);
+  padTimers.clear();document.querySelectorAll('.drum-pad.flash').forEach(pad=>pad.classList.remove('flash'));
+  persist();syncSettings();practice.persist();
+  $('live-score').textContent='—';$('live-hits').textContent='0';$('live-streak').textContent='0';
+  feedback('Ready for another try.','Press Play when you’re ready.');notify('');
+  return ()=>scoreScreen.enter();
+}
+async function showReport() { if(!lastReport)return;await scoreScreen.exit();if(lastReport)reportView.open(lastReport.record,lastReport.report,{onRetry:lastReport.onRetry}); }
 async function openSavedReport(record, userId = school.user?.id) {
   if(!record)return;band?.stop('Practice report opened.',true,true);
   try {

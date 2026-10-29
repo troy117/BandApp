@@ -1,11 +1,12 @@
 import { parseMidi } from './vendor/midi-parser.mjs';
-import { DRUMS } from './engine.mjs';
+import { DRUMS, mappedDrum } from './engine.mjs';
 
 export const GM_DRUMS = {
+  22: ['Closed hi-hat edge (TD-17)', 'hihat-closed'], 26: ['Open hi-hat edge (TD-17)', 'hihat-open'],
   35: ['Acoustic bass drum', 'kick'], 36: ['Bass drum', 'kick'], 37: ['Side stick', 'snare'],
   38: ['Acoustic snare', 'snare'], 39: ['Hand clap', 'snare'], 40: ['Electric snare', 'snare'],
-  41: ['Low floor tom', 'tom3'], 42: ['Closed hi-hat', 'hihat'], 43: ['High floor tom', 'tom3'],
-  44: ['Pedal hi-hat', 'hihat'], 45: ['Low tom', 'tom2'], 46: ['Open hi-hat', 'hihat'],
+  41: ['Low floor tom', 'tom3'], 42: ['Closed hi-hat', 'hihat-closed'], 43: ['High floor tom', 'tom3'],
+  44: ['Pedal hi-hat', 'hihat-pedal'], 45: ['Low tom', 'tom2'], 46: ['Open hi-hat', 'hihat-open'],
   47: ['Low-mid tom', 'tom2'], 48: ['Hi-mid tom', 'tom1'], 49: ['Crash cymbal 1', 'crash'],
   50: ['High tom', 'tom1'], 51: ['Ride cymbal 1', 'ride'], 52: ['Chinese cymbal', 'crash'],
   53: ['Ride bell', 'ride'], 54: ['Tambourine', 'ignore'], 55: ['Splash cymbal', 'crash'],
@@ -158,7 +159,7 @@ export function makeMidiChart(song, selected, mapping = {}, pickupQuarters=0) {
   const notes = [], seen = new Set();
   let ignored = 0, combined = 0;
   for (const note of all) {
-    const drum = mapping[note.pitch] ?? GM_DRUMS[note.pitch]?.[1] ?? 'ignore';
+    const drum = mappedDrum(note.pitch,mapping[note.pitch] ?? GM_DRUMS[note.pitch]?.[1] ?? 'ignore');
     if (!DRUMS.some(item => item.id === drum)) { ignored++; continue; }
     const id = `${note.tick}:${drum}`;
     if (seen.has(id)) { combined++; continue; }

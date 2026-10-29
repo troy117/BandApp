@@ -13,7 +13,7 @@ import { parseMidiSong } from '../dist/midi.mjs';
 import { validateAlignment } from '../dist/sync.mjs';
 import { validateAudioRange } from '../dist/backing-range.mjs';
 import { validateBackingTracks, backingFileKind, withBacking } from '../dist/backing-tracks.mjs';
-import { DRUMS, GROOVES } from '../dist/engine.mjs';
+import { DRUMS, GROOVES, validDrumMapping } from '../dist/engine.mjs';
 import { arrangementParts, importedArrangement } from '../dist/arrangements.mjs';
 import { BAND_SCHEMA, migrateBandStorage } from './band-results.mjs';
 import { passwordMinimum, PASSWORD_MAX_LENGTH } from '../dist/password-policy.mjs';
@@ -241,7 +241,7 @@ export class ClassroomStore {
     try { if(input.backingTracks !== undefined) backings=validateBackingTracks(input.backingTracks,input.defaultBackingId); } catch(error) { throw new SchoolError(400,error.message); }
     const audioName = input.audioBytes ? cleanText(input.audioName, 180, 'recording filename') : '';
     if (!Array.isArray(input.selected) || !input.selected.length && !(Array.isArray(input.parts) && input.parts.length && input.parts.every(part=>part?.instrument==='vocals')) || input.selected.length > 512 || !input.selected.every(id => typeof id === 'string' && /^\d{1,3}:\d{1,2}$/.test(id))) throw new SchoolError(400, 'Choose the instrument parts to publish.');
-    if (!input.mapping || typeof input.mapping !== 'object' || Array.isArray(input.mapping) || Object.keys(input.mapping).length > 128 || !Object.entries(input.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && Number(pitch) <= 127 && (drum === 'ignore' || DRUMS.some(item => item.id === drum)))) throw new SchoolError(400, 'Invalid drum assignments.');
+    if (!input.mapping || typeof input.mapping !== 'object' || Array.isArray(input.mapping) || Object.keys(input.mapping).length > 128 || !Object.entries(input.mapping).every(([pitch, drum]) => /^\d{1,3}$/.test(pitch) && Number(pitch) <= 127 && validDrumMapping(drum))) throw new SchoolError(400, 'Invalid drum assignments.');
     let alignment; try { alignment = {...validateAlignment(input.offset, input.timeScale), ...(input.audioBytes ? validateAudioRange(input) : {})}; } catch (error) { throw new SchoolError(400, error.message); }
     if (!Number.isFinite(input.volume) || input.volume < 0 || input.volume > 1) throw new SchoolError(400, 'Invalid recording volume.');
     let parts;
@@ -401,7 +401,7 @@ export function validateSchoolRun(input) {
   if (input.sourceKind === 'school' && (!uuidPattern.test(input.sourceId) || !uuidPattern.test(input.revisionId))) throw new SchoolError(400, 'Invalid school song reference.');
   const drums = Array.isArray(input.drums) ? input.drums : [];
   if (drums.some(item => !item || typeof item !== 'object')) throw new SchoolError(400, 'Invalid drum timing breakdown.');
-  if (!drums.length || drums.length > 8 || new Set(drums.map(item => item.id)).size !== drums.length || drums.some(item => !DRUMS.some(drum => drum.id === item.id) || !Number.isInteger(item.total) || item.total < 1 || !Number.isInteger(item.hits) || item.hits < 0 || item.hits > item.total || (item.hits ? !Number.isFinite(item.meanMs) || !Number.isFinite(item.meanAbsMs) || item.meanAbsMs < 0 || item.meanAbsMs > input.tolerance || Math.abs(item.meanMs) > item.meanAbsMs + 0.0001 : item.meanMs !== null || item.meanAbsMs !== null))) throw new SchoolError(400, 'Invalid drum timing breakdown.');
+  if (!drums.length || drums.length > DRUMS.length || new Set(drums.map(item => item.id)).size !== drums.length || drums.some(item => !DRUMS.some(drum => drum.id === item.id) || !Number.isInteger(item.total) || item.total < 1 || !Number.isInteger(item.hits) || item.hits < 0 || item.hits > item.total || (item.hits ? !Number.isFinite(item.meanMs) || !Number.isFinite(item.meanAbsMs) || item.meanAbsMs < 0 || item.meanAbsMs > input.tolerance || Math.abs(item.meanMs) > item.meanAbsMs + 0.0001 : item.meanMs !== null || item.meanAbsMs !== null))) throw new SchoolError(400, 'Invalid drum timing breakdown.');
   if (drums.reduce((sum, drum) => sum + drum.total, 0) !== input.total || drums.reduce((sum, drum) => sum + drum.hits, 0) !== input.hits) throw new SchoolError(400, 'The drum totals do not match the result.');
   return { id: input.id, sourceKind: input.sourceKind, sourceId: input.sourceId, revisionId: input.sourceKind === 'school' ? input.revisionId : null, title, grooveId: null, hits: input.hits, total: input.total, extras: input.extras, bestStreak: input.bestStreak, accuracy: input.hits / (input.total + input.extras) * 100, meanMs: input.meanMs, meanAbsMs: input.meanAbsMs, bpm: input.bpm, endBpm: input.endBpm, tolerance: input.tolerance, focus: input.focus, section: input.section, full: input.full, repeats: input.repeats, drums: drums.map(({ id, hits, total, meanMs, meanAbsMs }) => ({ id, hits, total, meanMs, meanAbsMs })) };
 }

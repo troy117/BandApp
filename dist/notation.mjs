@@ -1,7 +1,7 @@
 import { DRUMS } from './engine.mjs';
 
 // A single percussion rhythm voice. Display rounding never changes judged MIDI times.
-export const STAFF_POSITIONS = { kick: 3.5, snare: 1.5, hihat: -0.5, tom1: 0.5, tom2: 1, tom3: 2.5, crash: -1, ride: 0 };
+export const STAFF_POSITIONS = { kick: 3.5, snare: 1.5, hihat: -0.5, 'hihat-open': -0.5, 'hihat-pedal': 4.5, tom1: 0.5, tom2: 1, tom3: 2.5, crash: -1, ride: 0 };
 export function createNotation(chart) {
   if (!chart.notes?.length || !chart.beats?.length) return null;
   const measures = (chart.measures || Array.from({ length: chart.bars }, (_, i) => ({ bar: i + 1, startQuarter: i * 4, endQuarter: (i + 1) * 4, time: chart.beats[i * 4].time, endTime: chart.beats[(i + 1) * 4]?.time ?? chart.duration, numerator: 4, denominator: 4 }))).map(measure => ({ ...measure, tuplets: false }));
@@ -170,9 +170,10 @@ export function drawSheet(ctx, viewport, notation, chart, time, running, demo, o
       ctx.globalAlpha = !demo && note.status === 'miss' ? 0.5 : 1;
       ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineWidth = due ? 3 : 2.2;
       if (note.drum === 'crash') { ctx.strokeStyle = '#9aada1'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 11, y); ctx.lineTo(x + 11, y); ctx.stroke(); ctx.strokeStyle = color; ctx.lineWidth = due ? 3 : 2.2; }
-      if (['hihat', 'crash', 'ride'].includes(note.drum)) {
+      if (['hihat', 'hihat-open', 'hihat-pedal', 'crash', 'ride'].includes(note.drum)) {
         ctx.beginPath(); ctx.moveTo(x - 5, y - 4); ctx.lineTo(x + 5, y + 4); ctx.moveTo(x - 5, y + 4); ctx.lineTo(x + 5, y - 4); ctx.stroke();
       } else { ctx.beginPath(); ctx.ellipse(x, y, 6.5, 4.5, -0.28, 0, Math.PI * 2); ctx.fill(); }
+      if(note.drum==='hihat-open'){ctx.beginPath();ctx.arc(x,y-13,3.5,0,Math.PI*2);ctx.stroke();}
       if (!demo && note.status === 'hit') {
         ctx.strokeStyle = '#a0f3ce'; ctx.lineWidth = 1.6;
         ctx.beginPath(); ctx.moveTo(x - 4, y - 13); ctx.lineTo(x - 1, y - 10); ctx.lineTo(x + 5, y - 17); ctx.stroke();

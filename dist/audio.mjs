@@ -90,6 +90,8 @@ export class DrumAudio {
     if (drum === 'kick') this.tone(145, 42, time, 0.24, 1.1 * level);
     else if (drum === 'snare') { this.hiss(1700, time, 0.15, 0.65 * level); this.tone(185, 90, time, 0.12, 0.35 * level, 'triangle'); }
     else if (drum === 'hihat') this.hiss(6500, time, 0.055, 0.34 * level);
+    else if (drum === 'hihat-open') this.hiss(6500, time, 0.25, 0.34 * level);
+    else if (drum === 'hihat-pedal') this.hiss(6500, time, 0.035, 0.22 * level);
     else if (drum === 'crash') this.hiss(4800, time, 0.7, 0.5 * level);
     else if (drum === 'ride') { this.hiss(6000, time, 0.2, 0.24 * level); this.tone(1700, 1400, time, 0.18, 0.13 * level, 'triangle'); }
     else this.tone({ tom1: 235, tom2: 175, tom3: 118 }[drum] || 180, 65, time, 0.22, 0.65 * level, 'triangle');

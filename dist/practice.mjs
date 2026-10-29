@@ -2,7 +2,7 @@ import { DRUMS } from './engine.mjs';
 import { backingClip } from './backing-range.mjs';
 
 export const FOCUS_OPTIONS = { all: 'All drums', kick: 'Kick only', snare: 'Snare only', cymbals: 'Cymbals only', toms: 'Toms only' };
-const focusIds = focus => focus === 'all' ? DRUMS.map(drum => drum.id) : focus === 'cymbals' ? ['hihat', 'crash', 'ride'] : focus === 'toms' ? ['tom1', 'tom2', 'tom3'] : [focus];
+const focusIds = focus => focus === 'all' ? DRUMS.map(drum => drum.id) : focus === 'cymbals' ? ['hihat', 'hihat-open', 'hihat-pedal', 'crash', 'ride'] : focus === 'toms' ? ['tom1', 'tom2', 'tom3'] : [focus];
 
 export function createPracticeChart(source, options = {}, { allowEmpty = false } = {}) {
   const startBar = options.enabled ? Number(options.startBar) : 1;
