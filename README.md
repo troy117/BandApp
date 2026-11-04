@@ -23,6 +23,10 @@ npm run dev
 
 Open http://localhost:4173 in Chrome on Windows. For Chromebook testing, open the standalone HTML file in Chrome, or serve the `dist` directory from an HTTPS host. No Electron or Linux subsystem is needed. The modular `dist/index.html` needs an HTTP server; the generated standalone copy also works directly from a file.
 
+## Record a beat over audio
+
+Prototype 30 adds **Drums → Record a beat**. Load a WAV, choose 1–16 repeats, record your kit/keyboard hits, then play the audio and recorded beat together. Early stops keep a partial take. Explicit device saves retain the audio and hits for later practice; nothing uploads or becomes a graded result. See [usage, storage and hardware checks](docs/BEAT_RECORDER.md).
+
 ## Drum reports and hi-hat voices
 
 Prototype 29 puts the timing graph first in compact drum reports and adds **Retry** beside **Exit**. Retry returns the current solo setup to fullscreen, ready for Play. Closed/open/pedal hi-hat now have distinct MIDI targets and default keys **D/E/R**, with custom settings preserved. See [usage, compatibility and hardware checks](docs/DRUM_REPORTS_AND_HIHAT.md).

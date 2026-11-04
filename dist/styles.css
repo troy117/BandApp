@@ -10,6 +10,40 @@
 
 .library-dialog{width:min(720px,calc(100% - 36px))}.library-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;border-bottom:1px solid var(--line);padding-bottom:15px;margin-top:24px}.library-heading .text-button{font-size:10px}.library-list{min-height:110px;margin-bottom:18px}.library-song{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:20px 0;border-bottom:1px solid var(--line)}.library-song>div:first-child{min-width:0}.library-song h3{margin:0 0 8px;font-size:16px;font-weight:550;overflow-wrap:anywhere}.library-song p{font-size:10px;color:var(--gold);margin:0 0 8px}.library-song small{color:#97b2a2;font-size:10px;overflow-wrap:anywhere;display:block;line-height:1.6}.library-song-actions{display:flex;flex-direction:column;gap:12px;align-items:center;flex-shrink:0}.library-song-actions .button{font-size:10px;white-space:nowrap}.library-song-actions .text-button{font-size:10px}.library-empty{padding:24px 0;color:var(--muted);font-size:13px;line-height:1.9;max-width:480px}#import-dialog .dialog-actions{flex-wrap:wrap}#save-song{margin-left:auto}#open-library{white-space:nowrap}.top-actions{gap:16px}
 @media(max-width:540px){.top-actions{gap:6px}.top-actions .button{font-size:9px;padding:8px}.library-song{gap:12px}.library-song h3{font-size:13px}.library-song-actions .button{font-size:9px;padding:9px}.library-heading{gap:10px}.library-heading .eyebrow{font-size:7px}.library-heading .text-button{font-size:9px}#save-song{margin-left:0}#import-dialog .dialog-actions{gap:8px;justify-content:flex-end}}
+/* The standalone export includes this stylesheet and the recorder modules. */
+.beat-recorder { width: min(940px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 24px; }
+.track-heading { flex-wrap: wrap; }
+.track-heading #open-beat-recorder { font-size: 11px; min-height: 40px; padding: 9px 12px; }
+.beat-recorder h2 { font-size: 25px; }
+.beat-recorder h3 { font-size: 16px; margin: 0 0 12px; }
+.beat-recorder section { border-top: 1px solid #354a4d; padding: 20px 0 6px; }
+.beat-recorder p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.beat-recorder label { display: grid; gap: 6px; font-size: 12px; }
+.beat-recorder input:not([type=range]):not([type=checkbox]) { min-height: 40px; max-width: 100%; min-width: 0; width: 100%; padding: 8px; background: #142326; color: #e6eeeb; border: 1px solid #52686c; border-radius: 6px; }
+.beat-recorder input[type=range] { width: 130px; max-width: 100%; }
+.beat-recorder .rec-file input { background: transparent; }
+.rec-message { position: sticky; top: 0; z-index: 2; padding: 12px; border-radius: 8px; background: #213d3a; color: #cff1e9; }
+.rec-settings { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; align-items: end; }
+.beat-recorder .rec-check { display: flex; align-items: center; min-height: 40px; }
+.rec-section-heading, .rec-actions, .rec-save { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.rec-section-heading { justify-content: space-between; margin-bottom: 12px; }
+.rec-section-heading h3 { margin: 0; }
+.rec-actions .button { min-height: 44px; }
+#rec-position { font-size: 13px; font-variant-numeric: tabular-nums; }
+#rec-progress { width: 100%; height: 8px; margin: 16px 0; accent-color: #64dac6; }
+.rec-pads { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; }
+.rec-pads button { min-height: 55px; background: #142326; color: #eff7f4; border: 1px solid var(--pad-color); border-radius: 8px; font: inherit; font-size: 11px; padding: 8px; touch-action: none; }
+.rec-pads button.rec-hit { background: var(--pad-color); color: #102022; }
+.beat-recorder .rec-small { color: #b5c9c5; font-size: 12px; }
+#rec-timeline { display: block; width: 100%; height: 230px; background: #101e22; border-radius: 8px; margin: 12px 0; }
+.beat-recorder [hidden] { display: none !important; }
+.rec-save { margin-top: 18px; align-items: end; }.rec-save label { flex: 1; min-width: 180px; }
+#rec-library { margin-top: 12px; padding: 16px 0; }#rec-library summary { cursor: pointer; font-size: 14px; }
+#rec-saved-list { margin-top: 12px; font-size: 13px; }
+.rec-saved-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid #354a4d; }
+.rec-saved-row span { flex: 1; overflow-wrap: anywhere; min-width: 0; }
+.beat-recorder :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+@media(max-width:600px) { .beat-recorder { padding: 16px; }.rec-settings { grid-template-columns: 1fr 1fr; gap: 10px; }.rec-check { grid-column: 1 / -1; }.rec-pads { grid-template-columns: repeat(2,minmax(0,1fr)); }.rec-actions { gap: 12px; }.rec-saved-row { flex-wrap: wrap; }.rec-saved-row span { flex-basis: 100%; } }
 /* USB drumkit controls share the existing keyboard/scoring clock. */
 .top-actions button.connection { background: transparent; border: 1px solid var(--line, #344348); border-radius: 20px; padding: 8px 11px; color: inherit; cursor: pointer; font: inherit; font-size: 12px; }
 .midi-controls { border: 1px solid var(--line, #344348); border-radius: 12px; padding: 16px; margin-bottom: 24px; }

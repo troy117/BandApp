@@ -2,9 +2,13 @@
 
 This is a concise project discussion log, written at the user's request so work can continue from another computer. It records requirements and decisions, not a verbatim chat transcript.
 
+## November 4 — Record a beat over audio
+
+The user requested repeated WAV playback, drum recording and synchronized replay for practice, with publishing authorized when done. The existing input path supplies MIDI hit events, so the recorder retains unquantized timestamps, velocities and distinct drum voices. It does not request microphone access or claim to record module audio. Separate solo transport prevents interference with graded practice or shared sessions. Device storage is explicit because classroom browsers can be shared; saves include backing audio and are not tied to a school account. See [BEAT_RECORDER.md](BEAT_RECORDER.md).
+
 ## October 29 — Drum reports and hi-hats
 
-The user requested smaller report title/summary fields, timing graph at the top, and Retry beside Exit to return to fullscreen ready to begin. They also reported open and closed hi-hats registering alike and sharing a keyboard letter. Prototype 29 supplies distinct closed/open/pedal targets, preserves custom configuration, and uses documented TD-17 note numbers without an invented CC4 threshold. Report Retry is a synchronous preparation/fullscreen action, separate from saved-history Play again and shared teacher transport. This task authorizes a tested local commit only; push, PR and deployment require subsequent approval. See [details](DRUM_REPORTS_AND_HIHAT.md).
+The user requested smaller report title/summary fields, timing graph at the top, and Retry beside Exit to return to fullscreen ready to begin. They also reported open and closed hi-hats registering alike and sharing a keyboard letter. Prototype 29 supplies distinct closed/open/pedal targets, preserves custom configuration, and uses documented TD-17 note numbers without an invented CC4 threshold. Report Retry is a synchronous preparation/fullscreen action, separate from saved-history Play again and shared teacher transport. The initial task authorized a tested local commit; the user subsequently approved publishing, and commit `755ed6f` was pushed to main. See [details](DRUM_REPORTS_AND_HIHAT.md).
 
 ## Original direction
 

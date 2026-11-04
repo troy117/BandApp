@@ -13,6 +13,7 @@ files.splice(files.indexOf('audio-sync.mjs'), 0, 'audio-sync-markup.mjs');
 files.splice(files.indexOf('audio-sync.mjs'), 0, 'backing-range.mjs', 'timing-map.mjs', 'backing-tracks.mjs');
 files.splice(files.indexOf('band-practice.mjs'), 0, 'keyboard-score.mjs');
 files.splice(files.indexOf('band-import.mjs'), 0, 'band-backing.mjs');
+files.splice(files.indexOf('app.mjs'), 0, 'beat-recorder.mjs', 'beat-library.mjs', 'beat-recorder-view.mjs');
 const modules = await Promise.all(files.map(file => readFile(new URL(`dist/${file}`, root), 'utf8')));
 const code = modules.map(source => source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '')).join('\n\n');
 const checked = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: code, encoding: 'utf8' });

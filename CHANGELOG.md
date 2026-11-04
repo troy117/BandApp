@@ -1,9 +1,16 @@
+# 0.30.0 — Record and practice drum beats over audio
+
+- Add Drums → Record a beat: WAV/browser audio import, exact audio-clock repeats, optional count-in and unquantized kit/keyboard/pad hit capture with velocity and separate hi-hat voices.
+- Replay the original audio with synthesized recorded drums and live practice input, separate volume controls and a take timeline. Stop retains partial takes; interruptions and repeated actions cancel audio cleanly.
+- Explicit device-local saves include the audio and beat, with reopen/update/delete. No microphone recording, uploads, graded results, school schema, dependency or hosting changes. Shared sessions cannot start the recorder.
+- All 263 tests, syntax, standalone export generation and isolated recorder/report/Retry browser suites pass. The optional file-URL runtime check was blocked by managed browser policy; HTTP app QA passed. See [usage and validation](docs/BEAT_RECORDER.md). Physical TD-17/audio-output timing remains a hardware verification step.
+
 # 0.29.0 — Compact drum reports, ready-to-play Retry and distinct hi-hats
 
 - Move the drum timing graph above six compact summary fields; shrink the heading and add Retry beside Exit for the current solo attempt. Retry preserves the loaded setup, resets live state, requests fullscreen from the click and waits for Play. Prior results and pending saves remain intact; shared transport and saved-history replay stay separate.
 - Distinguish closed/open/pedal hi-hat in MIDI imports, input, scoring, labels, notation and sounds. Default keys D/E/R and TD-17 notes 42/22, 46/26, 44. Preserve custom keys/mappings, legacy song setups and lane order; ignore CC4 and release messages as strikes. Old reports retain their original combined hi-hat meaning.
 - 252 tests, syntax and standalone export pass. Isolated Chromium QA covers retry lifecycle, native/fallback fullscreen, responsive/keyboard controls, persistence, report transitions, staff access and synthetic hi-hat correctness/mismatches. Physical TD-17 validation remains outstanding.
-- No schema, dependency, hosting variable or volume changes. Prepared as a local commit; no push/deployment authorized yet. See [details and hardware check](docs/DRUM_REPORTS_AND_HIHAT.md).
+- No schema, dependency, hosting variable or volume changes. Published to main as `755ed6f` after approval; Railway deployment was not independently verified. See [details and hardware check](docs/DRUM_REPORTS_AND_HIHAT.md).
 
 # 0.28.0 — Guitar parts, original tablature and listening controls
 

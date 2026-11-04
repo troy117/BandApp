@@ -16,10 +16,12 @@ import { ScoreScreen } from './score-screen.mjs';
 import { DrumkitControls } from './drumkit-controls.mjs';
 import { BandPractice } from './band-practice.mjs';
 import { HighwayExperience } from './highway-experience.mjs';
+import { BeatRecorderView } from './beat-recorder-view.mjs';
 
 const $ = id => document.getElementById(id);
 const audio = new DrumAudio();
 let band = null;
+let recorder = null;
 const storageKey = 'sierra-groove-lab-v1';
 let storageAvailable = true;
 let saved = {};
@@ -72,6 +74,7 @@ const drumExperience = new HighwayExperience($('practice-stage'), 'drum-performa
 const school = new SchoolClient({
   beforeOpen: () => { if (session || starting) stopRun('School account opened. Start a fresh run when you’re ready.'); band?.stop('School account opened.'); band?.rooms.unready('School account opened.'); },
   onIdentity: user => {
+    recorder?.clear();
     band?.identity();
     scoreScreen.exit();
     stopRun('The signed-in account changed.');
@@ -91,11 +94,12 @@ const school = new SchoolClient({
 importer.setSchool(school);
 const drumkit = new DrumkitControls({
   onHit: note => {
+    if (recorder?.acceptsInput) { recorder.hit(note.drum, note.timestamp, note.velocity, note.sound); return; }
     if (band?.active) { band.onKitHit(note); return; }
     if (document.querySelector('dialog[open]') && !$('settings-dialog').open) return;
     strike(note.drum, note.timestamp, 'midi', note.velocity, note.sound);
   },
-  onLost: () => { if (session || starting) stopRun('Drumkit disconnected. Reconnect it before starting a fresh run, or continue with the keyboard.',true); if (band?.active && !band.rooms.teacher && band.part.instrument === 'drums') { band.stop('Drumkit disconnected.',true,true); band.rooms.unready('Drumkit disconnected.'); } },
+  onLost: () => { recorder?.interrupt('Drumkit disconnected. Your recorded part is kept. Reconnect in Controls before recording again.'); if (session || starting) stopRun('Drumkit disconnected. Reconnect it before starting a fresh run, or continue with the keyboard.',true); if (band?.active && !band.rooms.teacher && band.part.instrument === 'drums') { band.stop('Drumkit disconnected.',true,true); band.rooms.unready('Drumkit disconnected.'); } },
   onLearn: () => { capture = null; renderMappings(); },
 });
 
@@ -232,6 +236,7 @@ function setLocked(locked) {
 function renderScoreControls() { scoreScreen.setPlayback({ running: Boolean(session), starting, valid: practice.valid }); }
 function elapsed() { return session ? audio.audibleTime() - session.startAt : 0; }
 async function startRun(mode = 'practice') {
+  if (recorder?.isOpen) return;
   if (school.user?.mustChangePassword) { await scoreScreen.exit(); school.openPassword(); return; }
   if (session || starting) { stopRun(undefined, true); return; }
   const enteredBpm = Number($('bpm').value);
@@ -386,6 +391,7 @@ function updateStats(judge) {
 
 // Timestamped input goes to the judge; animation frames only draw the view.
 new KeyboardSource().start(event => {
+  if (recorder?.isOpen) { recorder.key(event); return; }
   if (band?.active) return;
   if (document.querySelector('dialog[open]')) return;
   const code = event.controlId.slice('keyboard:'.length);
@@ -427,6 +433,7 @@ document.addEventListener('keydown', event => {
 }, true);
 
 function openSettings() {
+  recorder?.interrupt('Controls opened. Your recorded part is kept. Start again when ready.');
   if (band?.active) { band.stop('Controls opened.'); band.rooms.unready('Controls opened.'); }
   if (session || starting) stopRun('Controls opened. Start a fresh run after changing settings.');
   capture = null;
@@ -603,7 +610,17 @@ $('view-report').addEventListener('click',showReport);
 window.addEventListener('practice-open-report',event=>openSavedReport(event.detail.record,event.detail.userId));
 $('groove').innerHTML = LEVELS.map((name, index) => `<optgroup label="Level ${index + 1} · ${name}">${Object.entries(GROOVES).filter(([, track]) => track.level === index + 1).map(([id, track]) => `<option value="${id}">${escapeHtml(track.name)}</option>`).join('')}</optgroup>`).join('');
 syncSettings(); renderPads(); persist(); resize(); requestAnimationFrame(frame);
-band = new BandPractice({ school, beforeEnter: () => { scoreScreen.exit(); stopRun(); }, getDrumBindings: () => bindings, getDrumOrder: () => laneOrder, onReport: (record, report) => reportView.open(record, report), onAttempt: record => practice.remember(record), openDrumControls: () => openSettings() });
+band = new BandPractice({ school, beforeEnter: () => { recorder?.close(); scoreScreen.exit(); stopRun(); }, getDrumBindings: () => bindings, getDrumOrder: () => laneOrder, onReport: (record, report) => reportView.open(record, report), onAttempt: record => practice.remember(record), openDrumControls: () => openSettings() });
+recorder = new BeatRecorderView({
+  beforeOpen: () => {
+    if (band.rooms.room) throw new Error('Leave the jam session before recording an individual beat.');
+    if (band.active) throw new Error('Choose Drums before opening the beat recorder.');
+    scoreScreen.exit(); stopRun();
+  },
+  openControls: openSettings, getBindings: () => bindings, getOffset: () => settings.offset,
+});
+$('open-beat-recorder').addEventListener('click', () => { const error = recorder.open(); if(error)notify(error,true); });
+$('settings-dialog').addEventListener('close', () => { if(recorder.isOpen)recorder.renderPads(); });
 importer.bandActive = () => band.active;
 $('settings-dialog').addEventListener('close', () => { if (band.active && band.part.instrument === 'drums') band.renderKeys(); });
 school.init();
