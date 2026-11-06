@@ -33,6 +33,8 @@ Prototype 29 puts the timing graph first in compact drum reports and adds **Retr
 
 ## Session controls and lyric timing
 
+Prototype 31 adds Beginner, Easy, Intermediate and Original versions for individual MIDI drum practice, with fewer kit lanes and kick bursts, focus-view selection and difficulty-labelled reports. A batch exporter creates drum-only MIDI versions without changing the source files. See [drum difficulty](docs/DRUM_DIFFICULTY.md).
+
 Prototype 28 separates guitar parts, retains original tablature and tunings, handles short pickup measures, and adds seek/pause/bar-loop listening in focus view. Unscored solo listening continues across tab changes. See [guitar and bass practice](docs/GUITAR_AND_BASS.md).
 
 Prototype 25 compacts the song library with search, part/access filters, sorting and one Practice action per song. Teachers can keep test songs **Teachers only**, protected by the school API as well as the interface. See [school song access](docs/SONG_LIBRARY.md).

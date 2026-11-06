@@ -1,15 +1,19 @@
 # Groove Lab — development handoff
 
-Updated November 4, 2026. This is the starting point for continuing at home.
+Updated November 6, 2026. This is the starting point for continuing at home.
 
 ## Where things stand
 
-- Repository: https://github.com/troy117/BandApp — published branch `main`; current feature work `feature/drum-audio-recorder`.
-- Browser app, version **0.30.0 / Prototype 30**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Repository: https://github.com/troy117/BandApp — branch `main`.
+- Browser app, version **0.31.0 / Prototype 31**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Drum difficulty
+
+Prototype 31 adds pure drum reductions in drum-difficulty.mjs and a selector in individual MIDI drum practice/focus view. Beginner/Easy use three kit lanes; Intermediate simplifies cymbals/fills and kick bursts. It retains original attacks and backing clocks, recognizes swing/compound pulses and respects pickups/odd measures. Reduce before looping/focus; only selected kit pieces are scored. The optional drumDifficulty enum travels with reports and saved school results, including retry/history labels, with no schema change. Shared jams retain assigned original parts. All eight MIDIs from the source Songsterr folder were exported to 32 drum-only versions and verified by reimport, with originals unchanged. Private exports, local student QA and validation evidence are in artifacts/drum-difficulty-review/ and artifacts/Drum Difficulty Versions 2026-11-06/. See [DRUM_DIFFICULTY.md](DRUM_DIFFICULTY.md).
 
 ## Record a beat over audio
 

@@ -1,3 +1,10 @@
+# 0.31.0 — Easier drum parts
+
+- Add Beginner, Easy, Intermediate and Original choices to individual MIDI drum practice and focus view. Reduce kick triplets, dense hits and fills; use three lanes on the easiest levels. Preserve source attack times, silent bars, pickups, changing meters, swing, backing maps and tempo.
+- Apply difficulty before section/focus loops; score only the selected kit pieces. Preserve the level in saved reports, recent history and retry/report practice. Existing original reports and shared jam parts retain their behavior; no database migration or music republication is required.
+- Export four drum-only MIDI versions per source file with full duration, conductor events, comparison CSV and read-back validation. The private eight-song batch creates 32 files; source music remains excluded from Git.
+- Validate nested reductions, compound/swing/pickup/odd-meter rhythms, kick spacing, MIDI round trips, report matching and loop/focus behavior. See [drum difficulty](docs/DRUM_DIFFICULTY.md).
+
 # 0.30.0 — Record and practice drum beats over audio
 
 - Add Drums → Record a beat: WAV/browser audio import, exact audio-clock repeats, optional count-in and unquantized kit/keyboard/pad hit capture with velocity and separate hi-hat voices.

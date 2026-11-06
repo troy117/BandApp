@@ -1,3 +1,4 @@
+import {DRUM_DIFFICULTIES} from './drum-difficulty.mjs';
 import { VocalReportView } from './vocal-report-view.mjs';
 import { DRUMS } from './engine.mjs';
 import { pitchName } from './instruments.mjs';
@@ -48,7 +49,7 @@ export class RunReportView {
     if(record.instrument==='vocals'){this.vocal.open(record,report);return;}
     this.vocal.panel.hidden=true;this.q('report-title').textContent='Your music, in focus.';this.q('report-replay').textContent='Play again';
     this.scale=1;this.start=0;this.limit=250;this.selection=null;
-    this.q('report-subtitle').textContent=record.title+' · '+(record.partName||'Drums')+' · '+Math.round(record.bpm)+' BPM · '+(record.stopped?'Stopped · progress before stopping':'Completed attempt')+(report?' · '+formatDuration(report.elapsed)+' played':'');
+    this.q('report-subtitle').textContent=record.title+' · '+(record.partName||'Drums')+(record.drumDifficulty?' · '+DRUM_DIFFICULTIES[record.drumDifficulty].label:'')+' · '+Math.round(record.bpm)+' BPM · '+(record.stopped?'Stopped · progress before stopping':'Completed attempt')+(report?' · '+formatDuration(report.elapsed)+' played':'');
     this.q('report-stats').innerHTML=[[(record.total?Math.round(record.accuracy)+'%':'—'),'match rate'],[record.hits+' / '+record.total,'notes matched'],[record.misses??record.total-record.hits-(record.wrong||0),'missed'],[record.wrong||0,'wrong notes'],[record.extras,'extra notes'],[record.meanAbsMs===null?'—':Math.round(record.meanAbsMs)+' ms','average timing error']].map(([number,label])=>'<div class="report-stat"><strong>'+number+'</strong><span>'+label+'</span></div>').join('');
     this.q('report-detail-help').textContent=report?(!report.notes.length?'No expected notes were reached. This preview does not add a saved attempt. ':report.stopped?'Future notes were not counted. ':'')+'Match rate counts attempted notes and extras. Timing uses matched notes only.':'This older attempt saved an overall summary only. New attempts include a detailed note report.';
     this.q('report-detail').hidden=!report;this.q('download-report').hidden=!report;this.q('report-message').textContent='';this.q('report-replay').disabled=!report;this.q('report-slower').hidden=record.sourceKind!=='builtin';this.q('report-slower').disabled=!report||record.bpm<=40;this.q('report-next').hidden=record.sourceKind!=='builtin';

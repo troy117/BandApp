@@ -1,3 +1,4 @@
+import {DRUM_DIFFICULTIES} from './drum-difficulty.mjs';
 import { escapeHtml } from './song-import.mjs';
 import { DRUMS } from './engine.mjs';
 import { FOCUS_OPTIONS } from './practice.mjs';
@@ -356,7 +357,7 @@ function schoolMarkup() {
 function schoolRunMarkup(run) {
   if(run.instrument==='vocals')return '<article class="school-run"><div class="school-run-heading"><div><h4>'+escapeHtml(run.title)+'</h4><small>'+schoolDate(run.at)+' · Vocals · '+(run.stopped?'Stopped attempt':'Song complete')+'</small></div><button class="button secondary" data-open-run="'+escapeHtml(run.id)+'">'+Math.round(run.accuracy)+'% on pitch · Report</button></div><p>'+run.measuredSeconds.toFixed(1)+'s measured · '+Math.round(run.coverage)+'% of played melody measured · '+run.lowSeconds.toFixed(1)+'s low · '+run.highSeconds.toFixed(1)+'s high · '+(run.quietSeconds+run.unclearSeconds).toFixed(1)+'s quiet / unclear</p></article>';
   const title = escapeHtml(run.title), timing = run.meanAbsMs === null ? '' : ' · ' + Math.round(run.meanAbsMs) + ' ms average error · ' + schoolTiming(run.meanMs);
-  const part = run.partName ? ' · ' + escapeHtml(run.partName) : '', take = run.takeId ? ' · Shared take ' + escapeHtml(run.takeId.slice(0,8)) : '';
+  const part = (run.partName ? ' · ' + escapeHtml(run.partName) : '')+(run.drumDifficulty?' · '+(DRUM_DIFFICULTIES[run.drumDifficulty]?.label||'Original'):''), take = run.takeId ? ' · Shared take ' + escapeHtml(run.takeId.slice(0,8)) : '';
   const missed = run.misses ?? run.total - run.hits;
   const breakdown = run.drums?.length ? '<details><summary>Timing by drum</summary><div class="school-drum-stats">' + run.drums.map(drum => '<span><b>' + escapeHtml(drum.id==='hihat'?'Hi-hat':DRUMS.find(item=>item.id===drum.id)?.name || drum.id) + '</b> ' + drum.hits + '/' + drum.total + ' · ' + (drum.meanAbsMs === null ? 'No matched hits' : Math.round(drum.meanAbsMs) + ' ms avg. error · ' + schoolTiming(drum.meanMs)) + '</span>').join('') + '</div></details>' : '';
   return '<article class="school-run"><div class="school-run-heading"><div><h4>' + title + '</h4><small>' + schoolDate(run.at) + (run.stopped?' · Stopped':'') + ' · ' + Math.round(run.bpm) + ' BPM · Bars ' + escapeHtml(run.section) + ' × ' + run.repeats + part + take + '</small></div><button class="button secondary" data-open-run="' + escapeHtml(run.id) + '" aria-label="Open report for ' + title + '">' + Math.round(run.accuracy) + '% · Report</button></div><p>' + run.hits + '/' + run.total + ' matched · ' + missed + ' missed' + (run.wrong ? ' · ' + run.wrong + ' wrong notes' : '') + ' · ' + run.extras + ' extra · Best streak ' + run.bestStreak + timing + '</p>' + breakdown + '</article>';

@@ -1,3 +1,4 @@
+import {DRUM_DIFFICULTIES,simplifyDrumChart,difficultyDrums} from './drum-difficulty.mjs';
 import { GROOVES } from './engine.mjs';
 import { LEVELS } from './lessons.mjs';
 import { FOCUS_OPTIONS, createPracticeChart, savePracticeHistory } from './practice.mjs';
@@ -13,8 +14,10 @@ export class PracticeTools {
     try { stored = JSON.parse(localStorage.getItem('groove-lab-practice-v1') || '{}') || {}; } catch { /* Defaults remain available. */ }
     try { history = JSON.parse(localStorage.getItem('groove-lab-history-v1') || '[]'); } catch { /* History is optional. */ }
     this.storedKey = stored.key;
-    this.options = { enabled: stored.enabled === true, startBar: Number.isInteger(stored.startBar) ? stored.startBar : 1, endBar: Number.isInteger(stored.endBar) ? stored.endBar : 4, repeats: [1, 2, 4, 8].includes(stored.repeats) ? stored.repeats : 4, stepUp: stored.stepUp === true, focus: Object.hasOwn(FOCUS_OPTIONS, stored.focus) ? stored.focus : 'all' };
+    this.options = { enabled: stored.enabled === true, startBar: Number.isInteger(stored.startBar) ? stored.startBar : 1, endBar: Number.isInteger(stored.endBar) ? stored.endBar : 4, repeats: [1, 2, 4, 8].includes(stored.repeats) ? stored.repeats : 4, stepUp: stored.stepUp === true, focus: Object.hasOwn(FOCUS_OPTIONS, stored.focus) ? stored.focus : 'all',drumDifficulty:Object.hasOwn(DRUM_DIFFICULTIES,stored.drumDifficulty)?stored.drumDifficulty:'original' };
     this.history = Array.isArray(history) ? history.filter(item => item && typeof item.title === 'string' && Number.isFinite(item.at) && Number.isFinite(item.accuracy)).slice(0, 30) : [];
+    this.el('drum-difficulty').innerHTML=Object.entries(DRUM_DIFFICULTIES).map(([id,info])=>'<option value="'+id+'">'+info.label+'</option>').join('');
+    this.el('drum-difficulty').onchange=()=>{this.options.drumDifficulty=this.el('drum-difficulty').value;this.persist();this.onChange();};
     this.el('practice-focus').innerHTML = Object.entries(FOCUS_OPTIONS).map(([id, label]) => `<option value="${id}">${label}</option>`).join('');
     for (const [id, field] of [['loop-enabled', 'enabled'], ['loop-from', 'startBar'], ['loop-to', 'endBar'], ['loop-repeats', 'repeats'], ['tempo-step', 'stepUp'], ['practice-focus', 'focus']]) {
       this.el(id).addEventListener('change', () => {
@@ -43,6 +46,7 @@ export class PracticeTools {
       if (!keepSaved) Object.assign(this.options, { enabled: false, startBar: 1, endBar: Math.min(4, source.bars), focus: 'all' });
     }
     this.source = source;
+    this.el('drum-difficulty-field').hidden=source.kind!=='midi';this.el('drum-difficulty').value=this.options.drumDifficulty;
     this.options.startBar = Math.max(1, Math.min(source.bars, this.options.startBar));
     this.options.endBar = Math.max(this.options.startBar, Math.min(source.bars, this.options.endBar));
     this.el('loop-enabled').checked = this.options.enabled;
@@ -56,18 +60,21 @@ export class PracticeTools {
     this.lock(false);
   }
   lock(locked) {
-    for (const id of ['loop-enabled', 'practice-focus']) this.el(id).disabled = locked;
+    for (const id of ['loop-enabled', 'practice-focus','drum-difficulty']) this.el(id).disabled = locked;
     for (const id of ['loop-from', 'loop-to', 'loop-repeats']) this.el(id).disabled = locked || !this.options.enabled;
     this.el('tempo-step').disabled = locked || !this.options.enabled || this.source?.kind !== 'groove' || this.options.repeats === 1;
   }
   build(source) {
     try {
-      const chart = createPracticeChart(source, this.options);
+      const difficulty=source.kind==='midi'?this.options.drumDifficulty:'original',reduced=simplifyDrumChart(source,difficulty);
+      const chart = createPracticeChart(reduced, this.options);
+      const allowed=difficultyDrums(difficulty);if(allowed)chart.focusDrums=chart.focusDrums.filter(d=>allowed.includes(d));
+      this.el('drum-difficulty').title=DRUM_DIFFICULTIES[difficulty].description;
       const info = chart.practice;
       const tempos = chart.passes.map(pass => Math.round(pass.bpm));
       this.valid = true;
       this.el('practice-summary').classList.remove('error');
-      this.el('practice-summary').textContent = `${this.options.enabled ? `Bars ${info.startBar}–${info.endBar} · ${info.repeats} pass${info.repeats === 1 ? '' : 'es'}` : 'Whole track'} · ${FOCUS_OPTIONS[info.focus]} · ${chart.notes.length} hits · ${formatDuration(chart.duration)}${info.increment ? ` · ${tempos[0]} → ${tempos.at(-1)} BPM` : ''}. ${info.repeats > 1 ? 'One count-in, then continuous repeats.' : 'One count-in before you start.'}${source.kind === 'midi' ? ' Uses your song sync settings.' : ''}`;
+      this.el('practice-summary').textContent = `${this.options.enabled ? `Bars ${info.startBar}–${info.endBar} · ${info.repeats} pass${info.repeats === 1 ? '' : 'es'}` : 'Whole track'}${source.kind==='midi'?' · '+DRUM_DIFFICULTIES[difficulty].label:''} · ${FOCUS_OPTIONS[info.focus]} · ${chart.notes.length} hits · ${formatDuration(chart.duration)}${info.increment ? ` · ${tempos[0]} → ${tempos.at(-1)} BPM` : ''}. ${info.repeats > 1 ? 'One count-in, then continuous repeats.' : 'One count-in before you start.'}${source.kind === 'midi' ? ' Uses your song sync settings.' : ''}${reduced.drumDifficulty?' '+DRUM_DIFFICULTIES[difficulty].description+'. '+(reduced.originalDrumNotes-reduced.notes.length)+' hits omitted. Only the displayed kit pieces are scored.':''}`;
       return chart;
     } catch (error) {
       this.valid = false;
@@ -93,7 +100,7 @@ export class PracticeTools {
   }
   record(judge, settings, detail = {}) {
     const score = judge.summary(), chart = judge.chart;
-    const record = { ...detail, id: crypto.randomUUID(), at: Date.now(), grooveId: chart.grooveId || null, title: chart.title, accuracy: score.accuracy, meanMs: score.meanMs, meanAbsMs: score.meanAbsMs, extras: score.extras, bestStreak: score.bestStreak, drums: score.byDrum.map(({ id, hits, total, meanMs, meanAbsMs }) => ({ id, hits, total, meanMs, meanAbsMs })), bpm: Math.round(chart.bpm), endBpm: Math.round(chart.passes.at(-1).bpm), tolerance: settings.tolerance, focus: chart.practice.focus, full: chart.practice.full && !detail.stopped, section: `${chart.practice.startBar}–${chart.practice.endBar}`, repeats: chart.practice.repeats, hits: score.hits, total: score.total };
+    const record = { ...detail,...(chart.drumDifficulty?{drumDifficulty:chart.drumDifficulty}:{}), id: crypto.randomUUID(), at: Date.now(), grooveId: chart.grooveId || null, title: chart.title, accuracy: score.accuracy, meanMs: score.meanMs, meanAbsMs: score.meanAbsMs, extras: score.extras, bestStreak: score.bestStreak, drums: score.byDrum.map(({ id, hits, total, meanMs, meanAbsMs }) => ({ id, hits, total, meanMs, meanAbsMs })), bpm: Math.round(chart.bpm), endBpm: Math.round(chart.passes.at(-1).bpm), tolerance: settings.tolerance, focus: chart.practice.focus, full: chart.practice.full && !detail.stopped, section: `${chart.practice.startBar}–${chart.practice.endBar}`, repeats: chart.practice.repeats, hits: score.hits, total: score.total };
     this.remember(record);
     return record;
   }
@@ -105,6 +112,6 @@ export class PracticeTools {
   renderHistory() {
     const touched = new Set(this.history.filter(run => run.grooveId).map(run => run.grooveId)).size;
     this.el('progress-summary').textContent = `${touched} of ${Object.keys(GROOVES).length} tracks in recent runs · ${this.accountSummary?.attempts ?? this.history.length} ${this.accountHistory ? 'saved ' : ''}attempt${(this.accountSummary?.attempts ?? this.history.length) === 1 ? '' : 's'}`;
-    this.el('recent-practice').innerHTML = this.history.length ? this.history.slice(0, 5).map(run => `<button class="history-row" data-history-run="${escapeHtml(run.id)}" aria-label="Open report for ${escapeHtml(run.title)}"><div><strong>${escapeHtml(run.title)}</strong><span>${run.stopped?'Stopped · ':''}${new Date(run.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${run.bpm}${run.endBpm !== run.bpm ? `→${run.endBpm}` : ''} BPM · Bars ${escapeHtml(run.section)} × ${run.repeats} · ${escapeHtml(run.partName || FOCUS_OPTIONS[run.focus] || 'All drums')} · ${run.instrument==='vocals'?'Pitch practice':'±'+run.tolerance+' ms'}</span></div><div><strong>${Math.round(run.accuracy)}%</strong><span>${run.instrument==='vocals'?Math.round(run.coverage)+'% measured':run.meanAbsMs === null ? 'No matched hits' : `${Math.round(run.meanAbsMs)} ms avg. error`}</span></div></button>`).join('') : '<p class="history-empty">Your practice attempts will appear here. Click a result to reopen its report. Start with a comfortable tempo and watch your timing improve.</p>';
+    this.el('recent-practice').innerHTML = this.history.length ? this.history.slice(0, 5).map(run => `<button class="history-row" data-history-run="${escapeHtml(run.id)}" aria-label="Open report for ${escapeHtml(run.title)}"><div><strong>${escapeHtml(run.title)}</strong><span>${run.stopped?'Stopped · ':''}${new Date(run.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${run.bpm}${run.endBpm !== run.bpm ? `→${run.endBpm}` : ''} BPM · Bars ${escapeHtml(run.section)} × ${run.repeats} · ${escapeHtml((run.drumDifficulty?DRUM_DIFFICULTIES[run.drumDifficulty]?.label+' · ':'')+(run.partName || FOCUS_OPTIONS[run.focus] || 'All drums'))} · ${run.instrument==='vocals'?'Pitch practice':'±'+run.tolerance+' ms'}</span></div><div><strong>${Math.round(run.accuracy)}%</strong><span>${run.instrument==='vocals'?Math.round(run.coverage)+'% measured':run.meanAbsMs === null ? 'No matched hits' : `${Math.round(run.meanAbsMs)} ms avg. error`}</span></div></button>`).join('') : '<p class="history-empty">Your practice attempts will appear here. Click a result to reopen its report. Start with a comfortable tempo and watch your timing improve.</p>';
   }
 }

@@ -63,3 +63,5 @@
 .midi-note-list { display: flex; flex-wrap: wrap; gap: 5px; color: #a1b2b5; }
 .midi-note-chip { border: 1px solid #3e5559; border-radius: 5px; background: #1b2a2d; color: #d4e4e5; padding: 4px 7px; cursor: pointer; font: inherit; }
 @media (max-width: 480px) { .midi-controls { padding: 12px; } .midi-mapping-row { grid-template-columns: 64px 1fr auto; gap: 4px; } .midi-mapping-row .button { padding: 7px; } }
+
+.drum-difficulty-picker{min-width:115px}.drum-difficulty-picker select{max-width:160px}.focus-song-picker .drum-difficulty-picker{min-width:75px;max-width:130px}.focus-song-picker .drum-difficulty-picker select{font-size:12px;padding:7px;min-height:36px}

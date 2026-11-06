@@ -368,7 +368,7 @@ function strike(drum, timestamp, source = 'keyboard', velocity = 1, sound = true
   }
   if (sound) audio.play(drum, undefined, velocity);
   if (!session || session.mode !== 'practice') return;
-  if (session.judge.chart.practice.focus !== 'all' && !session.judge.chart.focusDrums.includes(drum)) return;
+  if ((session.judge.chart.practice.focus !== 'all'||session.judge.chart.drumDifficulty) && !session.judge.chart.focusDrums.includes(drum)) return;
   const time = audio.audibleTime(normalizedTimestamp) - session.startAt - session.settings.offset / 1000;
   if (time < -session.settings.tolerance / 1000 || time > session.judge.chart.duration + session.settings.tolerance / 1000) return;
   const result = session.judge.strike(drum, time, source);
@@ -602,7 +602,7 @@ async function practiceReportSection(record, report, selection, options = {}) {
   if(record.sourceKind==='builtin'){settings.grooveId=record.sourceId;settings.bpm=Math.max(40,record.bpm-(options.slower?5:0));settings.bars=report.sourceBars||Math.max(...report.measures.map(m=>m[2]));persist();syncSettings();}
   else if(record.sourceKind==='school') {await importer.loadSchoolSong(record.sourceId, record.revisionId);if(loadedSong?.schoolSource?.revisionId!==record.revisionId)throw new Error('Could not load this song version. Open it from the library and try again.');}
   else if(!loadedSong || loadedSong.song.fingerprint!==record.sourceId)throw new Error('Load the matching original MIDI on this computer first.');
-  renderGroove();Object.assign(practice.options,{enabled:true,...selection,repeats:options.replay?record.repeats:4,stepUp:false,focus:record.focus||'all'});practice.persist();renderGroove();
+  renderGroove();Object.assign(practice.options,{enabled:true,...selection,repeats:options.replay?record.repeats:4,stepUp:false,focus:record.focus||'all',drumDifficulty:record.drumDifficulty||'original'});practice.persist();renderGroove();
   $('practice-title').scrollIntoView({behavior:'smooth',block:'center'});notify('Bars '+selection.startBar+'–'+selection.endBar+' added to a four-pass practice loop. Press Start groove when ready.');if(options.replay){$('report-dialog').close();await startRun();}
 }
 reportView = new RunReportView(practiceReportSection);

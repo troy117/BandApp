@@ -43,6 +43,7 @@ export class MobilePractice {
     const drumBacking=this.q('drum-backing-picker');
     if(soloFull && drumBacking.parentElement!==this.soloSlot)this.soloSlot.append(drumBacking);
     else if(!soloFull && drumBacking.parentElement!==this.soloHome.parentElement)this.soloHome.after(drumBacking);
+    const difficulty=this.q('drum-difficulty-field');if(soloFull&&difficulty.parentElement!==this.soloSlot)this.soloSlot.append(difficulty);else if(!soloFull&&difficulty.parentElement!==drumBacking.parentElement)drumBacking.after(difficulty);
     this.soloSlot.hidden = !soloFull; this.q('score-title').hidden = soloFull;
     this.layoutSounds(soloFull);
     document.body.classList.toggle('mobile-practice', mobile);

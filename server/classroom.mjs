@@ -1,5 +1,6 @@
 import { validateTimingMap } from '../dist/timing-map.mjs';
 import { validateVocalNotes } from '../dist/vocal-guide.mjs';
+import {validateDrumDifficulty} from '../dist/drum-difficulty.mjs';
 import { validateRunReport } from '../dist/run-report.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomBytes, randomUUID, createHash, timingSafeEqual, scrypt } from 'node:crypto';
@@ -209,6 +210,7 @@ export class ClassroomStore {
   }
   checkedReport(record, value) {
     let report; try { report=validateRunReport(value); } catch(error) { throw new SchoolError(400,error.message); }
+    if((report.drumDifficulty||'original')!==(record.drumDifficulty||'original'))throw new SchoolError(400,'The drum difficulty does not match the report.');
     const hits=report.notes.filter(n=>n[4]==='hit'), wrong=report.notes.filter(n=>n[4]==='wrong').length;
     if(report.notes.length!==record.total || hits.length!==record.hits || wrong!==(record.wrong||0) || report.extras.length!==record.extras || report.tolerance!==record.tolerance || report.instrument!==(record.instrument||'drums'))throw new SchoolError(400,'Note detail does not match the practice result.');
     return report;
@@ -387,6 +389,7 @@ export class ClassroomStore {
 }
 
 export function validateSchoolRun(input) {
+  if(input?.drumDifficulty!==undefined)try{validateDrumDifficulty(input.drumDifficulty);}catch(error){throw new SchoolError(400,error.message);}
   if (!input || !uuidPattern.test(input.id) || !['builtin', 'school', 'personal'].includes(input.sourceKind) || typeof input.sourceId !== 'string' || input.sourceId.length > 120) throw new SchoolError(400, 'Invalid practice result.');
   const integers = { hits: [0, 50000], total: [1, 50000], extras: [0, 100000], bestStreak: [0, 50000], repeats: [1, 8] };
   for (const [field, [min, max]] of Object.entries(integers)) if (!Number.isInteger(input[field]) || input[field] < min || input[field] > max) throw new SchoolError(400, `Invalid practice ${field}.`);
@@ -403,7 +406,7 @@ export function validateSchoolRun(input) {
   if (drums.some(item => !item || typeof item !== 'object')) throw new SchoolError(400, 'Invalid drum timing breakdown.');
   if (!drums.length || drums.length > DRUMS.length || new Set(drums.map(item => item.id)).size !== drums.length || drums.some(item => !DRUMS.some(drum => drum.id === item.id) || !Number.isInteger(item.total) || item.total < 1 || !Number.isInteger(item.hits) || item.hits < 0 || item.hits > item.total || (item.hits ? !Number.isFinite(item.meanMs) || !Number.isFinite(item.meanAbsMs) || item.meanAbsMs < 0 || item.meanAbsMs > input.tolerance || Math.abs(item.meanMs) > item.meanAbsMs + 0.0001 : item.meanMs !== null || item.meanAbsMs !== null))) throw new SchoolError(400, 'Invalid drum timing breakdown.');
   if (drums.reduce((sum, drum) => sum + drum.total, 0) !== input.total || drums.reduce((sum, drum) => sum + drum.hits, 0) !== input.hits) throw new SchoolError(400, 'The drum totals do not match the result.');
-  return { id: input.id, sourceKind: input.sourceKind, sourceId: input.sourceId, revisionId: input.sourceKind === 'school' ? input.revisionId : null, title, grooveId: null, hits: input.hits, total: input.total, extras: input.extras, bestStreak: input.bestStreak, accuracy: input.hits / (input.total + input.extras) * 100, meanMs: input.meanMs, meanAbsMs: input.meanAbsMs, bpm: input.bpm, endBpm: input.endBpm, tolerance: input.tolerance, focus: input.focus, section: input.section, full: input.full, repeats: input.repeats, drums: drums.map(({ id, hits, total, meanMs, meanAbsMs }) => ({ id, hits, total, meanMs, meanAbsMs })) };
+  return { id: input.id, sourceKind: input.sourceKind, sourceId: input.sourceId, revisionId: input.sourceKind === 'school' ? input.revisionId : null, title,...(input.drumDifficulty?{drumDifficulty:input.drumDifficulty}:{}), grooveId: null, hits: input.hits, total: input.total, extras: input.extras, bestStreak: input.bestStreak, accuracy: input.hits / (input.total + input.extras) * 100, meanMs: input.meanMs, meanAbsMs: input.meanAbsMs, bpm: input.bpm, endBpm: input.endBpm, tolerance: input.tolerance, focus: input.focus, section: input.section, full: input.full, repeats: input.repeats, drums: drums.map(({ id, hits, total, meanMs, meanAbsMs }) => ({ id, hits, total, meanMs, meanAbsMs })) };
 }
 
 export class ClassroomApi {

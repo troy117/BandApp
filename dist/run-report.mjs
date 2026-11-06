@@ -1,3 +1,4 @@
+import {validateDrumDifficulty} from './drum-difficulty.mjs';
 import { DRUMS } from './engine.mjs';
 
 const reportStatuses = ['hit', 'miss', 'wrong'];
@@ -17,7 +18,7 @@ export function reportMeasures(chart) {
 export function makeRunReport(judge, { instrument = 'drums', elapsed = judge.chart.duration, stopped = false, offset = 0 } = {}) {
   const chart = judge.chart;
   return {
-    version: 1, instrument, stopped, elapsed: Math.max(0, Math.min(chart.duration, elapsed)), duration: chart.duration,
+    version: 1, instrument, stopped,...(chart.drumDifficulty?{drumDifficulty:chart.drumDifficulty}:{}), elapsed: Math.max(0, Math.min(chart.duration, elapsed)), duration: chart.duration,
     ...(instrument==='drums'?{hiHatVoices:true}:{}),
     tolerance: judge.toleranceMs ?? 140, offset, planned: chart.notes.length, measures: reportMeasures(chart),
     // Compact tuples keep a long song's note detail practical to store and download.
@@ -26,6 +27,7 @@ export function makeRunReport(judge, { instrument = 'drums', elapsed = judge.cha
   };
 }
 export function validateRunReport(value) {
+  if(value?.drumDifficulty!==undefined){validateDrumDifficulty(value.drumDifficulty);if(value.instrument!=='drums')throw new Error('Only drum reports have a drum difficulty.');}
   if (!value || value.version !== 1 || !['drums','keyboard'].includes(value.instrument) || typeof value.stopped !== 'boolean' || !Number.isFinite(value.duration) || value.duration <= 0 || value.duration > 1200 || !Number.isFinite(value.elapsed) || value.elapsed < 0 || value.elapsed > value.duration || ![70,100,140].includes(value.tolerance) || !Number.isFinite(value.offset) || Math.abs(value.offset)>200 || !Number.isInteger(value.planned) || value.planned < 1 || value.planned > 50000) throw new Error('Invalid note report settings.');
   if(value.sourceBars!==undefined && (!Number.isInteger(value.sourceBars)||value.sourceBars<1||value.sourceBars>100000))throw new Error('Invalid source bar count.');
   const voice = item => value.instrument === 'drums' ? DRUMS.some(drum => drum.id === item) : Number.isInteger(item) && item >= 0 && item <= 127;
