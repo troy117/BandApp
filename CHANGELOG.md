@@ -1,3 +1,9 @@
+# 0.32.0 — Practice report controls and classroom audio device
+
+- Add vocal Stop beside Pause, rewinding to the beginning and cancelling pending playback. Add a device-local Show report automatically checkbox for vocals, drums and keyboard, including focus views, without disabling saved reports or live feedback.
+- Let the teacher select one joined classroom audio device. New sessions prefer the drummer; backing, count-in, metronome and synthesized guides play only there while the teacher and other students follow silently.
+- Reset readiness when routing changes, reject stale/older routing confirmations, stop all performers when the selected output is interrupted, and retain local interruption behavior for other performers. No live audio streaming or schema/dependency/storage changes. See [playback controls](docs/PLAYBACK_CONTROLS.md).
+
 # 0.31.0 — Easier drum parts
 
 - Add Beginner, Easy, Intermediate and Original choices to individual MIDI drum practice and focus view. Reduce kick triplets, dense hits and fills; use three lanes on the easiest levels. Preserve source attack times, silent bars, pickups, changing meters, swing, backing maps and tempo.

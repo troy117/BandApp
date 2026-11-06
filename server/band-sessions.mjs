@@ -10,6 +10,7 @@ import { parseMidiSong } from '../dist/midi.mjs';
 import { bandRecord, validatePartResult } from './band-results.mjs';
 import { followInstrument } from '../dist/follow-along.mjs';
 import { arrangementFromBar } from '../dist/session-transport.mjs';
+import { sessionAudioUserId, defaultSessionAudioUserId } from '../dist/session-audio.mjs';
 
 const bandError = (status, message) => Object.assign(new Error(message), { status });
 const staffMember = actor => ['teacher', 'owner'].includes(actor.role);
@@ -79,7 +80,8 @@ export class BandSessions {
   }
   snapshot(room, actor) {
     const teacher = room.teacherId === actor.id;
-    return { id: room.id, version: room.version, state: room.state, teacherId: room.teacherId, teacherName: room.teacherName, teacherConnected: Boolean(room.teacherSocket), teacherReady: room.teacherReady, arrangement: descriptor(room.arrangement), takeId: room.takeId, startAt: room.startAt, countInAt: room.countInAt, reason: room.reason || '', participants: room.participants.filter(p => teacher || p.userId === actor.id).map(p => ({ userId: p.userId, name: p.name, partId: p.partId, instrument: p.instrument, connected: Boolean(p.socket), ready: p.ready, state: p.state, input: p.input || '', progress: p.progress || null, result: p.result || null, message: p.message || '' })) };
+    const audioUserId = sessionAudioUserId(room), audioDeviceName = audioUserId === room.teacherId ? room.teacherName + ' · Teacher computer' : room.participants.find(person => person.userId === audioUserId)?.name;
+    return { id: room.id, version: room.version, state: room.state, teacherId: room.teacherId, teacherName: room.teacherName, teacherConnected: Boolean(room.teacherSocket), teacherReady: room.teacherReady, audioUserId, audioDeviceName, arrangement: descriptor(room.arrangement), takeId: room.takeId, startAt: room.startAt, countInAt: room.countInAt, reason: room.reason || '', participants: room.participants.filter(p => teacher || p.userId === actor.id).map(p => ({ userId: p.userId, name: p.name, partId: p.partId, instrument: p.instrument, connected: Boolean(p.socket), ready: p.ready, state: p.state, input: p.input || '', progress: p.progress || null, result: p.result || null, message: p.message || '' })) };
   }
   send(socket, data) { if (socket?.readyState === 1) { if (socket.bufferedAmount > 256000) { socket.close(1013, 'Connection too slow'); return; } socket.send(JSON.stringify(data)); } }
   broadcast(room) {
@@ -181,10 +183,10 @@ export class BandSessions {
         if (!user?.active || user.role !== 'student' || user.must_change || (actor.role !== 'owner' && user.teacher_id !== actor.id) || !part) throw bandError(400, 'Choose active students from your roster who can sign in, and valid song parts.');
         return { userId: user.id, name: user.name, partId: part.id, instrument: part.instrument, socket: null, ready: false, state: 'waiting', progress: null };
       });
-      const room = { id: randomUUID(), version: randomUUID(), teacherId: actor.id, teacherName: actor.name, teacherSocket: null, teacherReady: false, arrangement, participants, state: 'preparing', createdAt: this.clock(), takeId: null, startAt: null, countInAt: null };
+      const room = { id: randomUUID(), version: randomUUID(), teacherId: actor.id, teacherName: actor.name, audioUserId: defaultSessionAudioUserId(participants, actor.id), teacherSocket: null, teacherReady: false, arrangement, participants, state: 'preparing', createdAt: this.clock(), takeId: null, startAt: null, countInAt: null };
       this.rooms.set(room.id, room); send(201, { room: this.snapshot(room, actor) }); return true;
     }
-    match = path.match(/^rooms\/([0-9a-f-]+)(?:\/(start|stop|close|update))?$/);
+    match = path.match(/^rooms\/([0-9a-f-]+)(?:\/(start|stop|close|update|audio))?$/);
     if (match) {
       const room = this.room(actor, match[1]);
       if (!match[2] && method === 'GET') { send(200, { room: this.snapshot(room, actor) }); return true; }
@@ -192,6 +194,17 @@ export class BandSessions {
       this.teacher(actor, room); const input = await this.api.json(request);
       if (input.version !== room.version) throw bandError(409, 'The session changed. Refresh its state.');
       if (room.state === 'closed') throw bandError(409, 'This session has ended. Create a new session.');
+      if (match[2] === 'audio') {
+        if (input.audioUserId !== room.teacherId && !room.participants.some(person => person.userId === input.audioUserId && this.eligible(room, person.userId))) throw bandError(400, 'Choose the teacher or an assigned student’s joined device.');
+        if (input.audioUserId !== sessionAudioUserId(room)) {
+          if (runningRoom(room)) this.interrupt(room, 'Classroom audio device changed.');
+          room.audioUserId = input.audioUserId; room.version = randomUUID(); room.state = 'preparing'; room.teacherReady = false; room.takeId = null; room.startAt = null; room.countInAt = null;
+          room.reason = 'Audio device changed. Everyone presses Ready before the next take.';
+          for (const person of room.participants) Object.assign(person, { ready: false, state: person.socket ? 'connected' : 'waiting', progress: null, result: null, message: '', lastProgress: 0 });
+          this.broadcast(room);
+        }
+        send(200, { room: this.snapshot(room, actor) }); return true;
+      }
       if (match[2] === 'update') {
         const source = await this.arrangement(actor, input.sourceKind, input.sourceId, input.revisionId, input.backingId);
         this.assertSharedSong(source);
@@ -216,7 +229,7 @@ export class BandSessions {
         room.takeId = randomUUID(); room.state = 'playing'; room.version = randomUUID(); room.reason = '';
         const chart = room.arrangement.parts[0].chart;
         room.countInAt = this.clock() + 2200; room.startAt = room.countInAt + chart.countInBeats * chart.countInBeatSeconds * 1000;
-        const take = { ...descriptor(room.arrangement), assignments: room.participants.map(p => ({ userId: p.userId, name: p.name, partId: p.partId, instrument: p.instrument })) };
+        const take = { ...descriptor(room.arrangement), audioUserId: sessionAudioUserId(room), assignments: room.participants.map(p => ({ userId: p.userId, name: p.name, partId: p.partId, instrument: p.instrument })) };
         this.store.transaction(() => {
           this.store.db.prepare('INSERT INTO band_takes(id,teacher_id,created_at,state,record) VALUES (?,?,?,?,?)').run(room.takeId, actor.id, this.store.now(), 'playing', JSON.stringify(take));
           for (const p of room.participants) this.store.db.prepare('INSERT INTO band_results(take_id,user_id,state,record) VALUES (?,?,?,?)').run(room.takeId, p.userId, 'playing', JSON.stringify({ partId: p.partId }));
@@ -321,6 +334,7 @@ export class BandSessions {
     this.broadcast(room);
   }
   interruptParticipant(room, p, reason) {
+    if (runningRoom(room) && sessionAudioUserId(room) === p.userId) { this.interrupt(room, 'Classroom audio device interrupted: ' + reason); return; }
     p.state = 'interrupted'; p.ready = false; p.message = reason;
     this.store.db.prepare("UPDATE band_results SET state='interrupted' WHERE take_id=? AND user_id=? AND state='playing'").run(room.takeId, p.userId);
     this.finishRoom(room);
@@ -338,6 +352,7 @@ export class BandSessions {
     if (!teacher && !p) throw bandError(409, 'Join the session first.');
     if (message.type === 'ready') {
       if (room.state !== 'preparing' || message.version !== room.version || message.revisionId !== room.arrangement.revisionId || (message.backingId || null) !== (room.arrangement.backingId || null)) throw bandError(409, 'Prepare the current song version first.');
+      if (message.audioUserId !== sessionAudioUserId(room)) throw bandError(409, 'Reload BandApp to prepare the selected classroom audio device.');
       const sync = message.sync;
       if (message.audio !== true || !sync || !Number.isInteger(sync.samples) || sync.samples < 3 || !Number.isFinite(sync.rttMs) || sync.rttMs < 0 || sync.rttMs > 300 || !Number.isFinite(sync.uncertaintyMs) || sync.uncertaintyMs < 0 || sync.uncertaintyMs > 100 || typeof message.input !== 'string' || !message.input.trim() || message.input.length > 100) throw bandError(400, 'Check audio, input and synchronization before Ready.');
       if (teacher) room.teacherReady = true;

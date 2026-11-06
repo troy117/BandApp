@@ -3,6 +3,7 @@ import { escapeHtml } from './song-import.mjs';
 import { followInstrument } from './follow-along.mjs';
 import { arrangementFromBar } from './session-transport.mjs';
 import { defaultSeatPart, classMeterMarkup } from './class-experience.mjs';
+import { sessionAudioUserId } from './session-audio.mjs';
 
 export class BandRooms {
   constructor(practice) {
@@ -20,8 +21,10 @@ export class BandRooms {
     this.q('b-leave').onclick = () => this.leave();
     this.q('b-session-song').onchange = () => { this.q('b-session-from').value = 1; this.sessionPartChoices(); };
     this.q('b-session-config').onsubmit = event => { event.preventDefault(); practice.attempt(() => this.update()); };
+    this.q('b-audio-config').onsubmit = event => { event.preventDefault(); practice.attempt(() => this.setAudioDevice()); };
     this.q('b-speaker-volume').oninput = () => {
       const volume = Number(this.q('b-speaker-volume').value) / 100;
+      if (this.practice.backing) this.practice.backing.volume = volume;
       this.practice.audio.setBackingVolume(volume);
       if (this.practice.audio.master) this.practice.audio.master.gain.value = volume * 0.48;
     };
@@ -94,6 +97,15 @@ export class BandRooms {
       this.practice.message('Song and start bar applied. Everyone stays in the session; press Ready again.');
     } finally { this.updating = false; this.q('b-session-apply').disabled = false; }
   }
+  async setAudioDevice() {
+    if (!this.teacher || this.routing) return;
+    this.routing = true; this.render();
+    try {
+      const { room } = await this.school.request('/band/rooms/' + this.room.id + '/audio', { method: 'POST', data: { version: this.room.version, audioUserId: this.q('b-audio-device').value } });
+      await this.receive(room);
+      this.practice.message('Classroom audio device selected. Everyone presses Ready before starting.');
+    } finally { this.routing = false; this.render(); }
+  }
   seatIds() {return Array.from({length:this.seatCount},(_,i)=>i===0?'a':i===1?'b':String(i+1));}
   studentPart(id) {
     const song = this.practice.catalog.find(song => song.sourceKind + ':' + song.id === this.q('b-room-song').value);
@@ -148,7 +160,12 @@ export class BandRooms {
   async receive(room) {
     if (room.id !== this.room?.id) return;
     if (room.state === 'closed') { if(this.practice.session?.takeId)this.practice.stop('The teacher closed this session.',false,true);this.leave(); this.practice.message('The teacher closed this session.'); return; }
+    const audioChanged = sessionAudioUserId(this.room) !== sessionAudioUserId(room);
     this.room = room;
+    if (audioChanged) {
+      this.prepared = false; this.prepareToken = (this.prepareToken || 0) + 1;
+      this.practice.stop('Classroom audio device changed. Press Ready again.', false, true);
+    }
     const key = this.arrangementKey(room);
     if (key !== this.loadedRoomKey) {
       if (this.songLoading === key) { this.render(); return; }
@@ -188,6 +205,15 @@ export class BandRooms {
     q('b-room-state').textContent = room.state.toUpperCase();
     q('b-room-title').textContent = room.arrangement.title + ' · From bar ' + (room.arrangement.startBar || 1) + ' · ' + room.teacherName;
     q('b-session-config').hidden = !this.teacher;
+    q('b-audio-config').hidden = !this.teacher;
+    if (this.teacher && this.audioConfigVersion !== room.version) {
+      this.audioConfigVersion = room.version;
+      q('b-audio-device').innerHTML = '<option value="' + room.teacherId + '">' + escapeHtml(room.teacherName) + ' · Teacher computer</option>' + room.participants.map(person => '<option value="' + person.userId + '">' + escapeHtml(person.name) + ' · ' + escapeHtml(person.instrument) + '</option>').join('');
+      q('b-audio-device').value = sessionAudioUserId(room);
+    }
+    q('b-audio-device').disabled = !!this.routing;
+    q('b-audio-apply').disabled = !!this.routing;
+    q('b-audio-state').textContent = this.practice.playsClassAudio ? 'Classroom audio plays on this device. Connect its speakers and press Ready.' : 'Classroom audio: ' + room.audioDeviceName + '. This device follows silently.';
     this.renderConfiguration();
     q('b-performers').innerHTML = room.participants.map(p => {
       const stats = p.result || p.progress, position = p.result ? room.arrangement.duration : p.progress?.position || 0;
@@ -198,10 +224,10 @@ export class BandRooms {
     const own = room.participants.find(p => p.userId === this.school.user?.id);
     q('b-ready').hidden = room.state !== 'preparing';
     q('b-ready').disabled = this.preparing || !!this.songLoading || this.loadedRoomKey !== this.arrangementKey(room) || !this.link.clock.status.ready || !this.link.authenticated;
-    q('b-ready').textContent = this.preparing ? 'Loading sound…' : (this.teacher ? room.teacherReady : own?.ready) ? 'Ready ✓' : this.teacher ? 'Enable classroom speaker & Ready' : 'Check sound & Ready';
+    q('b-ready').textContent = this.preparing ? 'Preparing…' : (this.teacher ? room.teacherReady : own?.ready) ? 'Ready ✓' : this.practice.playsClassAudio ? 'Enable classroom audio & Ready' : this.teacher ? 'Ready · controls only' : 'Ready · silent follow-along';
     q('b-room-start').hidden = !this.teacher; q('b-room-start').disabled = room.state !== 'preparing' || !room.teacherReady || room.participants.some(p => !p.connected || !p.ready);
     q('b-room-stop').hidden = !this.teacher; q('b-room-stop').textContent = room.state === 'playing' ? 'Stop playback' : 'Prepare next take';
-    q('b-room-close').hidden = !this.teacher; q('b-teacher-volume').hidden = !this.teacher;
+    q('b-room-close').hidden = !this.teacher; q('b-teacher-volume').hidden = !this.practice.playsClassAudio;
     q('b-room-help').textContent = room.reason || (this.teacher ? 'When everyone is Ready, start one count-in for all students.' : 'Your teacher controls the count-in and playback. Keep this tab visible.');
   }
   connectionState(state, sync) {
@@ -219,17 +245,17 @@ export class BandRooms {
     try {
     await this.practice.prepareAudio();
     if (token !== this.prepareToken || !this.room || this.room.version !== version || this.school.generation !== generation || document.hidden || document.querySelector('dialog[open]')) return;
-    const input = this.teacher ? 'Classroom speaker' : this.practice.inputLabel();
-    if (!this.link.send({ type: 'ready', version, revisionId: this.room.arrangement.revisionId, backingId:this.room.arrangement.backingId, audio: true, input, sync: this.link.clock.status })) throw new Error('Reconnect before pressing Ready.');
+    const input = this.teacher ? this.practice.playsClassAudio ? 'Classroom speaker' : 'Teacher controls · silent' : this.practice.inputLabel();
+    if (!this.link.send({ type: 'ready', version, revisionId: this.room.arrangement.revisionId, backingId:this.room.arrangement.backingId, audioUserId:sessionAudioUserId(this.room), audio: true, input, sync: this.link.clock.status })) throw new Error('Reconnect before pressing Ready.');
     this.prepared = true; this.preparedOffset = this.link.clock.status.offset;
     if (!this.teacher) { this.q('b-input-controls').open = false; this.q('b-stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-    if (this.teacher) { this.practice.audio.master.gain.value = Number(this.q('b-speaker-volume').value) / 100 * 0.48; this.practice.audio.click(this.practice.audio.context.currentTime + 0.03, true); }
-    this.practice.message('Sound enabled. Check an instrument note, then keep this tab visible for the shared count-in.');
+    if (this.practice.playsClassAudio) { this.practice.audio.master.gain.value = Number(this.q('b-speaker-volume').value) / 100 * 0.48; this.practice.audio.click(this.practice.audio.context.currentTime + 0.03, true); }
+    this.practice.message(this.practice.playsClassAudio ? 'Classroom audio enabled here. Keep this tab visible for the count-in.' : 'Ready. Classroom playback comes from ' + this.room.audioDeviceName + '; this device stays silent.');
     } finally { this.preparing = false; this.render(); }
   }
   async control(action) {
     if (!this.room) return;
-    if (action === 'start' && this.practice.audio.context?.state !== 'running') throw new Error('Enable the classroom speaker first.');
+    if (action === 'start' && this.practice.audio.context?.state !== 'running') throw new Error('Press Ready on this device first.');
     const { room } = await this.school.request('/band/rooms/' + this.room.id + '/' + action, { method: 'POST', data: { version: this.room.version } });
     await this.receive(room); if (action === 'close') { this.leave(); await this.refresh(); }
   }
@@ -240,7 +266,7 @@ export class BandRooms {
   }
   leave() {
     this.practice.singing?.microphone.stop();
-    this.loading++; this.prepareToken = (this.prepareToken || 0) + 1; this.prepared = false; this.songLoading = false; this.loadedRoomKey = null; this.configVersion = null; this.practice.stop('Left the session.'); this.link.leave(); this.room = null; this.practice.startedTake = null; this.q('b-click').checked = true; this.render();
+    this.loading++; this.prepareToken = (this.prepareToken || 0) + 1; this.prepared = false; this.songLoading = false; this.loadedRoomKey = null; this.configVersion = null; this.audioConfigVersion = null; this.practice.stop('Left the session.'); this.link.leave(); this.room = null; this.practice.startedTake = null; this.q('b-click').checked = true; this.render();
     if (this.practice.audio.master) this.practice.audio.master.gain.value = 0.48;
   }
 }

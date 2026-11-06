@@ -5,11 +5,15 @@ Updated November 6, 2026. This is the starting point for continuing at home.
 ## Where things stand
 
 - Repository: https://github.com/troy117/BandApp — branch `main`.
-- Browser app, version **0.31.0 / Prototype 31**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
+- Browser app, version **0.32.0 / Prototype 32**. Browser modules in `dist/`; optional school backend in `server/`. No build step required. Run npm ci for the pinned ws server dependency. Node 24 is required for school SQLite storage.
 - Teacher/student accounts, shared school songs and private student progress are implemented. On October 20 the user reported missing three songs/profiles, then created a new volume and a new teacher account. They confirmed mount /data and GROOVE_DATA_DIR=/data/groove-lab. An anonymous production check then confirmed enabled=true and setupNeeded=false. The old volume’s fate and scheduled/off-volume backups remain unverified. Keep the current volume attached; do not recreate the school on future code updates. See [CLASSROOMS.md](CLASSROOMS.md).
 - Railway serves the app at https://bandapp-production-9386.up.railway.app/ . GitHub push and Railway deployment are separate facts. If a refresh still shows an older prototype, use Railway's **Deploy Latest Commit** for `main`; redeploying an old deployment may reuse its old code.
 - School kit: **Roland TD-17 V-Drums**, now connected by USB to the user’s Windows computer running Chrome. Version 0.9 implements input; physical pad/latency validation is still pending user testing. Target Windows Chrome and ChromeOS.
 - User explicitly wants GitHub/Railway. Do not register or publish a Codex Sites project.
+
+## Playback controls and classroom audio
+
+Prototype 32 adds vocal Stop/rewind and per-instrument automatic-report checkboxes for vocals, drums and keyboard in normal/focus views. Turning off automatic display keeps the practice screen while reports still save. Jam rooms select one audio account/device, defaulting to the first assigned drummer or teacher if absent. Only that device loads/plays the backing, count-in, metronome and guides; other local charts and scoring continue silently. Teachers choose the device through a version-checked audio control. Routing changes reset readiness; output loss interrupts everyone. Ready messages confirm audioUserId to reject stale clients. No live input audio streaming, schema, volume, dependency or production song changes. See [PLAYBACK_CONTROLS.md](PLAYBACK_CONTROLS.md); private synthetic-school QA is under artifacts/jam-audio-qa/.
 
 ## Drum difficulty
 

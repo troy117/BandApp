@@ -61,3 +61,14 @@ test('stopping creates a replayable vocal report only for the account that sang 
  p.school.user={id:'different-account'};singing.finishAttempt(session,2.2);assert.equal(calls.length,2);
  session.vocalPerformance=new VocalPerformance(chart);assert.equal(singing.finishAttempt(session,2.2),undefined);
 });
+
+test('automatic vocal reports can be disabled without losing the report or saved attempt',t=>{
+ const previous=globalThis.document;globalThis.document={hidden:false};t.after(()=>{globalThis.document=previous;});
+ const fields={'b-singing-auto-report':{checked:false}},calls=[];
+ const p={school:{user:{id:'singer'}},collapse:()=>calls.push('collapse'),onAttempt:()=>calls.push('remember'),onReport:()=>calls.push('popup'),saveResult:()=>calls.push('save')};
+ const singing=Object.assign(Object.create(SingingPractice.prototype),{practice:p,q:id=>fields[id]||={}});
+ const tracker=new VocalPerformance(chart);sing(tracker,2.2,.02,()=>sample(60));
+ const session={vocalPerformance:tracker,accountId:'singer',part:{id:'vocals',name:'Vocals',instrument:'vocals',chart},judge:{chart},arrangement:{title:'Original',id:'song',revisionId:'v1',sourceKind:'school'}};
+ singing.finishAttempt(session,2.2);
+ assert.deepEqual(calls,['remember','save']);assert.ok(singing.lastVocal.report);assert.equal(fields['b-singing-report'].hidden,false);assert.ok(p.pendingResult.report);
+});

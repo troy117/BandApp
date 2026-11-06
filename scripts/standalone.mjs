@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 const root = new URL('../', import.meta.url);
 const files = ['lessons.mjs', 'engine.mjs','drum-difficulty.mjs', 'drum-lanes.mjs', 'student-preferences.mjs', 'run-report.mjs', 'vendor/sightkick-input.mjs', 'vendor/midi-parser.mjs', 'audio.mjs', 'midi.mjs', 'midi-input.mjs', 'drumkit-controls.mjs', 'demo-data.mjs', 'song-library.mjs', 'sync.mjs', 'audio-sync.mjs', 'song-import.mjs', 'notation.mjs', 'full-score.mjs', 'score-screen.mjs', 'practice.mjs', 'session-transport.mjs', 'drum-highway.mjs', 'practice-tools.mjs', 'password-policy.mjs', 'classroom.mjs', 'instruments.mjs', 'lyrics.mjs', 'lyric-timing.mjs', 'fretted-parts.mjs', 'follow-along.mjs', 'follow-view.mjs', 'fretted-score.mjs', 'report-view.mjs', 'vocal-guide.mjs', 'arrangements.mjs', 'piano-audio.mjs', 'band-markup.mjs', 'band-link.mjs', 'band-import.mjs', 'band-rooms.mjs', 'instrument-listening.mjs', 'band-practice.mjs', 'app.mjs'];
 files.splice(files.indexOf('drum-highway.mjs'), 0, 'highway-experience.mjs');
+files.splice(files.indexOf('band-rooms.mjs'), 0, 'session-audio.mjs');
 files.splice(files.indexOf('score-screen.mjs'), 0, 'screen-awake.mjs');
 files.splice(files.indexOf('band-markup.mjs'), 0, 'class-experience.mjs', 'mobile-practice.mjs');
 files.splice(files.indexOf('band-markup.mjs'), 0, 'vocal-pitch.mjs', 'vocal-microphone.mjs', 'vocal-warmup.mjs', 'vocal-highway.mjs', 'vocal-calibration.mjs', 'singing-practice.mjs');

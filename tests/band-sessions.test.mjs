@@ -130,10 +130,39 @@ test('shared take deletion is teacher-owned, recoverable and preserves all stude
 async function readyRoom(env,room) {
   const peers=await Promise.all([env.wire(env.setup),env.wire(env.a),env.wire(env.b)]);
   for(const [i,peer] of peers.entries()){peer.send({type:'join',roomId:room.id,clientId:'test-client-'+i});await peer.wait(m=>m.type==='room'&&m.room.id===room.id);}
-  for(const peer of peers)peer.send({type:'ready',version:room.version,revisionId:room.arrangement.revisionId,backingId:room.arrangement.backingId,audio:true,input:'Computer keys',sync:{samples:5,rttMs:10,uncertaintyMs:5}});
+  for(const peer of peers)peer.send({type:'ready',audioUserId:room.audioUserId,version:room.version,revisionId:room.arrangement.revisionId,backingId:room.arrangement.backingId,audio:true,input:'Computer keys',sync:{samples:5,rttMs:10,uncertaintyMs:5}});
   const ready=await peers[0].wait(m=>m.type==='room'&&m.room.teacherReady&&m.room.participants.every(p=>p.ready));
   return {peers,room:ready.room};
 }
+
+test('teacher selects exactly one assigned classroom audio device; changing it stops and resets a take',async t=>{
+ const env=await bandFixture(t),created=(await createRoom(env)).data.room;
+ assert.equal(created.audioUserId,env.a.user.id,'drummer is the initial output');
+ const {peers,room}=await readyRoom(env,created),started=(await env.request(env.setup,'/band/rooms/'+room.id+'/start','POST',{version:room.version})).data.room,route='/band/rooms/'+room.id+'/audio';
+ const input={version:started.version,audioUserId:env.b.user.id};
+ assert.equal((await env.request(env.a,route,'POST',input)).status,403);assert.equal((await env.request(env.other,route,'POST',input)).status,404);
+ assert.equal((await env.request(env.setup,route,'POST',{...input,audioUserId:env.outsider.user.id})).status,400);
+ assert.equal(env.server.bandSessions.rooms.get(room.id).state,'playing');
+ const next=(await env.request(env.setup,route,'POST',input)).data.room;
+ assert.equal(next.audioUserId,env.b.user.id);assert.equal(next.state,'preparing');assert.equal(next.takeId,null);assert.equal(next.teacherReady,false);assert.ok(next.participants.every(p=>p.connected&&!p.ready));
+ assert.equal(env.store.db.prepare('SELECT state FROM band_takes WHERE id=?').get(started.takeId).state,'interrupted');
+ assert.equal((await env.request(env.setup,route,'POST',input)).status,409,'stale routing changes cannot overwrite the current device');
+ assert.equal((await env.request(env.setup,'/band/rooms/'+room.id+'/start','POST',{version:next.version})).status,409);
+ const observed=(await peers[1].wait(m=>m.type==='room'&&m.room.version===next.version)).room;assert.equal(observed.audioUserId,env.b.user.id);assert.equal(observed.participants.length,1);
+ peers[1].send({type:'ready',version:next.version,revisionId:next.arrangement.revisionId,audioUserId:created.audioUserId,audio:true,input:'Keys',sync:{samples:5,rttMs:10,uncertaintyMs:5}});
+ assert.match((await peers[1].wait(m=>m.type==='error')).message,/Reload/);
+ const teacher=(await env.request(env.setup,route,'POST',{version:next.version,audioUserId:env.setup.user.id})).data.room;
+ assert.equal(teacher.audioUserId,env.setup.user.id);assert.match(teacher.audioDeviceName,/Teacher computer/);
+ const noDrummer=await env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'band-first',assignments:[{userId:env.b.user.id,partId:'vocals'}]});assert.equal(noDrummer.data.room.audioUserId,env.setup.user.id);
+});
+
+test('losing the selected audio device interrupts every performer, while another device loss stays local',async t=>{
+ const env=await bandFixture(t),created=(await createRoom(env)).data.room,{peers,room}=await readyRoom(env,created),started=(await env.request(env.setup,'/band/rooms/'+room.id+'/start','POST',{version:room.version})).data.room;
+ peers[2].send({type:'interrupt',takeId:started.takeId,reason:'Keyboard lost focus'});
+ await peers[0].wait(m=>m.type==='room'&&m.room.participants.find(p=>p.userId===env.b.user.id).state==='interrupted');assert.equal(env.server.bandSessions.rooms.get(room.id).state,'playing');
+ peers[1].socket.close();const stopped=(await peers[0].wait(m=>m.type==='room'&&m.room.state==='interrupted')).room;
+ assert.match(stopped.reason,/Classroom audio device/);assert.ok(stopped.participants.every(p=>!p.ready));assert.equal(env.store.db.prepare('SELECT state FROM band_takes WHERE id=?').get(started.takeId).state,'interrupted');
+});
 
 test('vocal guidance reaches the assigned teacher live without creating a vocal grade or stored voice record', async t => {
   const env = await bandFixture(t);
@@ -279,7 +308,7 @@ test('five students share a take while guitar, bass and vocal participation neve
  const created=await env.request(env.setup,'/band/rooms','POST',{sourceKind:'duet',sourceId:'band-first',assignments});assert.equal(created.status,201);const room=created.data.room;
  const peers=await Promise.all([env.wire(env.setup),...people.map(p=>env.wire(p))]);
  for(const [i,peer] of peers.entries()){peer.send({type:'join',roomId:room.id,clientId:'full-band-'+i});await peer.wait(m=>m.type==='room'&&m.room.id===room.id);}
- for(const peer of peers)peer.send({type:'ready',version:room.version,revisionId:room.arrangement.revisionId,audio:true,input:'Classroom test',sync:{samples:5,rttMs:10,uncertaintyMs:5}});
+ for(const peer of peers)peer.send({type:'ready',audioUserId:room.audioUserId,version:room.version,revisionId:room.arrangement.revisionId,audio:true,input:'Classroom test',sync:{samples:5,rttMs:10,uncertaintyMs:5}});
  const ready=(await peers[0].wait(m=>m.type==='room'&&m.room.teacherReady&&m.room.participants.every(p=>p.ready))).room;
  const started=(await env.request(env.setup,'/band/rooms/'+room.id+'/start','POST',{version:ready.version})).data.room;
  peers[3].send({type:'finish',takeId:started.takeId,summary:{mode:'follow'}});assert.match((await peers[3].wait(m=>m.type==='error')).message,/not finished/);
@@ -402,7 +431,7 @@ test('one classroom session changes songs and starting bars, retains seats and s
   assert.equal((await env.request(env.setup, '/band/rooms/' + room.id + '/update', 'POST', update)).status, 409);
   const studentUpdate = await peers[1].wait(message => message.type === 'room' && message.room.version === next.version);
   assert.equal(studentUpdate.room.arrangement.id, 'band-first');
-  for (const peer of peers) peer.send({ type: 'ready', version: next.version, revisionId: next.arrangement.revisionId, audio: true, input: 'Computer keys', sync: { samples: 5, rttMs: 10, uncertaintyMs: 5 } });
+  for (const peer of peers) peer.send({ type: 'ready', audioUserId: next.audioUserId, version: next.version, revisionId: next.arrangement.revisionId, audio: true, input: 'Computer keys', sync: { samples: 5, rttMs: 10, uncertaintyMs: 5 } });
   await peers[0].wait(message => message.type === 'room' && message.room.version === next.version && message.room.teacherReady && message.room.participants.every(person => person.ready));
   const resumed = (await env.request(env.setup, '/band/rooms/' + room.id + '/start', 'POST', { version: next.version })).data.room;
   assert.notEqual(resumed.takeId, started.takeId);

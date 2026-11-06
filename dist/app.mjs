@@ -19,6 +19,8 @@ import { HighwayExperience } from './highway-experience.mjs';
 import { BeatRecorderView } from './beat-recorder-view.mjs';
 
 const $ = id => document.getElementById(id);
+try { $('drum-auto-report').checked = localStorage.getItem('groove-drums-auto-report-v1') !== 'false'; } catch {}
+$('drum-auto-report').onchange = () => { try { localStorage.setItem('groove-drums-auto-report-v1', String($('drum-auto-report').checked)); } catch {} if(band?.part.instrument==='drums')$('b-auto-report').checked=$('drum-auto-report').checked; };
 const audio = new DrumAudio();
 let band = null;
 let recorder = null;
@@ -315,14 +317,14 @@ function stopRun(message = 'Run stopped. Your report shows the notes reached.', 
   const judge=reportPartial && finished?.mode==='practice' && played>=0 ? saveDrumAttempt(finished,true,played) : null;
   resetTransport();$('session-chip').textContent='Ready';
   if(finished)feedback('Take a breath.',message);
-  if(judge){updateStats(judge);if(!document.hidden)showReport();}
+  if(judge){updateStats(judge);if($('drum-auto-report').checked&&!document.hidden)showReport();}
 }
 function finishRun() {
   const finished=session;if(!finished)return;
   const judge=finished.mode==='practice'?saveDrumAttempt(finished):null;
   session=null;audio.silence();resetTransport();$('session-chip').textContent=finished.mode==='demo'?'Ready':'Complete';
   if(finished.mode==='demo')feedback('Now it’s your turn.','Press Start groove to try the pattern yourself.');
-  else if(judge){updateStats(judge);feedback('That’s a full run.','Your report shows where each hit landed.');showReport();}
+  else if(judge){updateStats(judge);feedback('That’s a full run.','Your report shows where each hit landed.');if($('drum-auto-report').checked)showReport();}
 }
 function schedule() {
   if (!session || !audio.context) return;

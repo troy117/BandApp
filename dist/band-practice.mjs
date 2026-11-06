@@ -4,6 +4,7 @@ import { vocalTarget, drawVocalStaff } from './vocal-guide.mjs';
 import { drawDrumHighway } from './drum-highway.mjs';
 import { FrettedFullScore } from './fretted-score.mjs';
 import { makeRunReport, stoppedJudge } from './run-report.mjs';
+import { isSessionAudioDevice } from './session-audio.mjs';
 import { createPracticeChart, backingSegments } from './practice.mjs';
 import { orderedDrums } from './drum-lanes.mjs';
 import { DRUMS, Judge, keyLabel } from './engine.mjs';
@@ -85,6 +86,7 @@ export class BandPractice {
       q('b-offset').value = this.offset; this.persist(); this.renderKeys();
     };
     q('b-sound').onchange = () => { this.clearHeld(); this.persist(); };
+    q('b-auto-report').onchange = () => { try { localStorage.setItem('groove-' + this.part.instrument + '-auto-report-v1', String(q('b-auto-report').checked)); } catch {} if(this.part.instrument==='drums')q('drum-auto-report').checked=q('b-auto-report').checked; };
     q('b-vocal-guide-enabled').onchange = () => { if (!q('b-vocal-guide-enabled').checked) this.piano.clear(); };
     q('b-vocal-guide-octave').onchange = () => { this.piano.clear(); if (Number(q('b-vocal-guide-octave').value)) q('b-vocal-range').value = 'any'; };
     q('b-vocal-range').onchange = () => { if (q('b-vocal-range').value === 'exact') { q('b-vocal-guide-octave').value = '0'; this.piano.clear(); } };
@@ -204,6 +206,8 @@ export class BandPractice {
   renderPart() {
     const q = this.q, keys = this.part.instrument === 'keyboard', follow = followInstrument(this.part.instrument), strings = ['guitar','bass'].includes(this.part.instrument);
     this.singing?.reset();
+    q('b-auto-report').closest('label').hidden = follow;
+    try { q('b-auto-report').checked = localStorage.getItem('groove-' + this.part.instrument + '-auto-report-v1') !== 'false'; } catch {}
     q('b-report').hidden = true;
     q('b-vocal-melody-panel').hidden = this.part.instrument !== 'vocals' || !this.part.chart.notes.length;
     q('b-vocal-guide-enabled').checked = false;
@@ -290,7 +294,7 @@ export class BandPractice {
     if (this.rooms.teacher || followInstrument(this.part.instrument)) return;
     this.held.set(id, value); this.highlight(value, true);
     const keys = this.part.instrument === 'keyboard', token = this.token;
-    if (sound && (source === 'midi' && !keys || this.q('b-sound').checked)) {
+    if (this.playsClassAudio && sound && (source === 'midi' && !keys || this.q('b-sound').checked)) {
       const play = () => { if (token !== this.token || !this.active || !this.held.has(id)) return; if (keys) this.piano.on(id, value, velocity); else this.audio.play(value, undefined, velocity); };
       if (this.audio.context?.state === 'running') play(); else this.audio.ready().then(play).catch(error => this.message(error.message));
     }
@@ -310,6 +314,7 @@ export class BandPractice {
   release(id) { const value = this.held.get(id); this.held.delete(id); this.piano.off(id); if (![...this.held.values()].includes(value)) this.highlight(value, false); }
   clearHeld() { for (const id of [...this.held.keys()]) this.release(id); this.piano.clear(); }
   inputLabel() { return followInstrument(this.part.instrument) ? 'Follow-along · no input required' : this.part.instrument === 'drums' ? 'Computer keys / selected drumkit' : this.midi.status === 'ready' ? this.midi.snapshot().name || 'MIDI keyboard' : 'Computer keys'; }
+  get playsClassAudio() { return isSessionAudioDevice(this.rooms?.room, this.school?.user?.id); }
   async prepareAudio() {
     const generation = this.school.generation, token = this.loadToken;
     await this.audio.ready();
@@ -317,10 +322,10 @@ export class BandPractice {
       this.observedContext = this.audio.context;
       this.audio.context.addEventListener('statechange', () => { if (this.audio.context.state !== 'running' && (this.session || this.rooms.prepared)) { this.stop('Audio was interrupted. Check sound and prepare a fresh take.',true,true); this.rooms.unready('Audio interrupted.'); } });
     }
-    if (this.arrangement.audio && !this.backing && (!this.rooms.room || this.rooms.teacher)) {
+    if (this.arrangement.audio && !this.backing && this.playsClassAudio) {
       const bytes = await this.school.download(this.arrangement.audio.route), buffer = await this.audio.decodeBacking(bytes);
       if (generation !== this.school.generation || token !== this.loadToken) throw new Error('Song or account changed.');
-      this.backing = { ...this.arrangement.audio, buffer, volume: Number(this.q(this.rooms.teacher ? 'b-speaker-volume' : 'b-volume').value) / 100 };
+      this.backing = { ...this.arrangement.audio, buffer, volume: Number(this.q(this.rooms.room ? 'b-speaker-volume' : 'b-volume').value) / 100 };
     }
     if (this.backing) backingSchedule(0, this.backing.offset, this.backing.buffer.duration);
   }
@@ -341,7 +346,7 @@ export class BandPractice {
       this.rooms.unready('Audio or timing was not ready for this start.'); this.message('Missed preparation. Wait for a fresh take.'); return;
     }
     this.stop('', false); this.startedTake = room.takeId;
-    try { this.begin(this.audio.audibleTime(clock.localAt(room.startAt)), { takeId: room.takeId, teacher, clockOffset: clock.status.offset }); }
+    try { this.begin(this.audio.audibleTime(clock.localAt(room.startAt)), { takeId: room.takeId, teacher, audioOutput: this.playsClassAudio, clockOffset: clock.status.offset }); }
     catch (error) { this.stop('Playback could not start: ' + error.message); }
   }
   begin(startAt, options = {}) {
@@ -354,8 +359,8 @@ export class BandPractice {
       this.session.guide = chart.notes.findIndex(note => note.time >= from); if (this.session.guide < 0) this.session.guide = chart.notes.length;
     }
     if (options.skipCountIn) this.session.count = chart.countInBeats;
-    if (this.backing && chart.passes && (!this.rooms.room || options.teacher)) { for(const segment of backingSegments(chart,this.backing,from))this.audio.playBacking(this.backing.buffer,startAt+segment.when,segment.offset,this.backing.volume,segment.duration); }
-    else if (this.backing && (!this.rooms.room || options.teacher)) {
+    if (this.backing && chart.passes && this.playsClassAudio) { for(const segment of backingSegments(chart,this.backing,from))this.audio.playBacking(this.backing.buffer,startAt+segment.when,segment.offset,this.backing.volume,segment.duration); }
+    else if (this.backing && this.playsClassAudio) {
       const clip=backingClip(this.backing,from,chart.duration);
       if(clip)this.audio.playBacking(this.backing.buffer,startAt+clip.when,clip.offset,this.backing.volume,clip.duration);
     }
@@ -389,22 +394,25 @@ export class BandPractice {
     for (const button of this.q('b-bindings').querySelectorAll('button')) button.disabled = inputLocked;
     this.q('b-play').disabled = !!room; this.q('b-listen').disabled = !!room || !!this.session;
     this.q('b-local-volume').hidden = !!room || !(this.backing || this.arrangement.audio);
+    for (const id of ['b-click','b-singing-click','b-vocal-guide-enabled','b-sound']) this.q(id).disabled = !!room && !this.playsClassAudio;
     this.q('b-play').textContent = this.session ? '■ Stop part' : '▶ Play part'; this.q('b-full-play').textContent = this.session ? '■ Stop part' : '▶ Play part'; this.q('b-full-play').disabled = !!room;
   }
   tick() {
     const session = this.session; if (!session) return;
+    const audible = !session.takeId || session.audioOutput === true;
     const chart = session.judge.chart, time = this.audio.audibleTime() - session.startAt, horizon = this.audio.context.currentTime + (document.hidden&&canListenInBackground(session)?5:.12);
     while (session.count < chart.countInBeats) {
       const at = session.startAt + (session.from || 0) + (session.count - chart.countInBeats) * chart.countInBeatSeconds+(session.from?0:chart.countInOffset||0);
       if (at > horizon) break;
-      if ((!session.takeId || session.teacher) && at >= this.audio.context.currentTime - 0.03) this.audio.click(at, session.count === 0); session.count++;
+      if (audible && at >= this.audio.context.currentTime - 0.03) this.audio.click(at, session.count === 0); session.count++;
     }
-    while (session.beat < chart.beats.length) { const beat = chart.beats[session.beat], at = session.startAt + beat.time; if (at > horizon) break; if (this.q('b-click').checked && at >= this.audio.context.currentTime - 0.03) this.audio.click(at, beat.downbeat); session.beat++; }
-    const guides = session.teacher ? this.teacherGuide || (this.teacherGuide = this.arrangement.parts.flatMap(part => part.chart.notes.map(note => ({ ...note, instrument: part.instrument }))).sort((a,b) => a.time - b.time)) : chart.notes;
+    while (session.beat < chart.beats.length) { const beat = chart.beats[session.beat], at = session.startAt + beat.time; if (at > horizon) break; if (audible && this.q('b-click').checked && at >= this.audio.context.currentTime - 0.03) this.audio.click(at, beat.downbeat); session.beat++; }
+    const ensembleGuide = session.takeId && session.audioOutput && !this.backing;
+    const guides = ensembleGuide ? this.teacherGuide || (this.teacherGuide = this.arrangement.parts.flatMap(part => part.chart.notes.map(note => ({ ...note, instrument: part.instrument }))).sort((a,b) => a.time - b.time)) : chart.notes;
     while (session.guide < guides.length) {
       const note = guides[session.guide], at = session.startAt + note.time; if (at > horizon) break;
-      if ((session.listen || (session.teacher && !this.backing) || (!session.teacher && this.part.instrument === 'vocals' && this.q('b-vocal-guide-enabled').checked)) && at >= this.audio.context.currentTime - 0.03) {
-        if (note.pitch !== undefined && !note.muted) { const id = 'guide:' + session.guide, shift = !session.teacher && this.part.instrument === 'vocals' ? Number(this.q('b-vocal-guide-octave').value) : 0; this.piano.on(id, note.pitch + shift, 0.45, at); this.piano.off(id, at + Math.max(0.08, Math.min(this.part.instrument === 'vocals' || note.instrument === 'vocals' ? 30 : 1.5, note.duration || 0.25))); }
+      if (audible && (session.listen || (ensembleGuide && !this.backing) || (!session.teacher && this.part.instrument === 'vocals' && this.q('b-vocal-guide-enabled').checked)) && at >= this.audio.context.currentTime - 0.03) {
+        if (note.pitch !== undefined && !note.muted) { const id = 'guide:' + session.guide, vocal = ensembleGuide ? note.instrument === 'vocals' : this.part.instrument === 'vocals', shift = !session.teacher && vocal ? Number(this.q('b-vocal-guide-octave').value) : 0; this.piano.on(id, note.pitch + shift, 0.45, at); this.piano.off(id, at + Math.max(0.08, Math.min(vocal ? 30 : 1.5, note.duration || 0.25))); }
         else if(note.drum) this.audio.play(note.drum, at, 0.55);
       }
       session.guide++;
@@ -422,7 +430,7 @@ export class BandPractice {
       if(session.part.instrument==='vocals'&&session.vocalPerformance){session.vocalCompleted=true;this.stop('',false);this.singing.microphone.stop();if(session.vocalReport){if(session.takeId)this.rooms.finish({mode:'follow'});return;}}
       if (session.part.instrument === 'vocals') this.singing.microphone.stop();
       this.lastReport={...session};this.stop('',false);this.q('b-feedback').textContent='Finished following '+session.part.name+'. No performance score was recorded.';
-      this.q('b-report').hidden=false;this.q('b-report-summary').textContent=session.arrangement.title+' · '+session.part.name+' · Follow-along completed (unscored)';this.q('b-report-notes').textContent='';this.q('b-retry-save').hidden=true;this.collapse();
+      this.q('b-report').hidden=false;this.q('b-report-summary').textContent=session.arrangement.title+' · '+session.part.name+' · Follow-along completed (unscored)';this.q('b-report-notes').textContent='';this.q('b-retry-save').hidden=true;if(session.part.instrument!=='vocals'||this.singing.autoReport)this.collapse();
       this.q('b-save-state').textContent=session.takeId?'Confirming session participation…':'Follow-along complete. No performance score was recorded.';
       if(session.takeId)this.rooms.finish({mode:'follow'});return;
     }
@@ -436,8 +444,8 @@ export class BandPractice {
     if(!reached)summary.accuracy=0;
     const report=makeRunReport(judge,{instrument:session.part.instrument,elapsed,stopped,offset:this.offset});report.planned=original.chart.notes.length;report.sourceBars=session.part.chart.sourceBars || session.part.chart.bars;
     const record={id:crypto.randomUUID(),at:Date.now(),...summary,sourceKind:session.arrangement.sourceKind,sourceId:session.arrangement.id,revisionId:session.arrangement.revisionId,partId:session.part.id,partName:session.part.name,instrument:session.part.instrument,title:session.arrangement.title,bpm:chart.bpm,endBpm:chart.tempos?.at(-1)?.bpm||chart.bpm,tolerance:140,section:info?info.startBar+'–'+info.endBar:'1–'+chart.bars,repeats:info?.repeats||1,full:!stopped&&(info?.full??true),focus:session.part.instrument,stopped,report};
-    this.lastReport={...session,judge,runRecord:record,detail:report};this.collapse();this.stats(judge);this.report(this.lastReport,summary);if(reached)this.onAttempt?.(record,report);
-    if(!document.hidden)this.onReport?.(record,report);
+    this.lastReport={...session,judge,runRecord:record,detail:report};if(this.q('b-auto-report').checked!==false)this.collapse();this.stats(judge);this.report(this.lastReport,summary);if(reached)this.onAttempt?.(record,report);
+    if(this.q('b-auto-report').checked!==false&&!document.hidden)this.onReport?.(record,report);
     if(!reached && session.takeId && !stopped)this.rooms.finish(summary);
     if(!reached)this.q('b-save-state').textContent='No expected notes reached. This preview does not add a saved attempt.';
     else if(session.takeId && !stopped){this.q('b-save-state').textContent='Confirming this session result…';this.rooms.finish(summary);}

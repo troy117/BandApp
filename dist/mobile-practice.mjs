@@ -12,7 +12,7 @@ export class MobilePractice {
     this.q('score-title').after(this.soloSlot);
     this.bandSounds = this.soundGroup(this.q('b-awake-state'));
     this.soloSounds = this.soundGroup(this.q('score-awake'));
-    this.soundOptions = ['b-click', 'b-singing-click', 'b-vocal-guide-enabled', 'metronome', 'guide'].map(id => {
+    this.soundOptions = ['b-click', 'b-auto-report', 'b-singing-click', 'b-vocal-guide-enabled', 'metronome', 'guide', 'drum-auto-report'].map(id => {
       const label = this.q(id).closest('label'), home = document.createComment(id + ' home');
       label.before(home); return { id, label, home };
     });
@@ -56,14 +56,15 @@ export class MobilePractice {
     const p = this.practice, vocal = p.part.instrument === 'vocals';
     for (const { id, label, home } of this.soundOptions) {
       const band = id.startsWith('b-');
-      const show = band ? p.expanded && (id === 'b-click' ? !vocal : vocal) : soloFull;
+      const show = band ? p.expanded && (['b-click','b-auto-report'].includes(id) ? !vocal : vocal) : soloFull;
       const destination = band ? this.bandSounds : this.soloSounds;
       if (show) { if (label.parentElement !== destination) destination.append(label); }
       else if (label.parentElement !== home.parentElement) home.after(label);
     }
     const guide = this.q('b-vocal-guide-enabled');
-    guide.disabled = vocal && !p.part.chart.notes.length;
-    guide.closest('label').title = guide.disabled ? 'This song does not have a vocal melody guide yet.' : '';
+    const silentDevice = !!p.rooms.room && !p.playsClassAudio;
+    guide.disabled = silentDevice || vocal && !p.part.chart.notes.length;
+    guide.closest('label').title = silentDevice ? 'Melody guide plays only on the selected classroom audio device.' : guide.disabled ? 'This song does not have a vocal melody guide yet.' : '';
     this.bandSounds.hidden = !p.expanded; this.soloSounds.hidden = !soloFull;
   }
   async poll() {

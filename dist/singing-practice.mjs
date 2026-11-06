@@ -20,7 +20,7 @@ export function singingMarkup() {
       <div class="singing-note-pair"><div><span>Target</span><strong id="b-pitch-wanted">—</strong></div><strong id="b-pitch-feedback" role="status" aria-live="polite">Sing with the lyrics</strong><div><span>You</span><strong id="b-pitch-heard">—</strong></div></div>
       <div class="singing-meter" aria-hidden="true"><span class="singing-center"></span><span id="b-pitch-dot" hidden></span></div><div class="singing-meter-labels" aria-hidden="true"><span>Too low</span><span>On pitch</span><span>Too high</span></div><p id="b-pitch-hint">Enable your microphone when you’re ready for pitch feedback.</p>
     </section>
-    <aside id="b-vocal-side-meter" class="vocal-side-meter" aria-label="Live singing pitch"><span>Pitch</span><strong id="b-vocal-side-label" role="status">Mic off</strong><div class="vocal-side-track" aria-hidden="true"><span>High</span><i></i><b id="b-vocal-side-dot" hidden></b><span>Low</span></div><small>Target <b id="b-vocal-side-target">—</b></small><small>You <b id="b-vocal-side-heard">—</b></small></aside><div class="singing-player"><p id="b-singing-error" class="singing-play-error" role="alert" hidden></p><label class="singing-seek-label" for="b-singing-seek">Song position <span id="b-singing-time">0:00 / 0:00</span></label><input id="b-singing-seek" type="range" min="0" max="1" step="0.1" value="0"><div class="singing-player-buttons"><button id="b-singing-back" class="button secondary" aria-label="Practice this lyric line again">↶ Try line again</button><button id="b-singing-play" class="button primary">▶ Play song</button></div><button id="b-singing-report" class="text-button" hidden>View pitch report</button><button id="b-singing-next" class="text-button">Skip to next vocal line →</button><p id="b-singing-room" class="band-help" hidden>Your teacher controls playback in this session.</p></div>
+    <aside id="b-vocal-side-meter" class="vocal-side-meter" aria-label="Live singing pitch"><span>Pitch</span><strong id="b-vocal-side-label" role="status">Mic off</strong><div class="vocal-side-track" aria-hidden="true"><span>High</span><i></i><b id="b-vocal-side-dot" hidden></b><span>Low</span></div><small>Target <b id="b-vocal-side-target">—</b></small><small>You <b id="b-vocal-side-heard">—</b></small></aside><div class="singing-player"><p id="b-singing-error" class="singing-play-error" role="alert" hidden></p><label class="singing-seek-label" for="b-singing-seek">Song position <span id="b-singing-time">0:00 / 0:00</span></label><input id="b-singing-seek" type="range" min="0" max="1" step="0.1" value="0"><div class="singing-player-buttons"><button id="b-singing-back" class="button secondary" aria-label="Practice this lyric line again">↶ Try line again</button><button id="b-singing-play" class="button primary">▶ Play song</button><button id="b-singing-stop" class="button secondary" title="Stop and return to the beginning">■ Stop</button></div><label class="band-check singing-auto-report"><input id="b-singing-auto-report" type="checkbox" checked>Show report automatically</label><button id="b-singing-report" class="text-button" hidden>View pitch report</button><button id="b-singing-next" class="text-button">Skip to next vocal line →</button><p id="b-singing-room" class="band-help" hidden>Your teacher controls playback in this session.</p></div>
     <details id="b-singing-settings" class="singing-details"><summary>Sound &amp; pitch settings</summary>${warmupMarkup()}<p class="band-help">Use headphones and keep your phone nearby. One voice works best. Pitch reports save to your practice history. Microphone audio stays on this device.</p><label class="band-check"><input id="b-singing-click" type="checkbox" checked>Metronome</label><label class="singing-setting" id="b-singing-volume-label" for="b-singing-volume">Background volume <output id="b-singing-volume-value">65%</output><input id="b-singing-volume" type="range" min="0" max="100" value="65"></label><label class="singing-setting">Singing range<select id="b-vocal-range"><option value="any">My comfortable octave</option><option value="exact">Exact written octave</option></select></label><p class="band-help">Comfortable octave follows the same melody higher or lower, so you can sing in your own range.</p><label class="singing-setting">Melody guide octave (sound)<select id="b-vocal-guide-octave"><option value="-24">Two octaves lower</option><option value="-12">One octave lower</option><option value="0" selected>Written octave</option><option value="12">One octave higher</option><option value="24">Two octaves higher</option></select></label><label class="singing-setting">Extra microphone delay <span id="b-vocal-delay-label">0 ms</span><input id="b-vocal-delay" type="range" min="0" max="300" step="10" value="0"></label><button id="b-vocal-delay-reset" class="text-button">Reset extra delay</button><p id="b-vocal-latency" class="band-help">Enable the mic to check its input delay.</p><p class="band-help">Use Check timing beside the mic to set the delay automatically. To fine-tune it, pause and increase extra delay if your voice trail lands late. If it lands early, reduce it. This is saved on this device; recheck after changing headsets. The live dot stays on the sing line. Wired headphones usually respond faster than Bluetooth.</p></details>
     <details id="b-vocal-melody-panel" class="singing-details" hidden><summary>Melody &amp; sheet music</summary><div class="band-row"><p id="b-vocal-target"></p><label class="band-check"><input id="b-vocal-guide-enabled" type="checkbox">Melody guide</label></div><canvas id="b-vocal-melody" aria-label="Vocal melody on a treble staff with note names and hold lengths"></canvas><p class="band-help">Follow the green line. Shaded tails show how long to hold. Headphones keep the guide out of your microphone.</p></details>
   </div>`;
@@ -43,6 +43,9 @@ export class SingingPractice {
     q('b-vocal-volume-slot').append(q('b-singing-volume-label'));
     this.highway = new VocalHighway(q('b-vocal-highway-canvas'));
     this.preferredView = 'highway';
+    try { q('b-singing-auto-report').checked = localStorage.getItem('groove-vocal-auto-report-v1') !== 'false'; } catch {}
+    q('b-singing-auto-report').title = 'Uncheck to stay in practice after pausing, stopping or finishing. Pitch reports still save and can be opened with View pitch report.';
+    q('b-singing-auto-report').onchange = () => { try { localStorage.setItem('groove-vocal-auto-report-v1', String(q('b-singing-auto-report').checked)); } catch {} };
     try { if (localStorage.getItem('groove-vocal-view-v1') === 'lyrics') this.preferredView = 'lyrics'; } catch {}
     for (const button of q('b-vocal-views').querySelectorAll('[data-vocal-view]')) button.onclick = () => {
       this.preferredView = button.dataset.vocalView; this.setView(this.preferredView);
@@ -53,6 +56,7 @@ export class SingingPractice {
     q('b-vocal-mic').onclick = () => ['requesting', 'listening'].includes(this.microphone.state) ? this.microphone.stop() : practice.attempt(async () => { await Promise.all([practice.audio.ready(), this.microphone.start()]); if (this.microphone.state === 'listening') { await practice.audio.ready(); await this.calibration.microphoneChanged('listening'); } });
     q('b-singing-play').onclick = () => { if (!practice.session && !practice.expanded && !practice.rooms.room && window.matchMedia('(max-width:600px)').matches) practice.expand(); practice.attempt(() => practice.play()); };
     q('b-singing-back').onclick = () => practice.attempt(() => this.seek(this.lineStart(), true));
+    q('b-singing-stop').onclick = () => this.stopAtBeginning();
     q('b-singing-next').onclick = () => { const next = this.nextLine(); if (next) practice.attempt(() => this.seek(Math.max(0, next.time - 2), true)); };
     q('b-singing-seek').onchange = () => practice.attempt(() => this.seek(Number(q('b-singing-seek').value), !!practice.session));
     q('b-singing-seek').onpointerdown = () => { this.scrubbing = true; };
@@ -104,6 +108,15 @@ export class SingingPractice {
     return Math.max(0, (cue?.time || 0) - 2);
   }
   nextLine() { return this.practice.part.chart.lyrics?.find(cue => cue.time > Math.max(0, this.time()) + .1); }
+  get autoReport() { return this.q('b-singing-auto-report').checked !== false; }
+  stopAtBeginning() {
+    if (this.practice.rooms.room) return;
+    // Cancel an in-flight Play too, so a slow audio download cannot restart it.
+    this.generation = (this.generation || 0) + 1; this.busy = false;
+    this.practice.stop('Stopped. Ready from the beginning.');
+    this.position = 0; this.paused = false; this.scrubbing = false;
+    this.q('b-singing-seek').value = '0'; this.q('b-singing-error').hidden = true;
+  }
   async toggle() {
     const p = this.practice;
     this.warmup?.stop(); this.calibration?.stop();
@@ -143,11 +156,11 @@ export class SingingPractice {
     this.q('b-singing-report').hidden=false;
     this.q('b-report').hidden=false;this.q('b-report-summary').textContent=Math.round(summary.accuracy)+'% on pitch · '+summary.measuredSeconds.toFixed(1)+' seconds measured';
     this.q('b-report-notes').textContent='Open your pitch report to see on-pitch phrases, low/high singing and quiet or unclear input.';
-    this.q('b-retry-save').hidden=true;p.collapse();p.onAttempt?.(record,report);
+    this.q('b-retry-save').hidden=true;if(this.autoReport)p.collapse();p.onAttempt?.(record,report);
     if(session.accountId&&p.school.user?.id===session.accountId&&['duet','school'].includes(record.sourceKind)){
       p.pendingResult={accountId:session.accountId,id:record.id,sourceKind:record.sourceKind,sourceId:record.sourceId,revisionId:record.revisionId,backingId:record.backingId,partId:record.partId,startBar:record.playbackStartBar,report};p.saveResult();
     }else this.q('b-save-state').textContent='Pitch report kept in this browser. Microphone audio was not recorded.';
-    if(!document.hidden)p.onReport?.(record,report);
+    if(this.autoReport&&!document.hidden)p.onReport?.(record,report);
     return report;
   }
   drawPerformance(session,time) {
@@ -183,10 +196,11 @@ export class SingingPractice {
   draw(chart, time, playing) {
     const p = this.practice, q = this.q, room = !!p.rooms.room;
     q('b-singing-report').hidden=playing||!this.lastVocal;
-    q('b-singing-play').textContent = this.busy ? 'Loading song…' : playing ? (this.microphone.state==='listening'?'Ⅱ Pause & report':'Ⅱ Pause') : this.paused ? '▶ Continue' : '▶ Play song';
+    q('b-singing-play').textContent = this.busy ? 'Loading song…' : playing ? 'Ⅱ Pause' : this.paused ? '▶ Continue' : '▶ Play song';
     for (const id of ['b-singing-play', 'b-singing-back', 'b-singing-seek']) q(id).disabled = room || this.busy || !!this.calibration?.busy;
+    q('b-singing-stop').disabled = room;
     const next = this.nextLine(); q('b-singing-next').disabled = room || this.busy || !next;
-    q('b-singing-room').hidden = !room; q('b-singing-volume-label').hidden = room || !(p.backing || p.arrangement.audio);
+    q('b-singing-room').hidden = !room; if(room)q('b-singing-room').textContent = 'Your teacher controls playback. Classroom audio: ' + p.rooms.room.audioDeviceName + '.'; q('b-singing-volume-label').hidden = room || !(p.backing || p.arrangement.audio);
     q('b-singing-click').checked = q('b-click').checked;
     const position = Math.min(chart.duration, Math.max(0, time));
     q('b-singing-seek').max = chart.duration;

@@ -34,6 +34,14 @@ test('singing pause/continue retains song position, retry uses a lead-in and jam
   await singing.seek(singing.lineStart(), true); assert.equal(started[1].options.from, 3); assert.equal(started[1].options.skipCountIn, false); assert.ok(Math.abs(started[1].at - 19.15) < .001);
   p.rooms.room = {}; await singing.seek(15, true); assert.equal(started.length, 2);
 });
+test('vocal Stop rewinds paused playback and cancels a pending audio preparation without autoplay',async()=>{
+ let prepared;const fields={},started=[],p={token:0,active:true,rooms:{},school:{},part:{instrument:'vocals',chart:{duration:30,countInBeats:4,countInBeatSeconds:.5}},audio:{context:{currentTime:10}},prepareAudio:()=>new Promise(resolve=>{prepared=resolve;}),stop(){this.token++;this.session=null;singing.stopped();},begin:()=>started.push('play')};
+ const singing=Object.assign(Object.create(SingingPractice.prototype),{practice:p,q:id=>fields[id]||={},position:8,paused:true,generation:1,busy:false});
+ const pending=singing.toggle();assert.equal(singing.busy,true);
+ singing.stopAtBeginning();assert.equal(singing.position,0);assert.equal(singing.paused,false);assert.equal(singing.busy,false);assert.equal(fields['b-singing-seek'].value,'0');
+ prepared();await pending;assert.deepEqual(started,[]);
+ p.rooms.room={id:'shared'};singing.position=5;singing.stopAtBeginning();assert.equal(singing.position,5);
+});
 test('vocal seek schedules the correct backing segment and skips old metronome/melody events', t => {
   const previous = globalThis.document; globalThis.document = { hidden: false }; t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });
   const part = builtinArrangement('band-first').parts.find(part => part.instrument === 'vocals'), chart = part.chart;

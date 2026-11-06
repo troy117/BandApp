@@ -4,6 +4,8 @@ import { BandPractice } from '../dist/band-practice.mjs';
 import { PitchJudge, SessionClock, DEFAULT_PIANO_BINDINGS } from '../dist/instruments.mjs';
 import { builtinArrangement } from '../dist/arrangements.mjs';
 import { PianoVoices } from '../dist/piano-audio.mjs';
+import { Judge } from '../dist/engine.mjs';
+import { isSessionAudioDevice, defaultSessionAudioUserId } from '../dist/session-audio.mjs';
 
 function bandDocument(t, document) {
   const previous=globalThis.document;globalThis.document=document;
@@ -57,4 +59,46 @@ test('scheduled piano guide voices remain cancellable through release and Stop',
   const piano=new PianoVoices(audio);piano.on('guide',60,0.7,11);piano.off('guide',11.5);
   assert.equal(audio.sources.size,1);assert.equal(piano.active.size,1);piano.clear();assert.equal(voices[0].stopped,undefined);
   voices[0].onended();assert.equal(piano.active.size,0);assert.equal(audio.sources.size,0);
+});
+
+test('classroom audio defaults to the drummer, falls back to teacher, and is exclusive',()=>{
+ const people=[{userId:'singer',instrument:'vocals'},{userId:'drummer',instrument:'drums'}];
+ assert.equal(defaultSessionAudioUserId(people,'teacher'),'drummer');assert.equal(defaultSessionAudioUserId(people.slice(0,1),'teacher'),'teacher');
+ const room={teacherId:'teacher',audioUserId:'drummer'};
+ assert.equal(isSessionAudioDevice(room,'drummer'),true);assert.equal(isSessionAudioDevice(room,'teacher'),false);assert.equal(isSessionAudioDevice(room,'singer'),false);assert.equal(isSessionAudioDevice(null,null),true);
+});
+
+test('only the selected jam device downloads backing; silent devices still activate their clock',async()=>{
+ for(const userId of ['teacher','drummer','singer']){
+  const calls=[],room={teacherId:'teacher',audioUserId:'drummer'},audio={context:{state:'running'},ready:async()=>calls.push('clock'),decodeBacking:async()=>({duration:20})};
+  const p=Object.assign(Object.create(BandPractice.prototype),{school:{generation:1,user:{id:userId},download:async()=>{calls.push('download');return new ArrayBuffer(0);}},rooms:{room},audio,observedContext:audio.context,loadToken:1,arrangement:{audio:{route:'/backing',offset:0}},q:()=>({value:65})});
+  await p.prepareAudio();assert.deepEqual(calls,userId==='drummer'?['clock','download']:['clock']);
+ }
+});
+test('silent jam keyboard input still scores locally without playing an app tone',t=>{
+ bandDocument(t,{querySelector:()=>null});const chart=builtinArrangement().parts[1].chart,now=performance.now(),judge=new PitchJudge(chart),sounds=[];
+ const p=Object.assign(Object.create(BandPractice.prototype),{mode:'jam',school:{user:{id:'keys'}},part:{instrument:'keyboard'},rooms:{room:{teacherId:'teacher',audioUserId:'drummer'}},held:new Map(),piano:{on:()=>sounds.push('note'),off(){}},token:1,offset:0,highlight(){},stats(){},audio:{context:{state:'running'},audibleTime:stamp=>stamp/1000},q:()=>({checked:true}),session:{judge,startAt:now/1000}});
+ p.input(60,now,'midi',.7,'midi-note');assert.equal(judge.summary().hits,1);assert.deepEqual(sounds,[]);
+});
+
+test('shared backing, count-in, metronome and synthesized guides play only on the chosen device',t=>{
+ bandDocument(t,{hidden:false});
+ for(const userId of ['teacher','drummer','singer'])for(const withBacking of [true,false]){
+  const room={teacherId:'teacher',audioUserId:'drummer'},arrangement=builtinArrangement(),part=arrangement.parts[0],calls=[],fields={};
+  const p=Object.assign(Object.create(BandPractice.prototype),{school:{user:{id:userId}},rooms:{room,progress(){}},arrangement,part,audio:{context:{currentTime:0},audibleTime:()=>0,playBacking:()=>calls.push('backing'),click:()=>calls.push('click'),play:()=>calls.push('drum')},piano:{on:()=>calls.push('note'),off(){}},q:id=>fields[id]||={checked:true,scrollIntoView(){}},playChart:()=>part.chart,lockControls(){},stats(){},expanded:true,offset:0,backing:withBacking?{buffer:{duration:100},offset:0,volume:.5}:null});
+  p.begin(part.chart.countInBeats*part.chart.countInBeatSeconds,{takeId:'take',teacher:userId==='teacher',audioOutput:p.playsClassAudio});
+  p.tick();p.audio.context.currentTime=p.session.startAt;p.tick();
+  if(userId==='drummer'){assert.ok(calls.includes('click'));assert.ok(calls.includes(withBacking?'backing':'drum'));}else assert.deepEqual(calls,[]);
+ }
+});
+
+test('keyboard and jam-drum reports remain available when automatic display is disabled',t=>{
+ bandDocument(t,{hidden:false});
+ for(const instrument of ['keyboard','drums']){
+  const arrangement=builtinArrangement(),part=arrangement.parts.find(p=>p.instrument===instrument),judge=instrument==='keyboard'?new PitchJudge(part.chart):new Judge(part.chart),calls=[],fields={'b-auto-report':{checked:false}};
+  judge.advance(Infinity);
+  const p=Object.assign(Object.create(BandPractice.prototype),{school:{},part,offset:0,q:id=>fields[id]||={},collapse:()=>calls.push('collapse'),onReport:()=>calls.push('popup'),onAttempt:()=>calls.push('remember'),stats(){},report(){}});
+  p.captureAttempt({judge,part,arrangement,accountId:null},false,part.chart.duration);
+  assert.deepEqual(calls,['remember']);assert.ok(p.lastReport.detail.notes.length>0);
+ }
 });

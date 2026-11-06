@@ -1,5 +1,7 @@
 # Teacher led band sessions
 
+Prototype 32 replaces the pilot's teacher-only speaker routing below. The teacher can choose one joined participant's device for classroom audio, with new rooms defaulting to the drummer. Other devices follow silently. Read [playback controls and classroom audio](PLAYBACK_CONTROLS.md) for current setup, report preferences and interruption behavior.
+
 Updated October 22, 2026 for Prototype 12.
 
 Prototype 12 expands the completed drum/keyboard pilot below to 1–8 students. Guitar, bass and vocals follow the shared transport without input or performance scores. Guitar/bass have string-and-fret highways and suggested tablature; vocals use embedded or teacher-supplied timed lyrics. An original five-part warm-up is included. Existing school songs can gain these parts through Edit instrument parts without replacing their identity/backing. Completed follow-along participation is retained in grouped takes separately from scored drum/keyboard practice runs. Read [GUITAR_BASS_VOCALS.md](GUITAR_BASS_VOCALS.md) for setup, supported formats, research and the next milestones. The physical classroom trial remains outstanding.

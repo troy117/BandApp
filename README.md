@@ -8,6 +8,8 @@ Continuing development on another computer: start with [the handoff and next ste
 
 Singing practice runs pitch detection locally on the student’s phone. The optional **Check timing** beside Mic measures headphone delay with a short acoustic test and applies it automatically. See [how to use it and how recognition works](docs/MICROPHONE_TIMING.md).
 
+Prototype 32 adds vocal Stop/rewind, automatic-report controls for vocals/drums/keyboard, and teacher selection of one classroom audio device (defaulting to the drummer). See [playback controls and classroom audio](docs/PLAYBACK_CONTROLS.md).
+
 ## Run locally
 
 To generate a standalone copy from a fresh source checkout, run `npm run standalone`. On Windows, double-click **Open Groove Lab.cmd**, or open **artifacts/Groove Lab.html** in Chrome. The standalone copy includes all code, styles, and synthesized audio and needs no server or internet connection. Regenerate it after source changes. Generated files are excluded from Git.
